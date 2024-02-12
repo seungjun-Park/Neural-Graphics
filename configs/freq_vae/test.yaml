@@ -4,11 +4,11 @@ module:
     in_channels: 6
     in_resolutions: 512
     out_channels: 6
-    hidden_dims: [32, 64, 128, 256, 512]
+    hidden_dims: [64, 128, 256, 512]
     latent_dim: 8
     z_channels: 16
     dim: 2
-    act: 'relu'
+    act: 'sine'
     kl_weight: 1e-5
     lr: 2e-5
     weight_decay: 0.

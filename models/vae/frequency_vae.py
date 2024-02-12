@@ -6,57 +6,10 @@ import pytorch_lightning as pl
 
 from typing import List, Dict
 
-from modules.utils import activation_func, conv_nd, max_pool_nd, batch_norm_nd
-
-
-class DownBlock(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 dim=2,
-                 act='relu',
-                 *args,
-                 **kwargs,
-                 ):
-        super().__init__(*args, **kwargs)
-
-        layer = [
-            batch_norm_nd(dim=dim, num_features=in_channels),
-            activation_func(act),
-            conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1),
-            max_pool_nd(dim=dim, kernel_size=2, stride=2)
-        ]
-
-        self.layer = nn.Sequential(*layer)
-
-    def forward(self, x):
-        return self.layer(x)
-
-
-class UpBlock(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 mode='nearest',
-                 dim=2,
-                 act='relu',
-                 *args,
-                 **kwargs,
-                 ):
-        super().__init__(*args, **kwargs)
-
-        self.mode = mode
-        layer = [
-            batch_norm_nd(dim=dim, num_features=in_channels),
-            activation_func(act),
-            conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1),
-        ]
-
-        self.layer = nn.Sequential(*layer)
-
-    def forward(self, x):
-        x = F.interpolate(x, scale_factor=2.0, mode=self.mode)
-        return self.layer(x)
+from modules.utils import conv_nd, batch_norm_nd, activation_func
+from modules.vae.down import DownBlock
+from modules.vae.res_block import ResidualBlock
+from modules.vae.up import UpBlock
 
 
 class FrequencyVAE(pl.LightningModule):
@@ -76,6 +29,7 @@ class FrequencyVAE(pl.LightningModule):
                  high_freq_weight=1.0,
                  low_freq_weight=1.0,
                  log_interval=100,
+                 dropout=0.1,
                  *args,
                  **kwargs,
                  ):
@@ -99,55 +53,75 @@ class FrequencyVAE(pl.LightningModule):
 
         for hidden_dim in hidden_dims:
             encoder += [
-                DownBlock(
+                ResidualBlock(
                     in_channels=in_ch,
                     out_channels=hidden_dim,
-                    dim=dim,
+                    dropout=dropout,
                     act=act,
+                    dim=dim
+                ),
+                DownBlock(
+                    in_channels=hidden_dim,
+                    dim=dim,
                 )
             ]
             in_ch = hidden_dim
+
         encoder += [
-            DownBlock(
+            ResidualBlock(
                 in_channels=in_ch,
-                out_channels=z_channels,
-                dim=dim,
+                out_channels=in_ch,
+                dropout=dropout,
                 act=act,
-            )
+                dim=dim,
+            ),
+            batch_norm_nd(dim=dim, num_features=in_ch),
+            activation_func(act),
+            conv_nd(dim=dim, in_channels=in_ch, out_channels=z_channels, kernel_size=3, stride=1, padding=1)
         ]
-        in_ch = z_channels
+
         self.encoder = nn.Sequential(*encoder)
 
         self.in_resolutions = in_resolutions
-        self.mean = nn.Conv2d(in_ch, latent_dim, 1)
-        self.logvar = nn.Conv2d(in_ch, latent_dim, 1)
+        self.mean = conv_nd(dim=dim, in_channels=z_channels, out_channels=latent_dim, kernel_size=1)
+        self.logvar = conv_nd(dim=dim, in_channels=z_channels, out_channels=latent_dim, kernel_size=1)
 
         decoder = list()
         hidden_dims.reverse()
-        in_ch = latent_dim
 
         decoder += [
-            UpBlock(
+            conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1),
+            conv_nd(dim=dim, in_channels=z_channels, out_channels=in_ch, kernel_size=3, stride=1, padding=1),
+            ResidualBlock(
                 in_channels=in_ch,
-                out_channels=z_channels,
-                dim=dim,
+                out_channels=in_ch,
+                dropout=dropout,
                 act=act,
+                dim=dim,
             )
         ]
-        in_ch = z_channels
 
         for hidden_dim in hidden_dims:
             decoder += [
                 UpBlock(
                     in_channels=in_ch,
-                    out_channels=hidden_dim,
                     dim=dim,
-                    act=act
+                ),
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=hidden_dim,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
                 )
             ]
             in_ch = hidden_dim
 
-        decoder += [conv_nd(dim=dim, in_channels=in_ch, out_channels=out_channels, kernel_size=3, stride=1, padding=1)]
+        decoder += [
+            batch_norm_nd(dim=dim, num_features=in_ch),
+            activation_func(act),
+            conv_nd(dim=dim, in_channels=in_ch, out_channels=out_channels, kernel_size=3, stride=1, padding=1),
+        ]
         self.decoder = nn.Sequential(*decoder)
 
     def forward(self, mag_and_ang):
@@ -169,7 +143,7 @@ class FrequencyVAE(pl.LightningModule):
 
         recon_mag_and_ang, mean, logvar = self(mag_and_ang)
         recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
-        recon_freq = recon_mag * torch.exp(-1j * recon_ang)
+        recon_freq = recon_mag * torch.exp(1j * recon_ang)
 
         # loss = self.freq_loss(freq, recon_freq) + self.kl(mean, logvar)
 
@@ -195,11 +169,11 @@ class FrequencyVAE(pl.LightningModule):
 
         recon_mag_and_ang, mean, logvar = self(mag_and_ang)
         recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
-        recon_freq = recon_mag * torch.exp(-1j * recon_ang)
-
+        recon_freq = recon_mag * torch.exp(1j * recon_ang)
+        recon_img = self.freq_to_img(recon_freq)
         # loss = self.freq_loss(freq, recon_freq) + self.kl(mean, logvar)
 
-        loss = F.mse_loss(mag_and_ang, recon_mag_and_ang) + self.kl(mean, logvar)
+        loss = F.mse_loss(img, recon_img) + self.kl(mean, logvar)
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
@@ -288,7 +262,7 @@ class FrequencyVAE(pl.LightningModule):
 
         high_freq_loss = (F.mse_loss(target_high_mag, pred_high_mag) + F.mse_loss(target_high_ang, pred_high_ang)) * self.high_freq_weight
 
-        return low_freq_loss + high_freq_loss
+        #return low_freq_loss + high_freq_loss
 
     def reparameterization(self, mean, logvar):
         x = mean + torch.sqrt(torch.exp(logvar)) * torch.randn(mean.shape).to(device=mean.device)
