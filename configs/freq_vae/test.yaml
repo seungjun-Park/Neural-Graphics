@@ -1,0 +1,68 @@
+module:
+  target: models.vae.frequency_vae.FrequencyVAE
+  params:
+    in_channels: 6
+    in_resolutions: 512
+    out_channels: 6
+    hidden_dims: [32, 64, 128, 256, 512]
+    latent_dim: 8
+    z_channels: 16
+    dim: 2
+    act: 'relu'
+    kl_weight: 1e-5
+    lr: 2e-5
+    weight_decay: 0.
+    freq_pass_eps: 0.3
+    high_freq_weight: 1.0
+    low_freq_weight: 1.0
+    log_interval: 100
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 2
+    batch_size: 1
+    wrap: True
+    train:
+      target: modules.datasets.genshin_impact.GenshinImpactDataset
+      params:
+        root: './datasets/genshin_impact'
+        train: True
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [512, 512]
+
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'freqVAE'
+    version: 'test'
+
+
+checkpoints:
+  latest_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/freqVAE/test'
+      filename: 'freqVAE'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+
+#  best_checkpoint:
+#    target: pytorch_lightning.callbacks.ModelCheckpoint
+#    params:
+#      dirpath: './checkpoints/ddpm/fashion_mnist/linear/l2'
+#      filename: 'ddpm_best_loss'
+#      monitor: 'val/loss'
+#      mode: 'min'
+#      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 5

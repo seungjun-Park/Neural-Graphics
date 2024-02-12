@@ -13,6 +13,7 @@ dependencies:
   - pytorch-cuda=11.8
   - numpy
   - pip:
+      - sk
       - opencv-python
       - pudb
       - imageio
@@ -24,6 +25,8 @@ dependencies:
       - transformers
       - configargparse
       - lmdb
+      - tensorboardX
+      - tensorboard
       - -e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
       - -e git+https://github.com/openai/CLIP.git@main#egg=clip
       - -e .

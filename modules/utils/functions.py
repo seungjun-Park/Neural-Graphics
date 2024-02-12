@@ -1,0 +1,103 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from .activation import Sine, Cosine
+
+
+def conv_nd(dim=2, *args, **kwargs):
+    if dim == 1:
+        return nn.Conv1d(*args, **kwargs)
+
+    elif dim == 2:
+        return nn.Conv2d(*args, **kwargs)
+
+    elif dim == 3:
+        return nn.Conv3d(*args, **kwargs)
+
+    else:
+        NotImplementedError("The dims should have a value between 1 and 3.")
+
+
+def avg_pool_nd(dim=2, *args, **kwargs):
+    if dim == 1:
+        return nn.AvgPool1d(*args, **kwargs)
+
+    elif dim == 2:
+        return nn.AvgPool2d(*args, **kwargs)
+
+    elif dim == 3:
+        return nn.AvgPool3d(*args, **kwargs)
+
+    else:
+        NotImplementedError("The dims should have a value between 1 and 3.")
+
+
+def max_pool_nd(dim=2, *args, **kwargs):
+    if dim == 1:
+        return nn.MaxPool1d(*args, **kwargs)
+
+    elif dim == 2:
+        return nn.MaxPool2d(*args, **kwargs)
+
+    elif dim == 3:
+        return nn.MaxPool3d(*args, **kwargs)
+
+    else:
+        NotImplementedError("The dims should have a value between 1 and 3.")
+
+
+def batch_norm_nd(dim=2, *args, **kwargs):
+    if dim == 1:
+        return nn.BatchNorm1d(*args, **kwargs)
+
+    elif dim == 2:
+        return nn.BatchNorm2d(*args, **kwargs)
+
+    elif dim == 3:
+        return nn.BatchNorm3d(*args, **kwargs)
+
+    else:
+        NotImplementedError("The dims should have a value between 1 and 3.")
+
+
+def activation_func(name='relu', *args, **kwargs):
+    name = name.lower()
+
+    if name == 'relu':
+        return nn.ReLU(*args, **kwargs)
+
+    elif name == 'softplus':
+        return nn.Softplus(*args, **kwargs)
+
+    elif name == 'silu':
+        return nn.SiLU(*args, **kwargs)
+
+    elif name == 'sigmoid':
+        return nn.Sigmoid(*args, **kwargs)
+
+    elif name == 'tanh':
+        return nn.Tanh(*args, **kwargs)
+
+    elif name == 'hard_tanh':
+        return nn.Hardtanh(*args, **kwargs)
+
+    elif name == 'leaky_relu':
+        return nn.LeakyReLU(*args, **kwargs)
+
+    elif name == 'elu':
+        return nn.ELU(*args, **kwargs)
+
+    elif name == 'gelu':
+        return nn.GELU(*args, **kwargs)
+
+    elif name == 'mish':
+        return nn.Mish(*args, **kwargs)
+
+    elif name == 'sine':
+        return Sine(*args, **kwargs)
+
+    elif name == 'cosine':
+        return Cosine(*args, **kwargs)
+
+    else:
+        NotImplementedError(f'Activation function "{name}" is not supported.')
