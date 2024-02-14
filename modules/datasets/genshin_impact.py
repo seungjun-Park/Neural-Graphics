@@ -35,6 +35,9 @@ class GenshinImpactDataset(Dataset):
         else:
             self.target_transform = None
 
+        if isinstance(root, str):
+            root = os.path.expanduser(root)
+
         if train:
             root = os.path.join(root, 'train')
         else:
