@@ -176,7 +176,7 @@ class FrequencyVAE(pl.LightningModule):
 
             layer.append(UpBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
 
-            for j in range(num_res_blocks):
+            for j in range(num_res_blocks + 1):
                 layer.append(ResidualBlock(in_channels=in_ch,
                                            out_channels=out_ch,
                                            dropout=dropout,
