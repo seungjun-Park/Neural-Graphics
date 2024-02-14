@@ -13,7 +13,6 @@ dependencies:
   - pytorch-cuda=11.8
   - numpy
   - pip:
-      - sk
       - opencv-python
       - pudb
       - imageio
