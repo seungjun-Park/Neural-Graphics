@@ -27,7 +27,7 @@ data:
     train:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
-        root: './datasets/genshin_impact'
+        root: '/local_datasets/genshin_impact'
         train: True
         transform_configs:
           transforms:
@@ -39,7 +39,7 @@ data:
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
-        root: './datasets/genshin_impact'
+        root: '/local_datasets/genshin_impact'
         train: False
         transform_configs:
           transforms:
