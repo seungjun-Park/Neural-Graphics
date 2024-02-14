@@ -3,9 +3,9 @@ module:
   params:
     in_channels: 3
     out_channels: 3
-    hidden_dims: [64, 128, 256, 512]
-    latent_dim: 8
-    z_channels: 16
+    hidden_dims: [128, 256, 512, 512]
+    latent_dim: 4
+    z_channels: 4
     num_res_blocks: 2
     num_head_channels: 32
     dim: 2
