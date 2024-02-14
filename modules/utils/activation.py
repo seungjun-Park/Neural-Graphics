@@ -14,7 +14,7 @@ class Sine(nn.Module):
         self.eps = eps
 
     def forward(self, x):
-        return torch.sin(self.eps * x)
+        return torch.sin(30 * x)
 
 
 class Cosine(nn.Module):
@@ -28,4 +28,4 @@ class Cosine(nn.Module):
         self.eps = eps
 
     def forward(self, x):
-        return torch.cos(self.eps * x)
+        return torch.cos(30 * x)
