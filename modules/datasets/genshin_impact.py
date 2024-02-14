@@ -38,9 +38,14 @@ class GenshinImpactDataset(Dataset):
         if isinstance(root, str):
             root = os.path.expanduser(root)
 
+<<<<<<< HEAD
         root = os.path.join(root, self.__class__.__name__, "raw")
 
         print(f'current dataset folder: {root}')
+=======
+        file_names = glob.glob(f'{root}/*/', recursive=True)
+        print(file_names)
+>>>>>>> 95d8d29 (modified genshin impact datasets.)
 
         if train:
             root = os.path.join(root, 'train')
