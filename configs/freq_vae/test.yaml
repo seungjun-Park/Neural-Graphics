@@ -9,7 +9,7 @@ module:
     num_res_blocks: 2
     num_head_channels: 32
     dim: 2
-    act: 'sine'
+    act: 'leaky_relu'
     kl_weight: 1e-5
     lr: 1e-4
     weight_decay: 0.
