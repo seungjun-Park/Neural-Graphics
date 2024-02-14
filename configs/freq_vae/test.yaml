@@ -36,18 +36,6 @@ data:
               params:
                 size: [256, 256]
 
-    validation:
-      target: modules.datasets.genshin_impact.GenshinImpactDataset
-      params:
-        root: '/local_datasets/genshin_impact'
-        train: False
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 256, 256 ]
-
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger

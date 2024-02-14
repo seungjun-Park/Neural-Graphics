@@ -161,9 +161,11 @@ cython_debug/
 ./datasets/*
 
 
-datasets/
+./datasets/
 logs/
 src/
 .vscode/
 *.sh
 slurm/
+*.tar
+*.jpg
