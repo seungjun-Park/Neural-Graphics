@@ -35,12 +35,6 @@ class GenshinImpactDataset(Dataset):
         else:
             self.target_transform = None
 
-        if isinstance(root, str):
-            root = os.path.expanduser(root)
-
-        file_names = glob.glob(f'{root}/*/', recursive=True)
-        print(file_names)
-
         if train:
             root = os.path.join(root, 'train')
         else:
