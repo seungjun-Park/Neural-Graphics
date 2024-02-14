@@ -22,8 +22,8 @@ module:
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
-    num_workers: 2
-    batch_size: 1
+    num_workers: 4
+    batch_size: 5
     wrap: True
     train:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
@@ -36,6 +36,17 @@ data:
             - target: torchvision.transforms.transforms.Resize
               params:
                 size: [256, 256]
+    validation:
+      target: modules.datasets.genshin_impact.GenshinImpactDataset
+      params:
+        root: '/local_datasets/genshin_impact'
+        train: False
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 256, 256 ]
 
 
 logger:
