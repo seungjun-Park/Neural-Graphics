@@ -36,11 +36,11 @@ class GenshinImpactDataset(Dataset):
             self.target_transform = None
 
         if isinstance(root, str):
-<<<<<<< HEAD
-            root = os.path.join(root, self.__class__.__name__, "raw")
-=======
             root = os.path.expanduser(root)
->>>>>>> parent of 529746e (modified genshin_dataset module.)
+
+        root = os.path.join(root, self.__class__.__name__, "raw")
+
+        print(f'current dataset folder: {root}')
 
         if train:
             root = os.path.join(root, 'train')
