@@ -3,13 +3,13 @@ module:
   params:
     in_channels: 3
     out_channels: 3
-    hidden_dims: [128, 256, 512, 512]
+    hidden_dims: [64, 128, 128, 256, 512, 512]
     latent_dim: 4
     z_channels: 4
     num_res_blocks: 2
     num_head_channels: 32
     dim: 2
-    act: 'leaky_relu'
+    act: 'sine'
     kl_weight: 1e-5
     lr: 1e-4
     weight_decay: 0.
@@ -22,8 +22,8 @@ module:
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
-    num_workers: 4
-    batch_size: 5
+    num_workers: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
@@ -35,7 +35,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [256, 256]
+                size: [1024, 1024]
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
@@ -46,7 +46,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 256, 256 ]
+                size: [ 1024, 1024 ]
 
 
 logger:
