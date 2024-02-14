@@ -52,7 +52,7 @@ class FrequencyVAE(pl.LightningModule):
         self.log_interval = log_interval
         self.perceptual_weight = perceptual_weight
 
-        self.lpips = LPIPS.eval()
+        self.lpips = LPIPS().eval()
 
         assert num_head_channels != -1 or num_heads != 1
 
