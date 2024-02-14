@@ -11,7 +11,6 @@ from omegaconf import OmegaConf
 from pytorch_lightning.trainer import Trainer
 
 from modules.utils import instantiate_from_config
-import matplotlib.pyplot as plt
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.psnr import PeakSignalNoiseRatio
 from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
