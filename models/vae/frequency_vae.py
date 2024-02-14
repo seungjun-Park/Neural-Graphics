@@ -246,10 +246,9 @@ class FrequencyVAE(pl.LightningModule):
             with torch.no_grad():
                 prefix = 'train' if self.training else 'val'
 
-                self.log(f'{prefix}/recon_loss', recon_loss, prog_bar=True, logger=True, on_step=True,
-                         rank_zero_only=True)
-                self.log(f'{prefix}/kl_loss', kl_loss, prog_bar=True, logger=True, on_step=True, rank_zero_only=True)
-                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, rank_zero_only=True)
+                self.log(f'{prefix}/recon_loss', recon_loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log(f'{prefix}/kl_loss', kl_loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
                 # recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
                 self.log_img(recon_img, split=f'{prefix}/recon')
