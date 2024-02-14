@@ -13,6 +13,7 @@ from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import MHAttnBlock
 from modules.vae.distributions import DiagonalGaussianDistribution
+from taming.modules.losses import LPIPS
 
 
 class FrequencyVAE(pl.LightningModule):
@@ -35,6 +36,7 @@ class FrequencyVAE(pl.LightningModule):
                  freq_pass_eps=0.3,
                  high_freq_weight=1.0,
                  low_freq_weight=1.0,
+                 perceptual_weight=1.0,
                  log_interval=100,
                  *args,
                  **kwargs,
@@ -48,6 +50,9 @@ class FrequencyVAE(pl.LightningModule):
         self.high_freq_weight = high_freq_weight
         self.low_freq_weight = low_freq_weight
         self.log_interval = log_interval
+        self.perceptual_weight = perceptual_weight
+
+        self.lpips = LPIPS.eval()
 
         assert num_head_channels != -1 or num_heads != 1
 
@@ -225,7 +230,10 @@ class FrequencyVAE(pl.LightningModule):
 
         # loss = self.freq_loss(freq, recon_freq) + self.kl(mean, logvar)
 
-        recon_loss = torch.sum(torch.abs(img.contiguous() - recon_img.contiguous()), dim=[1, 2, 3])
+        recon_loss = torch.abs(img.contiguous() - recon_img.contiguous())
+        if self.perceptual_weight > 0:
+            recon_loss = recon_loss + self.perceptual_weight * self.lpips(img.contiguous(), recon_img.contiguous())
+
         recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
 
         kl_loss = posterior.kl()
