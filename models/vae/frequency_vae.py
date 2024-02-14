@@ -93,7 +93,8 @@ class FrequencyVAE(pl.LightningModule):
 
             layer.append(DownBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
 
-            self.down.append(nn.Sequential(*layer))
+            if i != len(hidden_dims) - 1:
+                self.down.append(nn.Sequential(*layer))
 
         if self.num_heads == -1:
             heads = in_ch // self.num_head_channels
@@ -185,7 +186,8 @@ class FrequencyVAE(pl.LightningModule):
                                            ))
                 in_ch = out_ch
 
-            self.up.append(nn.Sequential(*layer))
+            if i != 0:
+                self.up.append(nn.Sequential(*layer))
 
         self.up.append(
             nn.Sequential(
@@ -219,9 +221,9 @@ class FrequencyVAE(pl.LightningModule):
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
         img, label = batch
-        freq = self.img_to_freq(img, dim=self.dim)
-        mag, ang = freq.abs(), freq.angle()
-        mag_and_ang = torch.cat([mag, ang], dim=1)
+        # freq = self.img_to_freq(img, dim=self.dim)
+        # mag, ang = freq.abs(), freq.angle()
+        # mag_and_ang = torch.cat([mag, ang], dim=1)
 
         # recon_mag_and_ang, mean, logvar = self(mag_and_ang)
         # recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
@@ -257,9 +259,9 @@ class FrequencyVAE(pl.LightningModule):
 
     def test_step(self, batch, batch_idx, *args, **kwargs):
         img, label = batch
-        freq = self.img_to_freq(img, dim=self.dim)
-        mag, ang = freq.abs(), freq.angle()
-        mag_and_ang = torch.cat([mag, ang], dim=1)
+        # freq = self.img_to_freq(img, dim=self.dim)
+        # mag, ang = freq.abs(), freq.angle()
+        # mag_and_ang = torch.cat([mag, ang], dim=1)
 
         # recon_mag_and_ang, mean, logvar = self(mag_and_ang)
         # recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
@@ -269,7 +271,10 @@ class FrequencyVAE(pl.LightningModule):
 
         # loss = self.freq_loss(freq, recon_freq) + self.kl(mean, logvar)
 
-        recon_loss = torch.sum(torch.abs(img.contiguous() - recon_img.contiguous()), dim=[1, 2, 3])
+        recon_loss = torch.abs(img.contiguous() - recon_img.contiguous())
+        if self.perceptual_weight > 0:
+            recon_loss = recon_loss + self.perceptual_weight * self.lpips(img.contiguous(), recon_img.contiguous())
+
         recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
 
         kl_loss = posterior.kl()
@@ -281,13 +286,46 @@ class FrequencyVAE(pl.LightningModule):
             with torch.no_grad():
                 prefix = 'train' if self.training else 'val'
 
-                self.log(f'{prefix}/recon_loss', recon_loss, prog_bar=True, logger=True, on_step=True,
-                         rank_zero_only=True)
-                self.log(f'{prefix}/kl_loss', kl_loss, prog_bar=True, logger=True, on_step=True, rank_zero_only=True)
-                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, rank_zero_only=True)
-                self.log_img(img, split=f'{prefix}/img')
+                self.log(f'test/recon_loss', recon_loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log(f'test/kl_loss', kl_loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log(f'test/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log_img(img, split=f'test/img')
                 # recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
-                self.log_img(recon_img, split=f'{prefix}/recon')
+                self.log_img(recon_img, split=f'test/recon')
+
+    def validation_step(self, batch, batch_idx, *args, **kwargs):
+        img, label = batch
+        # freq = self.img_to_freq(img, dim=self.dim)
+        # mag, ang = freq.abs(), freq.angle()
+        # mag_and_ang = torch.cat([mag, ang], dim=1)
+
+        # recon_mag_and_ang, mean, logvar = self(mag_and_ang)
+        # recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
+        # recon_freq = recon_mag * torch.exp(1j * recon_ang)
+
+        recon_img, posterior = self(img)
+
+        # loss = self.freq_loss(freq, recon_freq) + self.kl(mean, logvar)
+
+        recon_loss = torch.abs(img.contiguous() - recon_img.contiguous())
+        if self.perceptual_weight > 0:
+            recon_loss = recon_loss + self.perceptual_weight * self.lpips(img.contiguous(), recon_img.contiguous())
+
+        recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
+
+        kl_loss = posterior.kl()
+        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
+
+        loss = recon_loss + self.kl_weight * kl_loss
+
+        if self.global_step % self.log_interval == 0:
+            with torch.no_grad():
+                self.log(f'val/recon_loss', recon_loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log(f'val/kl_loss', kl_loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log(f'val/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log_img(img, split=f'val/img')
+                # recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
+                self.log_img(recon_img, split=f'val/recon')
 
     def img_to_freq(self, img, dim=2):
         b, c, h, w = img.shape
