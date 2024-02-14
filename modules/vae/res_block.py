@@ -33,11 +33,13 @@ class ResidualBlock(nn.Module):
         self.layer = nn.Sequential(*layer)
 
         if self.in_channels != self.out_channels:
-            self.shortcut = nn.Conv2d(in_channels=in_channels,
-                                      out_channels=out_channels,
-                                      kernel_size=3,
-                                      stride=1,
-                                      padding=1)
+            self.shortcut = conv_nd(dim=dim,
+                                    in_channels=in_channels,
+                                    out_channels=out_channels,
+                                    kernel_size=1,
+                                    stride=1,
+                                    padding=0)
+
         else:
             self.shortcut = nn.Identity()
 

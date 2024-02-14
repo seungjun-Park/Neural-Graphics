@@ -1,16 +1,17 @@
 module:
   target: models.vae.frequency_vae.FrequencyVAE
   params:
-    in_channels: 6
-    in_resolutions: 512
-    out_channels: 6
+    in_channels: 3
+    out_channels: 3
     hidden_dims: [64, 128, 256, 512]
     latent_dim: 8
     z_channels: 16
+    num_res_blocks: 2
+    num_head_channels: 32
     dim: 2
-    act: 'sine'
+    act: 'leaky_relu'
     kl_weight: 1e-5
-    lr: 2e-5
+    lr: 1e-4
     weight_decay: 0.
     freq_pass_eps: 0.3
     high_freq_weight: 1.0
@@ -33,7 +34,19 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [512, 512]
+                size: [256, 256]
+
+    validation:
+      target: modules.datasets.genshin_impact.GenshinImpactDataset
+      params:
+        root: './datasets/genshin_impact'
+        train: False
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 256, 256 ]
 
 
 logger:

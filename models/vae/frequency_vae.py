@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,20 +9,26 @@ from typing import List, Dict
 
 from modules.utils import conv_nd, batch_norm_nd, activation_func
 from modules.vae.down import DownBlock
-from modules.vae.res_block import ResidualBlock
 from modules.vae.up import UpBlock
+from modules.vae.res_block import ResidualBlock
+from modules.vae.attn_block import MHAttnBlock
+from modules.vae.distributions import DiagonalGaussianDistribution
 
 
 class FrequencyVAE(pl.LightningModule):
     def __init__(self,
                  in_channels: int,
-                 in_resolutions: int,
                  out_channels: int,
-                 hidden_dims: List[int],
-                 latent_dim: int,
-                 z_channels: int,
-                 dim=2,
+                 hidden_dims: List,
+                 z_channels,
+                 latent_dim,
+                 num_res_blocks=2,
+                 dropout=0.,
+                 resamp_with_conv=True,
+                 num_heads=-1,
+                 num_head_channels=-1,
                  act='relu',
+                 dim=2,
                  kl_weight=1e-5,
                  lr=2e-5,
                  weight_decay=0.,
@@ -29,15 +36,10 @@ class FrequencyVAE(pl.LightningModule):
                  high_freq_weight=1.0,
                  low_freq_weight=1.0,
                  log_interval=100,
-                 dropout=0.1,
                  *args,
                  **kwargs,
                  ):
         super().__init__(*args, **kwargs)
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.hidden_dims = hidden_dims
-        self.dim = dim
 
         self.kl_weight = kl_weight
         self.lr = lr
@@ -47,93 +49,167 @@ class FrequencyVAE(pl.LightningModule):
         self.low_freq_weight = low_freq_weight
         self.log_interval = log_interval
 
-        in_ch = in_channels
-        encoder = [conv_nd(dim=dim, in_channels=in_ch, out_channels=hidden_dims[0], kernel_size=3, stride=1, padding=1)]
-        in_ch = hidden_dims[0]
+        assert num_head_channels != -1 or num_heads != 1
 
-        for hidden_dim in hidden_dims:
-            encoder += [
+        self.in_channels = in_channels
+        self.hidden_dims = hidden_dims
+        self.latent_dim = latent_dim
+        self.num_heads = num_heads
+        self.num_head_channels = num_head_channels
+        self.act = act
+        self.dim = dim
+
+        self.down = nn.ModuleList()
+
+        in_ch = in_channels
+        out_ch = hidden_dims[0]
+        self.down.append(
+            conv_nd(dim=dim,
+                    in_channels=in_ch,
+                    out_channels=out_ch,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1)
+        )
+        in_ch = out_ch
+
+        for i, hidden_dim in enumerate(hidden_dims):
+            layer = nn.ModuleList()
+            out_ch = hidden_dim
+
+            for j in range(num_res_blocks):
+                layer.append(ResidualBlock(in_channels=in_ch,
+                                           out_channels=out_ch,
+                                           dropout=dropout,
+                                           act=act,
+                                           dim=dim,
+                                           ))
+                in_ch = out_ch
+
+            layer.append(DownBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
+
+            self.down.append(nn.Sequential(*layer))
+
+        if self.num_heads == -1:
+            heads = in_ch // self.num_head_channels
+        else:
+            heads = self.num_heads
+
+        self.down.append(
+            nn.Sequential(
                 ResidualBlock(
                     in_channels=in_ch,
-                    out_channels=hidden_dim,
+                    out_channels=in_ch,
                     dropout=dropout,
                     act=act,
-                    dim=dim
-                ),
-                DownBlock(
-                    in_channels=hidden_dim,
                     dim=dim,
-                )
-            ]
-            in_ch = hidden_dim
+                ),
+                MHAttnBlock(in_channels=in_ch,
+                            heads=heads),
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                ),
+                batch_norm_nd(dim=dim, num_features=in_ch),
+                activation_func(act),
+                conv_nd(dim=dim,
+                        in_channels=in_ch,
+                        out_channels=2 * z_channels,
+                        kernel_size=3,
+                        stride=1,
+                        padding=1)
+            )
+        )
 
-        encoder += [
-            ResidualBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                dropout=dropout,
-                act=act,
+        self.quant_conv = conv_nd(dim=dim, in_channels=2 * z_channels, out_channels=2 * latent_dim, kernel_size=1)
+        self.post_quant_conv = conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1)
+
+        self.up = nn.ModuleList()
+        self.up.append(
+            conv_nd(
                 dim=dim,
-            ),
-            batch_norm_nd(dim=dim, num_features=in_ch),
-            activation_func(act),
-            conv_nd(dim=dim, in_channels=in_ch, out_channels=z_channels, kernel_size=3, stride=1, padding=1)
-        ]
+                in_channels=z_channels,
+                out_channels=in_ch,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            )
+        )
 
-        self.encoder = nn.Sequential(*encoder)
+        if self.num_heads == -1:
+            heads = in_ch // self.num_head_channels
+        else:
+            heads = self.num_heads
 
-        self.in_resolutions = in_resolutions
-        self.mean = conv_nd(dim=dim, in_channels=z_channels, out_channels=latent_dim, kernel_size=1)
-        self.logvar = conv_nd(dim=dim, in_channels=z_channels, out_channels=latent_dim, kernel_size=1)
+        self.up.append(
+            nn.Sequential(
+                ResidualBlock(in_channels=in_ch,
+                              out_channels=in_ch,
+                              dropout=dropout,
+                              act=act,
+                              dim=dim,
+                              ),
+                MHAttnBlock(in_channels=in_ch,
+                            heads=heads),
+                ResidualBlock(in_channels=in_ch,
+                              out_channels=in_ch,
+                              dropout=dropout,
+                              act=act,
+                              dim=dim,
+                              ),
+            )
+        )
 
-        decoder = list()
         hidden_dims.reverse()
 
-        decoder += [
-            conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1),
-            conv_nd(dim=dim, in_channels=z_channels, out_channels=in_ch, kernel_size=3, stride=1, padding=1),
-            ResidualBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                dropout=dropout,
-                act=act,
-                dim=dim,
-            )
-        ]
+        for i, hidden_dim in enumerate(hidden_dims):
+            layer = nn.ModuleList()
+            out_ch = hidden_dim
 
-        for hidden_dim in hidden_dims:
-            decoder += [
-                UpBlock(
-                    in_channels=in_ch,
+            layer.append(UpBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
+
+            for j in range(num_res_blocks):
+                layer.append(ResidualBlock(in_channels=in_ch,
+                                           out_channels=out_ch,
+                                           dropout=dropout,
+                                           act=act,
+                                           dim=dim,
+                                           ))
+                in_ch = out_ch
+
+            self.up.append(nn.Sequential(*layer))
+
+        self.up.append(
+            nn.Sequential(
+                batch_norm_nd(dim=dim, num_features=in_ch),
+                activation_func(act),
+                conv_nd(
                     dim=dim,
+                    in_channels=in_ch,
+                    out_channels=out_channels,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
                 ),
-                ResidualBlock(
-                    in_channels=in_ch,
-                    out_channels=hidden_dim,
-                    dropout=dropout,
-                    act=act,
-                    dim=dim,
-                )
-            ]
-            in_ch = hidden_dim
+            )
+        )
 
-        decoder += [
-            batch_norm_nd(dim=dim, num_features=in_ch),
-            activation_func(act),
-            conv_nd(dim=dim, in_channels=in_ch, out_channels=out_channels, kernel_size=3, stride=1, padding=1),
-        ]
-        self.decoder = nn.Sequential(*decoder)
+    def forward(self, x):
+        for module in self.down:
+            x = module(x)
 
-    def forward(self, mag_and_ang):
-        latent_variable = self.encoder(mag_and_ang)
+        x = self.quant_conv(x)
+        posterior = DiagonalGaussianDistribution(x)
+        z = posterior.reparameterization()
+        z = self.post_quant_conv(z)
 
-        mean = self.mean(latent_variable)
-        logvar = self.logvar(latent_variable)
+        for module in self.up:
+            z = module(z)
 
-        sample_point = self.reparameterization(mean, logvar)
-        recon_mag_and_ang = self.decoder(sample_point)
-
-        return recon_mag_and_ang, mean, logvar
+        return z, posterior
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
         img, label = batch
@@ -141,22 +217,32 @@ class FrequencyVAE(pl.LightningModule):
         mag, ang = freq.abs(), freq.angle()
         mag_and_ang = torch.cat([mag, ang], dim=1)
 
-        recon_mag_and_ang, mean, logvar = self(mag_and_ang)
-        recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
-        recon_freq = recon_mag * torch.exp(1j * recon_ang)
+        # recon_mag_and_ang, mean, logvar = self(mag_and_ang)
+        # recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
+        # recon_freq = recon_mag * torch.exp(1j * recon_ang)
+
+        recon_img, posterior = self(img)
 
         # loss = self.freq_loss(freq, recon_freq) + self.kl(mean, logvar)
 
-        loss = F.mse_loss(mag_and_ang, recon_mag_and_ang) + self.kl(mean, logvar)
+        recon_loss = torch.sum(torch.abs(img.contiguous() - recon_img.contiguous()), dim=[1, 2, 3])
+        recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
+
+        kl_loss = posterior.kl()
+        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
+
+        loss = recon_loss + self.kl_weight * kl_loss
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
                 prefix = 'train' if self.training else 'val'
 
-                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, on_epoch=True,
+                self.log(f'{prefix}/recon_loss', recon_loss, prog_bar=True, logger=True, on_step=True,
                          rank_zero_only=True)
+                self.log(f'{prefix}/kl_loss', kl_loss, prog_bar=True, logger=True, on_step=True, rank_zero_only=True)
+                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
-                recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
+                # recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
                 self.log_img(recon_img, split=f'{prefix}/recon')
 
         return loss
@@ -167,25 +253,33 @@ class FrequencyVAE(pl.LightningModule):
         mag, ang = freq.abs(), freq.angle()
         mag_and_ang = torch.cat([mag, ang], dim=1)
 
-        recon_mag_and_ang, mean, logvar = self(mag_and_ang)
-        recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
-        recon_freq = recon_mag * torch.exp(1j * recon_ang)
-        recon_img = self.freq_to_img(recon_freq)
+        # recon_mag_and_ang, mean, logvar = self(mag_and_ang)
+        # recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
+        # recon_freq = recon_mag * torch.exp(1j * recon_ang)
+
+        recon_img, posterior = self(img)
+
         # loss = self.freq_loss(freq, recon_freq) + self.kl(mean, logvar)
 
-        loss = F.mse_loss(img, recon_img) + self.kl(mean, logvar)
+        recon_loss = torch.sum(torch.abs(img.contiguous() - recon_img.contiguous()), dim=[1, 2, 3])
+        recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
+
+        kl_loss = posterior.kl()
+        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
+
+        loss = recon_loss + self.kl_weight * kl_loss
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
                 prefix = 'train' if self.training else 'val'
 
-                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, on_epoch=True,
+                self.log(f'{prefix}/recon_loss', recon_loss, prog_bar=True, logger=True, on_step=True,
                          rank_zero_only=True)
+                self.log(f'{prefix}/kl_loss', kl_loss, prog_bar=True, logger=True, on_step=True, rank_zero_only=True)
+                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
-                recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
+                # recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
                 self.log_img(recon_img, split=f'{prefix}/recon')
-
-        return loss
 
     def img_to_freq(self, img, dim=2):
         b, c, h, w = img.shape
@@ -264,14 +358,6 @@ class FrequencyVAE(pl.LightningModule):
 
         #return low_freq_loss + high_freq_loss
 
-    def reparameterization(self, mean, logvar):
-        x = mean + torch.sqrt(torch.exp(logvar)) * torch.randn(mean.shape).to(device=mean.device)
-
-        return x
-
-    def kl(self, mean, logvar):
-        return 0.5 * torch.sum(torch.pow(mean, 2) + torch.exp(logvar) - 1.0 - logvar, dim=[1, 2, 3]) * self.kl_weight
-
     def log_img(self, img, split=''):
         tb = self.logger.experiment
         tb.add_image(f'{split}', self.minmax_normalize(img)[0], self.global_step)
@@ -283,6 +369,7 @@ class FrequencyVAE(pl.LightningModule):
         norm_x = (x - min_val) / (max_val - min_val)
 
         return norm_x
+
     def sample(self, shape):
         sample_point = torch.randn(shape)
         sample_mag_and_ang, _, _ = self.decoder(sample_point)
@@ -293,13 +380,13 @@ class FrequencyVAE(pl.LightningModule):
         return sample_img
 
     def configure_optimizers(self):
-        opt = torch.optim.Adam(list(self.encoder.parameters()) +
-                               list(self.mean.parameters()) +
-                               list(self.logvar.parameters()) +
-                               list(self.decoder.parameters()),
+        opt = torch.optim.Adam(list(self.down.parameters()) +
+                               list(self.quant_conv.parameters()) +
+                               list(self.post_quant_conv.parameters()) +
+                               list(self.up.parameters()),
                                lr=self.lr,
                                weight_decay=self.weight_decay,
-                               betas=(0.5, 0.99))
+                               betas=(0.5, 0.9))
 
         return opt
 
