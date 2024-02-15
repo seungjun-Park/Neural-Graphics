@@ -288,7 +288,10 @@ class FrequencyVAE(pl.LightningModule):
 
     def sample(self, shape):
         sample_point = torch.randn(shape)
-        sample, _, _ = self.decoder(sample_point)
+        sample = self.post_quant_conv(sample_point)
+
+        for module in self.up:
+            sample = module(sample)
 
         return sample
 
