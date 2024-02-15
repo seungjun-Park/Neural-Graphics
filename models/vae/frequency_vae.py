@@ -204,6 +204,9 @@ class FrequencyVAE(pl.LightningModule):
             )
         )
 
+        self.ang_out = nn.Hardtanh(-math.pi, math.pi)
+        self.mag_out = nn.ReLU()
+
     def forward(self, x):
         for module in self.down:
             x = module(x)
@@ -227,16 +230,22 @@ class FrequencyVAE(pl.LightningModule):
 
         recon_mag_and_ang, posterior = self(mag_and_ang)
         recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
-        recon_freq = torch.clip(recon_mag, 0) * torch.exp(1j * recon_ang)
-        recon_img = self.minmax_normalize(self.freq_to_img(recon_freq, dim=self.dim))
+        recon_mag = self.mag_out(recon_mag)
+        recon_ang = self.ang_out(recon_ang)
+        recon_freq = recon_mag * torch.exp(1j * recon_ang)
+        recon_img = self.freq_to_img(recon_freq, dim=self.dim)
 
-        freq_loss = self.freq_loss(freq, recon_freq, loss_dict)
+        # freq_loss = self.freq_loss(freq, recon_freq, loss_dict)
+
+        recon_loss = self.lpips(img, recon_img)
+        recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
+        loss_dict.update({'train/recon_loss': recon_loss})
 
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
-        loss_dict.update({'train/recon_loss': kl_loss})
+        loss_dict.update({'train/kl_loss': kl_loss})
 
-        loss = freq_loss + self.kl_weight * kl_loss
+        loss = recon_loss * self.perceptual_weight + self.kl_weight * kl_loss
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
@@ -245,7 +254,7 @@ class FrequencyVAE(pl.LightningModule):
                 self.log_dict(loss_dict)
                 self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
-                self.log_img(recon_img, split=f'{prefix}/recon')
+                self.log_img(self.minmax_normalize(recon_img), split=f'{prefix}/recon')
 
         return loss
 
@@ -258,16 +267,25 @@ class FrequencyVAE(pl.LightningModule):
 
         recon_mag_and_ang, posterior = self(mag_and_ang)
         recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
-        recon_freq = torch.clip(recon_mag, 0) * torch.exp(1j * recon_ang)
-        recon_img = self.minmax_normalize(self.freq_to_img(recon_freq, dim=self.dim))
+        recon_mag = self.mag_out(recon_mag)
+        recon_ang = self.ang_out(recon_ang)
+        recon_freq = recon_mag * torch.exp(1j * recon_ang)
+        recon_img = self.freq_to_img(recon_freq, dim=self.dim)
 
-        freq_loss = self.freq_loss(freq, recon_freq, loss_dict)
+        # freq_loss = self.freq_loss(freq, recon_freq, loss_dict)
+
+        recon_loss = self.lpips(img, recon_img)
+        recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
+        loss_dict.update({'val/recon_loss': recon_loss})
+
 
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
         loss_dict.update({'val/kl_loss': kl_loss})
 
-        loss = freq_loss + self.kl_weight * kl_loss
+        # loss = freq_loss + self.kl_weight * kl_loss
+
+        loss = recon_loss * self.perceptual_weight + self.kl_weight * kl_loss
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
@@ -275,7 +293,7 @@ class FrequencyVAE(pl.LightningModule):
                 self.log(f'val/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
                 self.log_img(img, split=f'val/img')
                 recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
-                self.log_img(recon_img, split=f'val/recon')
+                self.log_img(self.minmax_normalize(recon_img), split=f'val/recon')
 
     def img_to_freq(self, img, dim=2):
         b, c, h, w = img.shape
