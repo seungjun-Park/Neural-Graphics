@@ -242,7 +242,7 @@ class FrequencyVAE(pl.LightningModule):
                 self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
                 self.log_img(recon_img, split=f'{prefix}/recon')
-                self.log_img(self.sample(img.shape), split=f'{prefix}/sample')
+                self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
         return loss
 
@@ -272,7 +272,7 @@ class FrequencyVAE(pl.LightningModule):
                 self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
                 self.log_img(recon_img, split=f'{prefix}/recon')
-                self.log_img(self.sample(img.shape), split=f'{prefix}/sample')
+                self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
     def log_img(self, img, split=''):
         tb = self.logger.experiment
@@ -286,8 +286,8 @@ class FrequencyVAE(pl.LightningModule):
 
         return norm_x
 
-    def sample(self, shape):
-        sample_point = torch.randn(shape)
+    def sample(self, posterior):
+        sample_point = posterior.sample()
         sample = self.post_quant_conv(sample_point)
 
         for module in self.up:
