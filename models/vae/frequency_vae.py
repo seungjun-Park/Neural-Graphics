@@ -246,16 +246,16 @@ class FrequencyVAE(pl.LightningModule):
         loss_dict.update({f'{prefix}/kl_loss': kl_loss})
 
         loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss
+        loss_dict.update({f'{prefix}/loss': loss})
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
-                self.log_dict(loss_dict)
                 self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
                 self.log_img(recon_img, split=f'{prefix}/recon')
                 self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
-        return loss, loss_dict
+        return loss
 
     def validation_step(self, batch, batch_idx, *args, **kwargs):
         loss_dict = dict()
@@ -273,19 +273,19 @@ class FrequencyVAE(pl.LightningModule):
 
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
-        loss_dict.update({'val/kl_loss': kl_loss})
+        loss_dict.update({f'{prefix}/kl_loss': kl_loss})
 
         loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss
+        loss_dict.update({f'{prefix}/loss': loss})
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
                 self.log_dict(loss_dict)
-                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
                 self.log_img(recon_img, split=f'{prefix}/recon')
                 self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
-        return loss, loss_dict
+        return loss
 
     def log_img(self, img, split=''):
         tb = self.logger.experiment
