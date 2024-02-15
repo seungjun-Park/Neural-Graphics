@@ -227,8 +227,8 @@ class FrequencyVAE(pl.LightningModule):
 
         recon_mag_and_ang, posterior = self(mag_and_ang)
         recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
-        recon_freq = recon_mag * torch.exp(1j * recon_ang)
-        recon_img = self.freq_to_img(recon_freq, dim=self.dim)
+        recon_freq = torch.clip(recon_mag, 0) * torch.exp(1j * recon_ang)
+        recon_img = self.minmax_normalize(self.freq_to_img(recon_freq, dim=self.dim))
 
         freq_loss = self.freq_loss(freq, recon_freq, loss_dict)
 
@@ -258,9 +258,10 @@ class FrequencyVAE(pl.LightningModule):
 
         recon_mag_and_ang, posterior = self(mag_and_ang)
         recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
-        recon_freq = recon_mag * torch.exp(1j * recon_ang)
+        recon_freq = torch.clip(recon_mag, 0) * torch.exp(1j * recon_ang)
+        recon_img = self.minmax_normalize(self.freq_to_img(recon_freq, dim=self.dim))
 
-        freq_loss = self.freq_loss(freq, recon_freq, loss_dict,)
+        freq_loss = self.freq_loss(freq, recon_freq, loss_dict)
 
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
@@ -356,7 +357,7 @@ class FrequencyVAE(pl.LightningModule):
         high_freq_loss = torch.sum(high_freq_loss) / high_freq_loss.shape[0]
 
         if loss_dict is not None:
-            prefix = 'training' if self.training else 'val'
+            prefix = 'train' if self.training else 'val'
             loss_dict.update({f'{prefix}/low_freq_loss': low_freq_loss})
             loss_dict.update({f'{prefix}/high_freq_loss': high_freq_loss})
 

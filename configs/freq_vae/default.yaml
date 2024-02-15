@@ -13,7 +13,7 @@ module:
     kl_weight: 1e-5
     lr: 1e-4
     weight_decay: 0.
-    freq_pass_eps: 0.3
+    freq_pass_eps: 0.25
     high_freq_weight: 1.0
     low_freq_weight: 1.0
     log_interval: 100
