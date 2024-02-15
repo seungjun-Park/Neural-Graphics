@@ -228,6 +228,7 @@ class FrequencyVAE(pl.LightningModule):
         recon_mag_and_ang, posterior = self(mag_and_ang)
         recon_mag, recon_ang = torch.chunk(recon_mag_and_ang, 2, dim=1)
         recon_freq = recon_mag * torch.exp(1j * recon_ang)
+        recon_img = self.freq_to_img(recon_freq, dim=self.dim)
 
         freq_loss = self.freq_loss(freq, recon_freq, loss_dict)
 
@@ -244,7 +245,6 @@ class FrequencyVAE(pl.LightningModule):
                 self.log_dict(loss_dict)
                 self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
                 self.log_img(img, split=f'{prefix}/img')
-                recon_img = self.freq_to_img(freq=recon_freq, dim=self.dim)
                 self.log_img(recon_img, split=f'{prefix}/recon')
 
         return loss
@@ -288,9 +288,9 @@ class FrequencyVAE(pl.LightningModule):
         # for color image
         if c == 3:
             img_r, img_g, img_b = torch.chunk(img, 3, dim=1)
-            freq_r = fft.fftshift(fft.fftn(img_r, dim=dim))
-            freq_g = fft.fftshift(fft.fftn(img_g, dim=dim))
-            freq_b = fft.fftshift(fft.fftn(img_b, dim=dim))
+            freq_r = fft.fftshift(fft.fftn(img_r, dim=dim, norm='ortho'))
+            freq_g = fft.fftshift(fft.fftn(img_g, dim=dim, norm='ortho'))
+            freq_b = fft.fftshift(fft.fftn(img_b, dim=dim, norm='ortho'))
             freq = torch.cat([freq_r, freq_g, freq_b], dim=1)
 
         # for grayscale image
@@ -314,14 +314,14 @@ class FrequencyVAE(pl.LightningModule):
         # for color image
         if c == 3:
             freq_r, freq_g, freq_b = torch.chunk(freq, 3, dim=1)
-            img_r = fft.ifftn(fft.ifftshift(freq_r), dim=dim)
-            img_g = fft.ifftn(fft.ifftshift(freq_g), dim=dim)
-            img_b = fft.ifftn(fft.ifftshift(freq_b), dim=dim)
+            img_r = fft.ifftn(fft.ifftshift(freq_r), dim=dim, norm='ortho')
+            img_g = fft.ifftn(fft.ifftshift(freq_g), dim=dim, norm='ortho')
+            img_b = fft.ifftn(fft.ifftshift(freq_b), dim=dim, norm='ortho')
             img = torch.cat([img_r, img_g, img_b], dim=1).abs()
 
         # for grayscale image
         elif c == 1:
-            img = fft.fftshift(fft.fftn(freq, dim=dim)).abs()
+            img = fft.ifftn(fft.ifftshift(freq), dim=dim, norm='ortho').abs()
 
         else:
             NotImplementedError(f'color channel == {c} is not supported.')
