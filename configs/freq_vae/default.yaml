@@ -1,8 +1,8 @@
 module:
   target: models.vae.frequency_vae.FrequencyVAE
   params:
-    in_channels: 3
-    out_channels: 3
+    in_channels: 6
+    out_channels: 6
     hidden_dims: [64, 128, 128, 256, 512, 512]
     latent_dim: 4
     z_channels: 4
