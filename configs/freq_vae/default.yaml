@@ -14,7 +14,7 @@ module:
     lr: 2e-5
     weight_decay: 0.
     freq_pass_eps: 0.25
-    high_freq_weight: 2.0
+    high_freq_weight: 1.0
     low_freq_weight: 1.0
     log_interval: 100
     perceptual_weight: 1.0
@@ -72,7 +72,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/freqVAE/default'
       filename: 'freqVAE'
-      monitor: 'val/freq_loss'
+      monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
