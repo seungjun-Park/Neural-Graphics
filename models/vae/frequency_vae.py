@@ -250,7 +250,7 @@ class FrequencyVAE(pl.LightningModule):
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
-                self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, rank_zero_only=True)
+                self.log_dict(loss_dict)
                 self.log_img(img, split=f'{prefix}/img')
                 self.log_img(recon_img, split=f'{prefix}/recon')
                 self.log_img(self.sample(posterior), split=f'{prefix}/sample')
