@@ -202,6 +202,17 @@ class FrequencyVAE(pl.LightningModule):
             )
         )
 
+    def init_from_ckpt(self, path, ignore_keys=list()):
+        sd = torch.load(path, map_location="cpu")["state_dict"]
+        keys = list(sd.keys())
+        for k in keys:
+            for ik in ignore_keys:
+                if k.startswith(ik):
+                    print("Deleting key {} from state_dict.".format(k))
+                    del sd[k]
+        self.load_state_dict(sd, strict=False)
+        print(f"Restored from {path}")
+
     def forward(self, x):
         for module in self.down:
             x = module(x)
@@ -244,7 +255,7 @@ class FrequencyVAE(pl.LightningModule):
                 self.log_img(recon_img, split=f'{prefix}/recon')
                 self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
-        return loss
+        return loss, loss_dict
 
     def validation_step(self, batch, batch_idx, *args, **kwargs):
         loss_dict = dict()
@@ -274,9 +285,11 @@ class FrequencyVAE(pl.LightningModule):
                 self.log_img(recon_img, split=f'{prefix}/recon')
                 self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
+        return loss, loss_dict
+
     def log_img(self, img, split=''):
         tb = self.logger.experiment
-        tb.add_image(f'{split}', torch.clamp(img, 0, 1)[0], self.global_step)
+        tb.add_image(f'{split}', self.minmax_normalize(img)[0], self.global_step)
 
     def minmax_normalize(self, x):
         max_val = torch.max(x)

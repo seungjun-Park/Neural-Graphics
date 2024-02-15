@@ -3,13 +3,13 @@ module:
   params:
     in_channels: 3
     out_channels: 3
-    hidden_dims: [64, 128, 128, 256, 512, 512]
+    hidden_dims: [64, 128, 256, 512, 512]
     latent_dim: 4
     z_channels: 4
     num_res_blocks: 2
     num_head_channels: 32
     dim: 2
-    act: 'gelu'
+    act: 'sine'
     kl_weight: 1e-5
     lr: 2e-5
     weight_decay: 0.
@@ -33,7 +33,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 960, 960 ]
+                size: [ 512, 512 ]
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
@@ -44,7 +44,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 960, 960 ]
+                size: [ 512, 512 ]
 
 
 logger:
