@@ -252,7 +252,7 @@ class FrequencyVAE(pl.LightningModule):
         loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss
 
         self.log_dict(loss_dict, prog_bar=True)
-        self.log(f'{prefix}/loss', loss)
+        self.log(f'{prefix}/loss', loss, prog_bar=True)
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
@@ -282,7 +282,7 @@ class FrequencyVAE(pl.LightningModule):
 
         loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss
 
-        self.log_dict(loss_dict, prog_bar=True)
+        self.log_dict(loss_dict)
         self.log(f'{prefix}/loss', loss)
 
         if self.global_step % self.log_interval == 0:
