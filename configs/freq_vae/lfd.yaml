@@ -76,4 +76,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 5
+  max_epochs: 10
