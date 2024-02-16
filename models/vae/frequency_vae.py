@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from typing import List, Dict
 
 from modules.utils import conv_nd, batch_norm_nd, activation_func
-from modules.utils import FD, LFD
+from modules.utils import FD, LFD, frequency_cosine_similarity
 from modules.utils import img_to_freq, freq_to_img
 from modules.vae.down import DownBlock
 from modules.vae.up import UpBlock
@@ -37,6 +37,7 @@ class FrequencyVAE(pl.LightningModule):
                  kl_weight=1e-5,
                  fd_weight=1e-3,
                  perceptual_weight=1.0,
+                 freq_cos_sim_weight=1.0,
                  log_interval=100,
                  ckpt_path=None,
                  *args,
@@ -50,6 +51,7 @@ class FrequencyVAE(pl.LightningModule):
         self.log_interval = log_interval
         self.perceptual_weight = perceptual_weight
         self.fd_weight = fd_weight
+        self.freq_cos_sim_weight = freq_cos_sim_weight
 
         self.lpips = LPIPS().eval()
 
@@ -249,9 +251,12 @@ class FrequencyVAE(pl.LightningModule):
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
         loss_dict.update({f'{prefix}/kl_loss': kl_loss})
 
-        loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss
+        freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
+        loss_dict.update({f'{prefix}/freq_cos_sim'})
 
-        self.log_dict(loss_dict, prog_bar=True)
+        loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss + self.freq_cos_sim_weight * freq_cos_sim
+
+        self.log_dict(loss_dict)
         self.log(f'{prefix}/loss', loss, prog_bar=True)
 
         if self.global_step % self.log_interval == 0:
@@ -280,10 +285,13 @@ class FrequencyVAE(pl.LightningModule):
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
         loss_dict.update({f'{prefix}/kl_loss': kl_loss})
 
-        loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss
+        freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
+        loss_dict.update({f'{prefix}/freq_cos_sim'})
+
+        loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss + self.freq_cos_sim_weight * freq_cos_sim
 
         self.log_dict(loss_dict)
-        self.log(f'{prefix}/loss', loss)
+        self.log(f'{prefix}/loss', loss, prog_bar=True)
 
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():

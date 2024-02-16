@@ -14,8 +14,9 @@ module:
     lr: 2e-5
     weight_decay: 0.
     fd_weight: 1.0
-    log_interval: 100
+    freq_cos_sim_weight: 1.0
     perceptual_weight: 1.0
+    log_interval: 100
 
 data:
   target: modules.datasets.util.DataModuleFromConfig

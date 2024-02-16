@@ -27,6 +27,15 @@ def frequency_cosine_similarity(target, pred, dim=2, eps=1e-5):
     pred_freq = img_to_freq(pred, dim=dim)
     pred_freq_hermitian = pred_freq.conj().permute(0, 1, 3, 2)
 
+    if dim == 1:
+        dim = [-1]
+    elif dim == 2:
+        dim = [-2, -1]
+    elif dim == 3:
+        dim = [-3, -2, -1]
+    else:
+        NotImplementedError(f'dim: {dim} is not supported.')
+
     target_freq_norm = target_freq.norm(dim=[-2, -1])
     pred_freq_hermitian_norm = pred_freq_hermitian.norm(dim=[-2, -1])
 
