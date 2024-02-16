@@ -38,6 +38,7 @@ class FrequencyVAE(pl.LightningModule):
                  fd_weight=1e-3,
                  perceptual_weight=1.0,
                  log_interval=100,
+                 ckpt_path=None,
                  *args,
                  **kwargs,
                  ):
@@ -202,6 +203,9 @@ class FrequencyVAE(pl.LightningModule):
             )
         )
 
+        if ckpt_path is not None:
+            self.init_from_ckpt(path=ckpt_path)
+
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
         keys = list(sd.keys())
@@ -247,10 +251,11 @@ class FrequencyVAE(pl.LightningModule):
 
         loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss
 
+        self.log_dict(loss_dict, prog_bar=True)
+        self.log(f'{prefix}/loss', loss)
+
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
-                self.log_dict(loss_dict)
-                self.log(f'{prefix}/loss', loss)
                 self.log_img(img, split=f'{prefix}/img')
                 self.log_img(recon_img, split=f'{prefix}/recon')
                 self.log_img(self.sample(posterior), split=f'{prefix}/sample')
@@ -277,10 +282,11 @@ class FrequencyVAE(pl.LightningModule):
 
         loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss
 
+        self.log_dict(loss_dict, prog_bar=True)
+        self.log(f'{prefix}/loss', loss)
+
         if self.global_step % self.log_interval == 0:
             with torch.no_grad():
-                self.log_dict(loss_dict)
-                self.log(f'{prefix}/loss', loss)
                 self.log_img(img, split=f'{prefix}/img')
                 self.log_img(recon_img, split=f'{prefix}/recon')
                 self.log_img(self.sample(posterior), split=f'{prefix}/sample')
