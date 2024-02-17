@@ -240,16 +240,16 @@ class FrequencyVAE(pl.LightningModule):
 
         recon_img, posterior = self(img)
 
-        perceptual_loss = self.lpips(img, recon_img)
-        perceptual_loss = torch.sum(perceptual_loss) / perceptual_loss.shape[0]
-        loss_dict.update({f'{prefix}/lpips_loss': perceptual_loss})
+        # perceptual_loss = self.lpips(img, recon_img)
+        # perceptual_loss = torch.sum(perceptual_loss) / perceptual_loss.shape[0]
+        # loss_dict.update({f'{prefix}/lpips_loss': perceptual_loss})
+        #
+        # l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
+        # l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
+        # loss_dict.update({f'{prefix}/l1_loss': l1_loss})
 
-        l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
-        l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
-        loss_dict.update({f'{prefix}/l1_loss': l1_loss})
-
-        lfd_loss = LFD(img, recon_img, dim=self.dim)
-        loss_dict.update({f'{prefix}/lfd_loss': lfd_loss})
+        fd_loss = FD(img, recon_img, dim=self.dim)
+        loss_dict.update({f'{prefix}/fd_loss': fd_loss})
 
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
@@ -258,11 +258,11 @@ class FrequencyVAE(pl.LightningModule):
         freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
         loss_dict.update({f'{prefix}/freq_cos_sim': freq_cos_sim})
 
-        loss = lfd_loss * self.fd_weight + \
-               self.kl_weight * kl_loss + \
-               self.perceptual_weight * perceptual_loss + \
+        loss = fd_loss * self.fd_weight + \
                self.freq_cos_sim_weight * freq_cos_sim + \
-               l1_loss
+               self.kl_weight * kl_loss  # + \
+        # self.perceptual_weight * perceptual_loss + \
+        # l1_loss
 
         self.log_dict(loss_dict)
         self.log(f'{prefix}/loss', loss, prog_bar=True)
@@ -281,16 +281,16 @@ class FrequencyVAE(pl.LightningModule):
 
         recon_img, posterior = self(img)
 
-        perceptual_loss = self.lpips(img, recon_img)
-        perceptual_loss = torch.sum(perceptual_loss) / perceptual_loss.shape[0]
-        loss_dict.update({f'{prefix}/perceptual_loss': perceptual_loss})
+        # perceptual_loss = self.lpips(img, recon_img)
+        # perceptual_loss = torch.sum(perceptual_loss) / perceptual_loss.shape[0]
+        # loss_dict.update({f'{prefix}/perceptual_loss': perceptual_loss})
+        #
+        # l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
+        # l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
+        # loss_dict.update({f'{prefix}/l1_loss': l1_loss})
 
-        l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
-        l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
-        loss_dict.update({f'{prefix}/l1_loss': l1_loss})
-
-        lfd_loss = LFD(img, recon_img, dim=self.dim)
-        loss_dict.update({f'{prefix}/lfd_loss': lfd_loss})
+        fd_loss = FD(img, recon_img, dim=self.dim)
+        loss_dict.update({f'{prefix}/fd_loss': fd_loss})
 
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
@@ -299,11 +299,11 @@ class FrequencyVAE(pl.LightningModule):
         freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
         loss_dict.update({f'{prefix}/freq_cos_sim': freq_cos_sim})
 
-        loss = lfd_loss * self.fd_weight + \
-               self.kl_weight * kl_loss + \
-               self.perceptual_weight * perceptual_loss + \
+        loss = fd_loss * self.fd_weight + \
                self.freq_cos_sim_weight * freq_cos_sim + \
-               l1_loss
+               self.kl_weight * kl_loss #+ \
+               # self.perceptual_weight * perceptual_loss + \
+               # l1_loss
 
         self.log_dict(loss_dict)
         self.log(f'{prefix}/loss', loss, prog_bar=True)
