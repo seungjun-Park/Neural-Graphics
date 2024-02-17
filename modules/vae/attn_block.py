@@ -3,7 +3,7 @@ import math
 import torch
 import torch.nn as nn
 
-from modules.utils import activation_func
+from modules.utils import activation_func, group_norm, conv_nd
 
 
 def zero_module(module):
@@ -40,10 +40,11 @@ class MHAttnBlock(nn.Module):
         ), f"q,k,v channels {in_channels} is not divisible by num_head_channels {heads}"
 
         self.d_k = in_channels // heads
-        self.norm = nn.BatchNorm1d(in_channels)
-        self.qkv = nn.Conv1d(in_channels=in_channels,
-                             out_channels=in_channels * 3,
-                             kernel_size=1)
+        self.norm = group_norm(in_channels)
+        self.qkv = conv_nd(dim=1,
+                           in_channels=in_channels,
+                           out_channels=in_channels * 3,
+                           kernel_size=1)
 
         # split qkv before split heads
         self.attention = QKVAttention(self.num_heads)

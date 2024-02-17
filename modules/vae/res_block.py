@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modules.utils import activation_func, batch_norm_nd, conv_nd
+from modules.utils import activation_func, batch_norm_nd, conv_nd, group_norm
 
 
 class ResidualBlock(nn.Module):
@@ -21,10 +21,10 @@ class ResidualBlock(nn.Module):
         self.dim = dim
 
         layer = [
-            batch_norm_nd(dim=dim, num_features=in_channels),
+            group_norm(in_channels),
             activation_func(act),
             conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1),
-            batch_norm_nd(dim=dim, num_features=out_channels),
+            group_norm(out_channels),
             activation_func(act),
             nn.Dropout(dropout),
             conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
