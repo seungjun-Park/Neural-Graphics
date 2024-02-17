@@ -252,7 +252,7 @@ class FrequencyVAE(pl.LightningModule):
         loss_dict.update({f'{prefix}/kl_loss': kl_loss})
 
         freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
-        loss_dict.update({f'{prefix}/freq_cos_sim'})
+        loss_dict.update({f'{prefix}/freq_cos_sim': freq_cos_sim})
 
         loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss + self.freq_cos_sim_weight * freq_cos_sim
 
@@ -286,7 +286,7 @@ class FrequencyVAE(pl.LightningModule):
         loss_dict.update({f'{prefix}/kl_loss': kl_loss})
 
         freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
-        loss_dict.update({f'{prefix}/freq_cos_sim'})
+        loss_dict.update({f'{prefix}/freq_cos_sim': freq_cos_sim})
 
         loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss + self.freq_cos_sim_weight * freq_cos_sim
 
