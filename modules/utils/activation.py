@@ -11,10 +11,10 @@ class Sine(nn.Module):
                  ):
         super().__init__(*args, **kwargs)
 
-        self.eps = torch.tensor(eps, requires_grad=True)
+        self.eps = eps
 
     def forward(self, x):
-        return torch.sin(self.eps * x)
+        return torch.sin(x)
 
 
 class Cosine(nn.Module):
