@@ -242,7 +242,7 @@ class FrequencyVAE(pl.LightningModule):
 
         perceptual_loss = self.lpips(img, recon_img)
         perceptual_loss = torch.sum(perceptual_loss) / perceptual_loss.shape[0]
-        loss_dict.update({f'{prefix}/perceptual_loss': perceptual_loss})
+        loss_dict.update({f'{prefix}/lpips_loss': perceptual_loss})
 
         lfd_loss = LFD(img, recon_img, dim=self.dim)
         loss_dict.update({f'{prefix}/lfd_loss': lfd_loss})
@@ -260,10 +260,9 @@ class FrequencyVAE(pl.LightningModule):
         self.log(f'{prefix}/loss', loss, prog_bar=True)
 
         if self.global_step % self.log_interval == 0:
-            with torch.no_grad():
-                self.log_img(img, split=f'{prefix}/img')
-                self.log_img(recon_img, split=f'{prefix}/recon')
-                self.log_img(self.sample(posterior), split=f'{prefix}/sample')
+            self.log_img(img, split=f'{prefix}/img')
+            self.log_img(recon_img, split=f'{prefix}/recon')
+            self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
         return loss
 
@@ -278,6 +277,9 @@ class FrequencyVAE(pl.LightningModule):
         perceptual_loss = torch.sum(perceptual_loss) / perceptual_loss.shape[0]
         loss_dict.update({f'{prefix}/perceptual_loss': perceptual_loss})
 
+        l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
+        l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
+
         lfd_loss = LFD(img, recon_img, dim=self.dim)
         loss_dict.update({f'{prefix}/lfd_loss': lfd_loss})
 
@@ -288,22 +290,25 @@ class FrequencyVAE(pl.LightningModule):
         freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
         loss_dict.update({f'{prefix}/freq_cos_sim': freq_cos_sim})
 
-        loss = lfd_loss * self.fd_weight + self.kl_weight * kl_loss + self.perceptual_weight * perceptual_loss + self.freq_cos_sim_weight * freq_cos_sim
+        loss = lfd_loss * self.fd_weight + \
+               self.kl_weight * kl_loss + \
+               self.perceptual_weight * perceptual_loss + \
+               self.freq_cos_sim_weight * freq_cos_sim + \
+               l1_loss
 
         self.log_dict(loss_dict)
         self.log(f'{prefix}/loss', loss, prog_bar=True)
 
         if self.global_step % self.log_interval == 0:
-            with torch.no_grad():
-                self.log_img(img, split=f'{prefix}/img')
-                self.log_img(recon_img, split=f'{prefix}/recon')
-                self.log_img(self.sample(posterior), split=f'{prefix}/sample')
+            self.log_img(img, split=f'{prefix}/img')
+            self.log_img(recon_img, split=f'{prefix}/recon')
+            self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
         return self.log_dict
 
     def log_img(self, img, split=''):
         tb = self.logger.experiment
-        tb.add_image(f'{split}', self.minmax_normalize(img)[0], self.global_step)
+        tb.add_image(f'{split}', torch.clamp(img, 0, 1)[0], self.global_step, dataformats='CHW')
 
     def minmax_normalize(self, x):
         max_val = torch.max(x)

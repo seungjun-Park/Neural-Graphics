@@ -10,7 +10,7 @@ module:
     num_head_channels: 32
     dim: 2
     act: 'sine'
-    kl_weight: 1e-5
+    kl_weight: 1e-6
     lr: 2e-5
     weight_decay: 0.
     fd_weight: 1.0
