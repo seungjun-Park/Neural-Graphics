@@ -246,6 +246,7 @@ class FrequencyVAE(pl.LightningModule):
 
         l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
         l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
+        loss_dict.update({f'{prefix}/l1_loss': l1_loss})
 
         lfd_loss = LFD(img, recon_img, dim=self.dim)
         loss_dict.update({f'{prefix}/lfd_loss': lfd_loss})
@@ -286,6 +287,7 @@ class FrequencyVAE(pl.LightningModule):
 
         l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
         l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
+        loss_dict.update({f'{prefix}/l1_loss': l1_loss})
 
         lfd_loss = LFD(img, recon_img, dim=self.dim)
         loss_dict.update({f'{prefix}/lfd_loss': lfd_loss})
