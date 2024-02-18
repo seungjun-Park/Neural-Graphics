@@ -230,7 +230,7 @@ class AutoencoderKL(pl.LightningModule):
 
         return z, posterior
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx, *args, **kwargs):
         loss_dict = dict()
         img, label = batch
 
