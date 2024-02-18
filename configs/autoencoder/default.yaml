@@ -65,16 +65,16 @@ logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
   params:
     save_dir: './logs'
-    name: 'freqVAE'
-    version: 'freq_cos_sim'
+    name: 'autoencoder'
+    version: 'default'
 
 
 checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/freqVAE/freq_cos_sim'
-      filename: 'freqVAE'
+      dirpath: './checkpoints/autoencoder/default'
+      filename: 'autoencoder'
       monitor: 'step'
       mode: 'max'
       save_top_k: 1
@@ -82,9 +82,9 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/freqVAE/freq_cos_sim'
-      filename: 'freqVAE_best'
-      monitor: 'val/loss'
+      dirpath: './checkpoints/autoencoder/default'
+      filename: 'autoencoder_best'
+      monitor: 'val/rec_loss'
       mode: 'min'
       save_top_k: 1
 
