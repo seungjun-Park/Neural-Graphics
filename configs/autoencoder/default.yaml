@@ -1,5 +1,5 @@
 module:
-  target: models.vae.frequency_vae.FrequencyVAE
+  target: models.vae.autoencoder.AutoencoderKL
   params:
     in_channels: 3
     out_channels: 3
@@ -16,17 +16,19 @@ module:
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
-        disc_start: 40000,
-        logvar_init: 0.0,
-        kl_weight: 1e-5,
-        pixelloss_weight: 1.0,
-        disc_num_layers: 3,
-        disc_in_channels: 3,
-        disc_factor: 1.0,
-        disc_weight: 1.0,
-        perceptual_weight: 1.0,
-        use_actnorm: False,
-        disc_conditional: False,
+        disc_start: 40000
+        logvar_init: 0.0
+        kl_weight: 1e-5
+        pixelloss_weight: 1.0
+        disc_num_layers: 3
+        disc_in_channels: 3
+        disc_factor: 1.0
+        disc_weight: 1.0
+        perceptual_weight: 1.0
+        fd_weight: 1.0
+        freq_cos_sim_weight: 1.0
+        use_actnorm: False
+        disc_conditional: False
         disc_loss: "hinge"
 
 data:

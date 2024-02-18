@@ -2,28 +2,28 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.fft as fft
 import pytorch_lightning as pl
 
 from typing import List, Dict
 
-from modules.utils import conv_nd, batch_norm_nd, activation_func
-from modules.utils import FD, LFD, frequency_cosine_similarity
+from modules.utils import conv_nd, batch_norm_nd, activation_func, group_norm, instantiate_from_config
 from modules.utils import img_to_freq, freq_to_img
 from modules.vae.down import DownBlock
 from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import MHAttnBlock
 from modules.vae.distributions import DiagonalGaussianDistribution
-from taming.modules.losses import LPIPS
 
 
-class Autoencoder(pl.LightningModule):
+class AutoencoderKL(pl.LightningModule):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
                  hidden_dims: List,
                  z_channels,
                  latent_dim,
+                 loss_config,
                  num_res_blocks=2,
                  dropout=0.,
                  resamp_with_conv=True,
@@ -33,7 +33,7 @@ class Autoencoder(pl.LightningModule):
                  dim=2,
                  lr=2e-5,
                  weight_decay=0.,
-                 l1_weight=1.0,
+                 kl_weight=1e-5,
                  fd_weight=1e-3,
                  perceptual_weight=1.0,
                  freq_cos_sim_weight=1.0,
@@ -48,14 +48,9 @@ class Autoencoder(pl.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
         self.log_interval = log_interval
-
-        self.l1_weight = l1_weight
-        self.perceptual_weight = perceptual_weight
-        self.fd_weight = fd_weight
-        self.freq_cos_sim_weight = freq_cos_sim_weight
         self.eps = eps
 
-        self.lpips = LPIPS().eval()
+        self.loss = instantiate_from_config(loss_config)
 
         assert num_head_channels != -1 or num_heads != 1
 
@@ -96,8 +91,7 @@ class Autoencoder(pl.LightningModule):
 
             layer.append(DownBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
 
-            if i != len(hidden_dims) - 1:
-                self.down.append(nn.Sequential(*layer))
+            self.down.append(nn.Sequential(*layer))
 
         if self.num_heads == -1:
             heads = in_ch // self.num_head_channels
@@ -122,18 +116,18 @@ class Autoencoder(pl.LightningModule):
                     act=act,
                     dim=dim,
                 ),
-                batch_norm_nd(dim=dim, num_features=in_ch),
+                group_norm(in_ch),
                 activation_func(act),
                 conv_nd(dim=dim,
                         in_channels=in_ch,
-                        out_channels=z_channels,
+                        out_channels=2 * z_channels,
                         kernel_size=3,
                         stride=1,
                         padding=1)
             )
         )
 
-        self.quant_conv = conv_nd(dim=dim, in_channels=z_channels, out_channels=latent_dim, kernel_size=1)
+        self.quant_conv = conv_nd(dim=dim, in_channels=2 * z_channels, out_channels=2 * latent_dim, kernel_size=1)
         self.post_quant_conv = conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1)
 
         self.up = nn.ModuleList()
@@ -178,8 +172,6 @@ class Autoencoder(pl.LightningModule):
             layer = nn.ModuleList()
             out_ch = hidden_dim
 
-            layer.append(UpBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
-
             for j in range(num_res_blocks + 1):
                 layer.append(ResidualBlock(in_channels=in_ch,
                                            out_channels=out_ch,
@@ -189,12 +181,13 @@ class Autoencoder(pl.LightningModule):
                                            ))
                 in_ch = out_ch
 
-            if i != 0:
-                self.up.append(nn.Sequential(*layer))
+            layer.append(UpBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
+
+            self.up.append(nn.Sequential(*layer))
 
         self.up.append(
             nn.Sequential(
-                batch_norm_nd(dim=dim, num_features=in_ch),
+                group_norm(in_channels),
                 activation_func(act),
                 conv_nd(
                     dim=dim,
@@ -226,79 +219,71 @@ class Autoencoder(pl.LightningModule):
             x = module(x)
 
         x = self.quant_conv(x)
-        eps = torch.rand((x.shape[0], )) * self.eps
-        x = x + eps * torch.randn(x.shape)
-        x = self.post_quant_conv(x)
+        posterior = DiagonalGaussianDistribution(x)
+        z = posterior.reparameterization()
+        z = z + self.eps * torch.randn(z.shape)
+        z = self.post_quant_conv(z)
 
         for module in self.up:
-            x = module(x)
+            z = module(z)
 
-        return x
+        return z, posterior
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_idx, optimizer_idx):
         loss_dict = dict()
-        prefix = 'train' if self.training else 'val'
         img, label = batch
 
-        recon_img = self(img)
-
-        perceptual_loss = self.lpips(img, recon_img)
-        perceptual_loss = torch.sum(perceptual_loss) / perceptual_loss.shape[0]
-        loss_dict.update({f'{prefix}/lpips_loss': perceptual_loss})
-
-        l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
-        l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
-        loss_dict.update({f'{prefix}/l1_loss': l1_loss})
-
-        fd_loss = FD(img, recon_img, dim=self.dim)
-        loss_dict.update({f'{prefix}/fd_loss': fd_loss})
-
-        freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
-        loss_dict.update({f'{prefix}/freq_cos_sim': freq_cos_sim})
-
-        loss = fd_loss * self.fd_weight + self.freq_cos_sim_weight * freq_cos_sim + self.perceptual_weight * perceptual_loss + l1_loss * self.l1_weight
-
-        self.log_dict(loss_dict)
-        self.log(f'{prefix}/loss', loss, prog_bar=True)
+        recon_img, posterior = self(img)
 
         if self.global_step % self.log_interval == 0:
+            prefix = 'train' if self.training else 'val'
             self.log_img(img, split=f'{prefix}/img')
             self.log_img(recon_img, split=f'{prefix}/recon')
+            self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
-        return loss
+        if optimizer_idx == 0:
+            # train encoder+decoder+logvar
+            aeloss, log_dict_ae = self.loss(img, recon_img, posterior, optimizer_idx, self.global_step,
+                                            last_layer=self.get_last_layer(), split="train")
+            self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+            return aeloss
 
-    def validation_step(self, batch, batch_idx):
+        if optimizer_idx == 1:
+            # train the discriminator
+            discloss, log_dict_disc = self.loss(img, recon_img, posterior, optimizer_idx, self.global_step,
+                                            last_layer=self.get_last_layer(), split="train")
+
+            self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+            return discloss
+
+
+    def validation_step(self, batch, batch_idx, *args, **kwargs):
         loss_dict = dict()
         prefix = 'train' if self.training else 'val'
         img, label = batch
 
         recon_img, posterior = self(img)
 
-        perceptual_loss = self.lpips(img, recon_img)
-        perceptual_loss = torch.sum(perceptual_loss) / perceptual_loss.shape[0]
-        loss_dict.update({f'{prefix}/perceptual_loss': perceptual_loss})
-
-        l1_loss = torch.sum((img - recon_img).abs(), dim=[1, 2, 3])
-        l1_loss = torch.sum(l1_loss) / l1_loss.shape[0]
-        loss_dict.update({f'{prefix}/l1_loss': l1_loss})
-
-        fd_loss = FD(img, recon_img, dim=self.dim)
-        loss_dict.update({f'{prefix}/fd_loss': fd_loss})
-
-        freq_cos_sim = frequency_cosine_similarity(img, recon_img, dim=self.dim)
-        loss_dict.update({f'{prefix}/freq_cos_sim': freq_cos_sim})
-
-        loss = fd_loss * self.fd_weight + self.freq_cos_sim_weight * freq_cos_sim + self.perceptual_weight * perceptual_loss + l1_loss * self.l1_weight
-
-        self.log_dict(loss_dict)
-        self.log(f'{prefix}/loss', loss, prog_bar=True)
-
         if self.global_step % self.log_interval == 0:
+            prefix = 'train' if self.training else 'val'
             self.log_img(img, split=f'{prefix}/img')
             self.log_img(recon_img, split=f'{prefix}/recon')
+            self.log_img(self.sample(posterior), split=f'{prefix}/sample')
+
+        aeloss, log_dict_ae = self.loss(img, recon_img, posterior, 0, self.global_step,
+                                        last_layer=self.get_last_layer(), split="val")
+
+        discloss, log_dict_disc = self.loss(img, recon_img, posterior, 1, self.global_step,
+                                            last_layer=self.get_last_layer(), split="val")
+
+        self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
+        self.log_dict(log_dict_ae)
+        self.log_dict(log_dict_disc)
 
         return self.log_dict
-
+    @torch.no_grad()
     def log_img(self, img, split=''):
         tb = self.logger.experiment
         tb.add_image(f'{split}', torch.clamp(img, 0, 1)[0], self.global_step, dataformats='CHW')
@@ -311,13 +296,26 @@ class Autoencoder(pl.LightningModule):
 
         return norm_x
 
-    def configure_optimizers(self):
-        opt = torch.optim.AdamW(list(self.down.parameters()) +
-                                list(self.quant_conv.parameters()) +
-                                list(self.post_quant_conv.parameters()) +
-                                list(self.up.parameters()),
-                                lr=self.lr,
-                                weight_decay=self.weight_decay,
-                                betas=(0.5, 0.9))
+    def sample(self, posterior):
+        sample_point = posterior.sample()
+        sample = self.post_quant_conv(sample_point)
 
-        return opt
+        for module in self.up:
+            sample = module(sample)
+
+        return sample
+
+    def configure_optimizers(self):
+        opt_ae = torch.optim.Adam(list(self.down.parameters()) +
+                                  list(self.up.parameters()) +
+                                  list(self.quant_conv.parameters()) +
+                                  list(self.post_quant_conv.parameters()),
+                                  lr=self.lr, betas=(0.5, 0.9))
+        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
+                                    lr=self.lr, betas=(0.5, 0.9))
+        return [opt_ae, opt_disc], []
+
+    def get_last_layer(self):
+        return self.up[-1][-1].weight
+
+
