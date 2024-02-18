@@ -222,7 +222,7 @@ class AutoencoderKL(pl.LightningModule):
         x = self.quant_conv(x)
         posterior = DiagonalGaussianDistribution(x)
         z = posterior.reparameterization()
-        z = z + self.eps * torch.randn(z.shape)
+        z = z + self.eps * torch.randn(z.shape).to(z.device)
         z = self.post_quant_conv(z)
 
         for module in self.up:

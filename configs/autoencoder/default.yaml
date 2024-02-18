@@ -13,6 +13,7 @@ module:
     lr: 2e-5
     weight_decay: 0.
     log_interval: 1000
+    eps: 1e-5
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
