@@ -33,13 +33,10 @@ class AutoencoderKL(pl.LightningModule):
                  dim=2,
                  lr=2e-5,
                  weight_decay=0.,
-                 kl_weight=1e-5,
-                 fd_weight=1e-3,
-                 perceptual_weight=1.0,
-                 freq_cos_sim_weight=1.0,
                  log_interval=100,
                  ckpt_path=None,
-                 eps=1e-5,
+                 eps=0.,
+                 use_fp16=False,
                  *args,
                  **kwargs,
                  ):
@@ -49,6 +46,7 @@ class AutoencoderKL(pl.LightningModule):
         self.weight_decay = weight_decay
         self.log_interval = log_interval
         self.eps = eps
+        self.use_fp16 = use_fp16
         self.automatic_optimization = False
 
         self.loss = instantiate_from_config(loss_config)
@@ -231,7 +229,6 @@ class AutoencoderKL(pl.LightningModule):
         return z, posterior
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
-        loss_dict = dict()
         img, label = batch
 
         recon_img, posterior = self(img)
@@ -264,10 +261,7 @@ class AutoencoderKL(pl.LightningModule):
         self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
 
-
     def validation_step(self, batch, batch_idx, *args, **kwargs):
-        loss_dict = dict()
-        prefix = 'train' if self.training else 'val'
         img, label = batch
 
         recon_img, posterior = self(img)
