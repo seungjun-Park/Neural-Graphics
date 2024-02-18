@@ -187,7 +187,7 @@ class AutoencoderKL(pl.LightningModule):
 
         self.up.append(
             nn.Sequential(
-                group_norm(in_channels),
+                group_norm(in_ch),
                 activation_func(act),
                 conv_nd(
                     dim=dim,
