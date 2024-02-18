@@ -49,6 +49,7 @@ class AutoencoderKL(pl.LightningModule):
         self.weight_decay = weight_decay
         self.log_interval = log_interval
         self.eps = eps
+        self.automatic_optimization = False
 
         self.loss = instantiate_from_config(loss_config)
 
@@ -241,22 +242,27 @@ class AutoencoderKL(pl.LightningModule):
             self.log_img(recon_img, split=f'{prefix}/recon')
             self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
-        if optimizer_idx == 0:
-            # train encoder+decoder+logvar
-            aeloss, log_dict_ae = self.loss(img, recon_img, posterior, optimizer_idx, self.global_step,
-                                            last_layer=self.get_last_layer(), split="train")
-            self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-            return aeloss
+        opt_ae, opt_disc = self.optimizers()
 
-        if optimizer_idx == 1:
-            # train the discriminator
-            discloss, log_dict_disc = self.loss(img, recon_img, posterior, optimizer_idx, self.global_step,
-                                            last_layer=self.get_last_layer(), split="train")
+        # train encoder+decoder+logvar
+        opt_ae.zero_grad()
+        aeloss, log_dict_ae = self.loss(img, recon_img, posterior, 0, self.global_step,
+                                        last_layer=self.get_last_layer(), split="train")
+        self.manual_backward(aeloss)
+        opt_ae.step()
 
-            self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-            return discloss
+        self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+
+        # train the discriminator
+        opt_disc.zero_grad()
+        discloss, log_dict_disc = self.loss(img, recon_img, posterior, 1, self.global_step,
+                                        last_layer=self.get_last_layer(), split="train")
+        self.manual_backward(discloss)
+        opt_disc.step()
+
+        self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
 
 
     def validation_step(self, batch, batch_idx, *args, **kwargs):
