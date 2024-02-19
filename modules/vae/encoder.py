@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from modules.vae.down import DownBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import MHAttnBlock
+from modules.vae.fft_block import FFTAttnBlock
 from modules.utils import activation_func, conv_nd, batch_norm_nd
 from modules.vae.distributions import DiagonalGaussianDistribution
 
@@ -26,6 +27,7 @@ class Encoder(nn.Module):
                  num_head_channels=-1,
                  act='relu',
                  num_classes=None,
+                 attn_type='vanilla',
                  dim=2,
                  **ignorekwargs
                  ):
@@ -43,6 +45,7 @@ class Encoder(nn.Module):
         self.num_head_channels = num_head_channels
         self.act = act
         self.dim = dim
+        self.attn_type = attn_type.lower()
 
         self.down = nn.ModuleList()
 
@@ -82,6 +85,18 @@ class Encoder(nn.Module):
 
                 layer.append(MHAttnBlock(in_channels=in_ch,
                                          heads=heads))
+
+                if attn_type == 'vanilla':
+                    if self.num_heads == -1:
+                        heads = in_ch // self.num_head_channels
+                    else:
+                        heads = self.num_heads
+
+                    layer.append(MHAttnBlock(in_channels=in_ch,
+                                             heads=heads))
+
+                elif attn_type == 'fft':
+                    layer.append(FFTAttnBlock(in_ch))
 
             if i != len(ch_mult) - 1:
                 layer.append(DownBlock(in_ch, dim=dim, use_conv=resamp_with_conv))

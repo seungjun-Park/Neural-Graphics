@@ -13,6 +13,7 @@ from modules.vae.down import DownBlock
 from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import MHAttnBlock
+from modules.vae.fft_block import FFTAttnBlock
 from modules.vae.distributions import DiagonalGaussianDistribution
 
 
@@ -37,6 +38,8 @@ class AutoencoderKL(pl.LightningModule):
                  ckpt_path=None,
                  eps=0.,
                  use_fp16=False,
+                 use_attn=True,
+                 attn_type='fft',
                  *args,
                  **kwargs,
                  ):
@@ -47,6 +50,8 @@ class AutoencoderKL(pl.LightningModule):
         self.log_interval = log_interval
         self.eps = eps
         self.use_fp16 = use_fp16
+        self.use_attn = use_attn
+        self.attn_type = attn_type.lower()
         self.automatic_optimization = False
 
         self.loss = instantiate_from_config(loss_config)
@@ -87,6 +92,19 @@ class AutoencoderKL(pl.LightningModule):
                                            dim=dim,
                                            ))
                 in_ch = out_ch
+
+            if self.use_attn:
+                if self.attn_type == 'vanilla':
+                    if self.num_heads == -1:
+                        heads = in_ch // self.num_head_channels
+                    else:
+                        heads = self.num_heads
+
+                    layer.append(MHAttnBlock(in_channels=in_ch,
+                                             heads=heads))
+
+                elif self.attn_type == 'fft':
+                    layer.append(FFTAttnBlock(in_ch))
 
             layer.append(DownBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
 
@@ -179,6 +197,19 @@ class AutoencoderKL(pl.LightningModule):
                                            dim=dim,
                                            ))
                 in_ch = out_ch
+
+            if self.use_attn:
+                if self.attn_type == 'vanilla':
+                    if self.num_heads == -1:
+                        heads = in_ch // self.num_head_channels
+                    else:
+                        heads = self.num_heads
+
+                    layer.append(MHAttnBlock(in_channels=in_ch,
+                                             heads=heads))
+
+                elif self.attn_type == 'fft':
+                    layer.append(FFTAttnBlock(in_ch))
 
             layer.append(UpBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
 

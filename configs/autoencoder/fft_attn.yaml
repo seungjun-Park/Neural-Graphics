@@ -1,0 +1,97 @@
+module:
+  target: models.vae.autoencoder.AutoencoderKL
+  params:
+    in_channels: 3
+    out_channels: 3
+    hidden_dims: [128, 256, 512, 512]
+    latent_dim: 4
+    z_channels: 4
+    num_res_blocks: 2
+    num_head_channels: 32
+    dim: 2
+    act: 'silu'
+    use_attn: True
+    attn_type: 'fft'
+    lr: 2e-5
+    weight_decay: 0.
+    log_interval: 1000
+    eps: 1e-5
+    ckpt_path: './checkpoints/autoencoder/default/autoencoder_best.ckpt'
+    loss_config:
+      target: modules.loss.contperceptual.LPIPSWithDiscriminator
+      params:
+        disc_start: 0
+        logvar_init: 0.0
+        kl_weight: 1e-5
+        pixelloss_weight: 1.0
+        disc_num_layers: 3
+        disc_in_channels: 3
+        disc_factor: 1.0
+        disc_weight: 1.0
+        perceptual_weight: 1.0
+        fd_weight: 2.0
+        freq_cos_sim_weight: 2.0
+        use_actnorm: False
+        disc_conditional: False
+        disc_loss: "hinge"
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 2
+    batch_size: 1
+    wrap: True
+    train:
+      target: modules.datasets.genshin_impact.GenshinImpactDataset
+      params:
+        root: '/local_datasets/genshin_impact'
+        train: True
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 512, 512 ]
+    validation:
+      target: modules.datasets.genshin_impact.GenshinImpactDataset
+      params:
+        root: '/local_datasets/genshin_impact'
+        train: False
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 512, 512 ]
+
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'autoencoder'
+    version: 'default'
+
+
+checkpoints:
+  latest_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/autoencoder/default'
+      filename: 'autoencoder'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+
+  best_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/autoencoder/default'
+      filename: 'autoencoder_best'
+      monitor: 'val/rec_loss'
+      mode: 'min'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 10
