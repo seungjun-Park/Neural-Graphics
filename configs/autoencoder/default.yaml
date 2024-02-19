@@ -27,8 +27,8 @@ module:
         disc_factor: 1.0
         disc_weight: 1.0
         perceptual_weight: 1.0
-        fd_weight: 1.0
-        freq_cos_sim_weight: 1.0
+        fd_weight: 2.0
+        freq_cos_sim_weight: 2.0
         use_actnorm: False
         disc_conditional: False
         disc_loss: "hinge"

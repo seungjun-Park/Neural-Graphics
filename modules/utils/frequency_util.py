@@ -66,3 +66,17 @@ def freq_to_img(freq, dim=2):
         NotImplementedError(f'color channel == {c} is not supported.')
 
     return img
+
+def freq_filter(freq, dim=2, bandwidth=[0, 1]):
+    assert len(bandwidth) == 2
+
+    _, c, h, w = freq.shape
+    half_h, half_w = h // 2, w // 2
+    eps_h = [int(half_h * bandwidth[0]), int(half_h * bandwidth[1])]
+    eps_w = [int(half_w * bandwidth[0]), int(half_w * bandwidth[1])]
+
+    filter = torch.zeros(freq.shape)
+    filter[:, :, half_h - eps_h[1]: half_h + eps_h[1], half_w - eps_w[1]: half_w + eps_w[1]] = 1
+    filter[:, :, half_h - eps_h[0]: half_h + eps_h[0], half_w - eps_w[0]: half_w + eps_w[0]] = 0
+
+    return freq * filter
