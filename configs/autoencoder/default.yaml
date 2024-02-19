@@ -14,6 +14,7 @@ module:
     weight_decay: 0.
     log_interval: 1000
     eps: 1e-5
+    ckpt_path: './checkpoints/autoencoder/dedfault/autoencoder_best.ckpt'
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
@@ -91,4 +92,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 5
+  max_epochs: 10
