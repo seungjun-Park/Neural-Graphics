@@ -19,7 +19,7 @@ module:
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
-        disc_start: 0
+        disc_start: 50001
         logvar_init: 0.0
         kl_weight: 1e-5
         pixelloss_weight: 1.0

@@ -15,12 +15,13 @@ class FFTAttnBlock(nn.Module):
         super().__init__(*args, **kwargs)
 
         self.norm = group_norm(in_channels)
+        self.proj_in = conv_nd(1, in_channels, in_channels, 1)
         self.proj_out = conv_nd(1, in_channels, in_channels, 1)
 
     def forward(self, x):
         b, c, *spatial = x.shape
         x = x.reshape(b, c, -1)
-        h = torch.real(fft.fft(fft.fft(self.norm(x), dim=-1), dim=-1))
+        h = torch.real(fft.fft(fft.fft(self.proj_in(self.norm(x)), dim=-1), dim=-1))
         h = self.proj_out(h)
 
         return (x + h).reshape(b, c, *spatial)
