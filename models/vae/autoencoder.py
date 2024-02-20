@@ -66,11 +66,11 @@ class AutoencoderKL(pl.LightningModule):
         self.act = act
         self.dim = dim
 
-        self.down = nn.ModuleList()
+        self.encoder = nn.ModuleList()
 
         in_ch = in_channels
         out_ch = hidden_dims[0]
-        self.down.append(
+        self.encoder.append(
             conv_nd(dim=dim,
                     in_channels=in_ch,
                     out_channels=out_ch,
@@ -108,14 +108,14 @@ class AutoencoderKL(pl.LightningModule):
 
             layer.append(DownBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
 
-            self.down.append(nn.Sequential(*layer))
+            self.encoder.append(nn.Sequential(*layer))
 
         if self.num_heads == -1:
             heads = in_ch // self.num_head_channels
         else:
             heads = self.num_heads
 
-        self.down.append(
+        self.encoder.append(
             nn.Sequential(
                 ResidualBlock(
                     in_channels=in_ch,
@@ -124,8 +124,9 @@ class AutoencoderKL(pl.LightningModule):
                     act=act,
                     dim=dim,
                 ),
-                MHAttnBlock(in_channels=in_ch,
-                            heads=heads),
+                # MHAttnBlock(in_channels=in_ch,
+                #             heads=heads),
+                FFTAttnBlock(in_ch),
                 ResidualBlock(
                     in_channels=in_ch,
                     out_channels=in_ch,
@@ -147,8 +148,8 @@ class AutoencoderKL(pl.LightningModule):
         self.quant_conv = conv_nd(dim=dim, in_channels=2 * z_channels, out_channels=2 * latent_dim, kernel_size=1)
         self.post_quant_conv = conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1)
 
-        self.up = nn.ModuleList()
-        self.up.append(
+        self.decoder = nn.ModuleList()
+        self.decoder.append(
             conv_nd(
                 dim=dim,
                 in_channels=z_channels,
@@ -164,7 +165,7 @@ class AutoencoderKL(pl.LightningModule):
         else:
             heads = self.num_heads
 
-        self.up.append(
+        self.decoder.append(
             nn.Sequential(
                 ResidualBlock(in_channels=in_ch,
                               out_channels=in_ch,
@@ -172,8 +173,9 @@ class AutoencoderKL(pl.LightningModule):
                               act=act,
                               dim=dim,
                               ),
-                MHAttnBlock(in_channels=in_ch,
-                            heads=heads),
+                # MHAttnBlock(in_channels=in_ch,
+                #             heads=heads),
+                FFTAttnBlock(in_ch),
                 ResidualBlock(in_channels=in_ch,
                               out_channels=in_ch,
                               dropout=dropout,
@@ -213,9 +215,9 @@ class AutoencoderKL(pl.LightningModule):
 
             layer.append(UpBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
 
-            self.up.append(nn.Sequential(*layer))
+            self.decoder.append(nn.Sequential(*layer))
 
-        self.up.append(
+        self.decoder.append(
             nn.Sequential(
                 group_norm(in_ch),
                 activation_func(act),
@@ -245,7 +247,7 @@ class AutoencoderKL(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, x):
-        for module in self.down:
+        for module in self.encoder:
             x = module(x)
 
         x = self.quant_conv(x)
@@ -254,7 +256,7 @@ class AutoencoderKL(pl.LightningModule):
         z = z
         z = self.post_quant_conv(z)
 
-        for module in self.up:
+        for module in self.decoder:
             z = module(z)
 
         return z, posterior
@@ -337,8 +339,8 @@ class AutoencoderKL(pl.LightningModule):
         return sample
 
     def configure_optimizers(self):
-        opt_ae = torch.optim.Adam(list(self.down.parameters()) +
-                                  list(self.up.parameters()) +
+        opt_ae = torch.optim.Adam(list(self.encoder.parameters()) +
+                                  list(self.decoder.parameters()) +
                                   list(self.quant_conv.parameters()) +
                                   list(self.post_quant_conv.parameters()),
                                   lr=self.lr, betas=(0.5, 0.9))
@@ -347,6 +349,6 @@ class AutoencoderKL(pl.LightningModule):
         return [opt_ae, opt_disc], []
 
     def get_last_layer(self):
-        return self.up[-1][-1].weight
+        return self.decoder[-1][-1].weight
 
 

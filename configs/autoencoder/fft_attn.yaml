@@ -27,7 +27,7 @@ module:
         disc_in_channels: 3
         disc_factor: 1.0
         disc_weight: 1.0
-        perceptual_weight: 0.2
+        perceptual_weight: 1.0
         fd_weight: 1.0
         freq_cos_sim_weight: 1.0
         use_actnorm: False
