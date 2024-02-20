@@ -87,7 +87,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/autoencoder/fft_attn'
       filename: 'autoencoder_best'
-      monitor: 'val/rec_loss'
+      monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
