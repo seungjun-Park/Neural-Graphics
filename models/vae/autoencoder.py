@@ -309,7 +309,7 @@ class AutoencoderKL(pl.LightningModule):
         discloss, log_dict_disc = self.loss(img, recon_img, posterior, 1, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
 
-        self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
+        self.log("val/total_loss", log_dict_ae["val/total_loss"])
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
 
