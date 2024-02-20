@@ -54,24 +54,25 @@ class LPIPSWithDiscriminator(nn.Module):
     def forward(self, inputs, reconstructions, posterior, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train",
                 weights=None):
-        rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
+        # rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
 
-        if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
-            rec_loss = rec_loss + self.perceptual_weight * p_loss
+        # if self.perceptual_weight > 0:
+        #     p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
+        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
 
-        nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
-        weighted_nll_loss = nll_loss
-        if weights is not None:
-            weighted_nll_loss = weights*nll_loss
-        weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
-        nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
+        # nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
+        # weighted_nll_loss = nll_loss
+        # if weights is not None:
+        #     weighted_nll_loss = weights*nll_loss
+        # weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
+        # nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
+
+        p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
+        fd_loss = FD(inputs.contiguous(), reconstructions.contiguous())
+        freq_cos_sim = frequency_cosine_similarity(inputs.contiguous(), reconstructions.contiguous())
 
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
-
-        fd_loss = FD(inputs.contiguous(), reconstructions.contiguous())
-        freq_cos_sim = frequency_cosine_similarity(inputs.contiguous(), reconstructions.contiguous())
 
         # now the GAN part
         if optimizer_idx == 0:
@@ -86,7 +87,8 @@ class LPIPSWithDiscriminator(nn.Module):
 
             if self.disc_factor > 0.0:
                 try:
-                    d_weight = self.calculate_adaptive_weight(nll_loss, g_loss, last_layer=last_layer)
+                    # d_weight = self.calculate_adaptive_weight(nll_loss, g_loss, last_layer=last_layer)
+                    d_weight = self.calculate_adaptive_weight(p_loss, g_loss, last_layer=last_layer)
                 except RuntimeError:
                     assert not self.training
                     d_weight = torch.tensor(0.0)
@@ -94,13 +96,14 @@ class LPIPSWithDiscriminator(nn.Module):
                 d_weight = torch.tensor(0.0)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = weighted_nll_loss + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss + fd_loss * self.fd_weight + freq_cos_sim * self.freq_cos_sim_weight
+            loss = p_loss * self.perceptual_weight + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss + fd_loss * self.fd_weight + freq_cos_sim * self.freq_cos_sim_weight
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
-                   "{}/logvar".format(split): self.logvar.detach(),
+                   # "{}/logvar".format(split): self.logvar.detach(),
                    "{}/kl_loss".format(split): kl_loss.detach().mean(),
-                   "{}/nll_loss".format(split): nll_loss.detach().mean(),
-                   "{}/rec_loss".format(split): rec_loss.detach().mean(),
+                   # "{}/nll_loss".format(split): nll_loss.detach().mean(),
+                   # "{}/rec_loss".format(split): rec_loss.detach().mean(),
+                   "{}/p_loss".format(split): p_loss.detach().mean(),
                    "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
