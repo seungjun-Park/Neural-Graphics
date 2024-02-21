@@ -8,7 +8,7 @@ from torchvision.transforms.transforms import Resize
 
 class ViTLoss(nn.Module):
     def __init__(self,
-                 weights=ViT_B_16_Weights.DEFAULT
+                 weights=ViT_B_16_Weights.DEFAULT,
                  *args,
                  **kwargs,
                  ):
