@@ -54,7 +54,7 @@ class ViTLoss(nn.Module):
 
         return x
 
-    def forward(self, target, pred, feature_layers=[0, 1, 2, 3]):
+    def forward(self, target, pred):
         b, c, h, w = target.shape
 
         target = self.preprocessing(target)

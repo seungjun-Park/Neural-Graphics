@@ -37,3 +37,13 @@ class FFTAttnBlock(nn.Module):
         z = z.permute(0, 2, 1)
 
         return z.reshape(b, c, *spatial)
+
+
+class IFFTAttnBlock(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 dropout=0.,
+                 *args,
+                 **kwargs
+                 ):
+        super().__init__(*args, **kwargs)
