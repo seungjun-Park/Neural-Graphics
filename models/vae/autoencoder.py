@@ -15,6 +15,8 @@ from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import MHAttnBlock
 from modules.vae.fft_block import FFTAttnBlock
 from modules.vae.distributions import DiagonalGaussianDistribution
+from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure, MultiScaleStructuralSimilarityIndexMeasure
+from torchmetrics.image.psnr import PeakSignalNoiseRatio
 
 
 class AutoencoderKL(pl.LightningModule):
@@ -316,6 +318,29 @@ class AutoencoderKL(pl.LightningModule):
         self.log_dict(log_dict_disc)
 
         return self.log_dict
+
+    @torch.no_grad()
+    def log_psnr(self, target, pred):
+        prefix = 'train' if self.training else 'val'
+        psnr = PeakSignalNoiseRatio()
+        target = target.detach().cpu()
+        pred = pred.detach().cpu()
+        psnr_score = psnr(target[0], pred[0])
+        self.log(f'{prefix}/psnr', psnr_score, self.global_step)
+
+        return
+
+    @torch.no_grad()
+    def log_ssim(self, target, pred):
+        prefix = 'train' if self.training else 'val'
+        ssim = StructuralSimilarityIndexMeasure()
+        target = target.detach().cpu()
+        pred = pred.detach().cpu()
+        ssim_score = psnr(target[0], pred[0])
+        self.log(f'{prefix}/ssim', ssim_score, self.global_step)
+
+        return
+
     @torch.no_grad()
     def log_img(self, img, split=''):
         tb = self.logger.experiment

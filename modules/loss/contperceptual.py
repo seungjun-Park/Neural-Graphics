@@ -107,7 +107,7 @@ class LPIPSWithDiscriminator(nn.Module):
                    "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
-                   "{}/fd_loss".format(split): lfd_loss.detach().mean(),
+                   "{}/fd_loss".format(split): fd_loss.detach().mean(),
                    # "{}/freq_cos_sim_loss".format(split): freq_cos_sim.detach().mean(),
                    }
             return loss, log
