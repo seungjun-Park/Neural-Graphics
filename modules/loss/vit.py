@@ -32,8 +32,8 @@ class ViTLoss(nn.Module):
 
         self.pos_embedding = vit.encoder.pos_embedding
 
-        self.mean = torch.Tensor([0.485, 0.456, 0.406])[None, :, None, None]
-        self.std = torch.Tensor([0.229, 0.224, 0.225])[None, :, None, None]
+        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406])[None, :, None, None])
+        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225])[None, :, None, None])
 
     def preprocessing(self, x):
         x = (x - self.mean) / self.std
