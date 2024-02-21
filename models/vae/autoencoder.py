@@ -12,7 +12,7 @@ from modules.utils import img_to_freq, freq_to_img
 from modules.vae.down import DownBlock
 from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
-from modules.vae.attn_block import MHAttnBlock
+from modules.vae.attn_block import MHAttnBlock, ViTBlock
 from modules.vae.fft_block import FFTAttnBlock
 from modules.vae.distributions import DiagonalGaussianDistribution
 from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure, MultiScaleStructuralSimilarityIndexMeasure
@@ -128,7 +128,11 @@ class AutoencoderKL(pl.LightningModule):
                 ),
                 # MHAttnBlock(in_channels=in_ch,
                 #             heads=heads),
-                FFTAttnBlock(in_ch),
+                ViTBlock(in_channels=in_ch,
+                         heads=heads,
+                         dropout=dropout,
+                         attn_dropout=dropout),
+                # FFTAttnBlock(in_ch),
                 ResidualBlock(
                     in_channels=in_ch,
                     out_channels=in_ch,
@@ -177,7 +181,11 @@ class AutoencoderKL(pl.LightningModule):
                               ),
                 # MHAttnBlock(in_channels=in_ch,
                 #             heads=heads),
-                FFTAttnBlock(in_ch),
+                ViTBlock(in_channels=in_ch,
+                         heads=heads,
+                         dropout=dropout,
+                         attn_dropout=dropout),
+                # FFTAttnBlock(in_ch),
                 ResidualBlock(in_channels=in_ch,
                               out_channels=in_ch,
                               dropout=dropout,
