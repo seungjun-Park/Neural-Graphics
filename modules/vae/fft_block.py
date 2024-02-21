@@ -29,7 +29,7 @@ class FFTAttnBlock(nn.Module):
         b, c, *spatial = x.shape
         x = x.reshape(b, c, -1)
         x = x.permute(0, 2, 1)
-        h = torch.real(fft.fft(fft.fft(self.proj_in(self.norm(x)), dim=2), dim=1))
+        h = torch.real(fft.fft(fft.fft(self.proj_in(x), dim=2), dim=1))
         h = self.dropout(h)
         h = x + h
         z = self.proj_out(h)
