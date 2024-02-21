@@ -64,8 +64,7 @@ class ViTLoss(nn.Module):
             target = module(target)
             pred = module(pred)
 
-            if i in feature_layers:
-                loss += F.l1_loss(target, pred)
+            loss += F.l1_loss(target, pred)
 
         return loss
 
