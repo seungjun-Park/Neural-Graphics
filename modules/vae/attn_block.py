@@ -125,7 +125,7 @@ class ViTBlock(nn.Module):
         x = x.reshape(b, c, -1)
         x = x.permute(0, 2, 1)
 
-        h = self.proj_in(self.norm(group_norm(x)))
+        h = self.proj_in(x)
         h = self.mhattn_block(h, h, h)
         h = self.dropout(h)
         h = h + x
