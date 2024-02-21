@@ -11,8 +11,7 @@ def FD(target, pred, dim=2, type='l1'):
     fd = (target_freq - pred_freq).abs()
     if type.lower() == 'l2':
         fd = torch.square(fd)
-    fd = torch.sum(fd, dim=[-2, -1]) / (fd.shape[2] * fd.shape[3])
-    fd = torch.sum(fd, dim=-1)
+    fd = torch.mean(fd, dim=[1, 2, 3])
 
     # mean of batch
     fd = torch.sum(fd) / fd.shape[0]
