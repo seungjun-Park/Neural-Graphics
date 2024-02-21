@@ -55,15 +55,17 @@ class ViTLoss(nn.Module):
         return x
 
     def forward(self, target, pred, feature_layers=[0, 1, 2, 3]):
+        b, c, h, w = target.shape
+
         target = self.preprocessing(target)
         pred = self.preprocessing(pred)
 
-        loss = 0.0
+        l1_loss = 0.0
         for i, module in enumerate(self.encoder_blocks):
             target = module(target)
             pred = module(pred)
 
-            loss += F.l1_loss(target, pred)
+            l1_loss += F.l1_loss(target, pred)
 
-        return loss
+        return l1_loss
 

@@ -3,14 +3,16 @@ from modules.utils.frequency_util import img_to_freq, freq_to_img
 
 
 # Frequency Distance loss
-def FD(target, pred, dim=2):
+def FD(target, pred, dim=2, type='l1'):
     target_freq = img_to_freq(target, dim=dim)
     pred_freq = img_to_freq(pred, dim=dim)
 
     # general form of frequency distance
     fd = (target_freq - pred_freq).abs()
-    fd = torch.square(fd)
-    fd = torch.mean(fd, dim=[1, 2, 3])
+    if type.lower() == 'l2':
+        fd = torch.square(fd)
+    fd = torch.sum(fd, dim=[2, 3]) / (target.shape[2] * target.shape[3])
+    fd = torch.sum(fd, dim=-1)
 
     # mean of batch
     fd = torch.sum(fd) / fd.shape[0]
@@ -19,8 +21,8 @@ def FD(target, pred, dim=2):
 
 
 # Log Frequency Distance loss
-def LFD(target, pred, dim=2):
-    fd = FD(target, pred, dim=dim)
+def LFD(target, pred, dim=2, type='l1'):
+    fd = FD(target, pred, dim=dim, type=type)
     lfd = torch.log(fd + 1)
 
     return lfd
@@ -50,7 +52,7 @@ def frequency_cosine_similarity(target, pred, dim=2, eps=1e-5):
 
     # To prevent division by zero, we add small epsilon in denominator.
     cosine = tr / (target_freq_norm * pred_freq_hermitian_norm + eps)
-    cosine = torch.sum(cosine, dim=-1) / cosine.shape[-1]
+    cosine = torch.sum(cosine, dim=-1)
     cosine = torch.sum(cosine) / cosine.shape[-1]
 
     cosine_similarity = torch.sum(1 - cosine).real
