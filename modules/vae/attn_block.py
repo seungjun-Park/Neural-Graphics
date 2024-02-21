@@ -126,7 +126,7 @@ class ViTBlock(nn.Module):
         x = x.permute(0, 2, 1)
 
         h = self.proj_in(x)
-        h = self.mhattn_block(h, h, h)
+        h, _ = self.mhattn_block(h, h, h)
         h = self.dropout(h)
         h = h + x
 
