@@ -32,13 +32,12 @@ class ViTLoss(nn.Module):
 
         self.pos_embedding = vit.encoder.pos_embedding
 
-        self.transform = Resize(self.image_size, self.image_size)
         self.mean = torch.Tensor([0.485, 0.456, 0.406])[None, :, None, None]
         self.std = torch.Tensor([0.229, 0.224, 0.225])[None, :, None, None]
 
     def preprocessing(self, x):
         x = (x - self.mean) / self.std
-        x = self.transform(x)
+        x = F.interpolate(x, mode='bilinear', size=(self.image_size, self.image_size), align_corners=False, antialias=True)
 
         b, c, h, w = x.shape
         n_h = h // self.path_size
