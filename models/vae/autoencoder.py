@@ -326,7 +326,7 @@ class AutoencoderKL(pl.LightningModule):
         target = target.detach().cpu()
         pred = pred.detach().cpu()
         psnr_score = psnr(target[0], pred[0])
-        self.log(f'{prefix}/psnr', psnr_score, self.global_step)
+        self.log(f'{prefix}/psnr', psnr_score, self.global_step, prog_bar=False, logger=True, on_step=True, on_epoch=True)
 
         return
 
@@ -337,7 +337,7 @@ class AutoencoderKL(pl.LightningModule):
         target = target.detach().cpu()
         pred = pred.detach().cpu()
         ssim_score = psnr(target[0], pred[0])
-        self.log(f'{prefix}/ssim', ssim_score, self.global_step)
+        self.log(f'{prefix}/ssim', ssim_score, self.global_step, prog_bar=False, logger=True, on_step=True, on_epoch=True)
 
         return
 
