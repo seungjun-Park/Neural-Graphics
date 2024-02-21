@@ -333,7 +333,7 @@ class AutoencoderKL(pl.LightningModule):
         sample_point = posterior.sample()
         sample = self.post_quant_conv(sample_point)
 
-        for module in self.up:
+        for module in self.decoder:
             sample = module(sample)
 
         return sample
