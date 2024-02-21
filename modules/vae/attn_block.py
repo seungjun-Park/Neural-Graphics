@@ -108,13 +108,15 @@ class ViTBlock(nn.Module):
             self.heads = in_channels // num_head_channels
 
 
-        self.proj_in = nn.Linear(in_channels, in_channels)
-        self.norm = group_norm(in_channels)
+        self.proj_in = nn.Sequential(
+            nn.LayerNorm(in_channels),
+            nn.Linear(in_channels, in_channels),
+        )
         self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout, batch_first=True)
         self.dropout = nn.Dropout(dropout)
 
         self.proj_out = nn.Sequential(
-            group_norm(in_channels),
+            nn.LayerNorm(in_channels),
             nn.Linear(in_channels, in_channels)
         )
 

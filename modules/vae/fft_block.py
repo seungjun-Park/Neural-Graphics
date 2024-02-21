@@ -15,10 +15,12 @@ class FFTAttnBlock(nn.Module):
                  **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.norm = group_norm(in_channels)
-        self.proj_in = nn.Linear(in_channels, in_channels)
+        self.proj_in = nn.Sequential(
+            nn.LayerNorm(in_channels),
+            nn.Linear(in_channels, in_channels),
+        )
         self.proj_out = nn.Sequential(
-            group_norm(in_channels),
+            nn.LayerNorm(in_channels),
             nn.Linear(in_channels, in_channels)
         )
         self.dropout = nn.Dropout(dropout)
