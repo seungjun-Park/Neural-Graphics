@@ -67,8 +67,8 @@ class LPIPSWithDiscriminator(nn.Module):
         # weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
         # nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
 
-        p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
-        lfd_loss = LFD(inputs.contiguous(), reconstructions.contiguous())
+        # p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
+        fd_loss = FD(inputs.contiguous(), reconstructions.contiguous())
         # freq_cos_sim = frequency_cosine_similarity(inputs.contiguous(), reconstructions.contiguous())
 
         kl_loss = posterior.kl()
@@ -96,18 +96,18 @@ class LPIPSWithDiscriminator(nn.Module):
                 d_weight = torch.tensor(0.0)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = p_loss * self.perceptual_weight + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss + lfd_loss * self.fd_weight #+ freq_cos_sim * self.freq_cos_sim_weight
+            loss = rec_loss + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss + fd_loss * self.fd_weight #+ freq_cos_sim * self.freq_cos_sim_weight
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    # "{}/logvar".format(split): self.logvar.detach(),
                    "{}/kl_loss".format(split): kl_loss.detach().mean(),
                    # "{}/nll_loss".format(split): nll_loss.detach().mean(),
-                   # "{}/rec_loss".format(split): rec_loss.detach().mean(),
+                   "{}/rec_loss".format(split): rec_loss.detach().mean(),
                    "{}/p_loss".format(split): p_loss.detach().mean(),
                    "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
-                   "{}/lfd_loss".format(split): lfd_loss.detach().mean(),
+                   "{}/fd_loss".format(split): lfd_loss.detach().mean(),
                    # "{}/freq_cos_sim_loss".format(split): freq_cos_sim.detach().mean(),
                    }
             return loss, log
