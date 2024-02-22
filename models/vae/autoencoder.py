@@ -12,7 +12,7 @@ from modules.utils import img_to_freq, freq_to_img
 from modules.vae.down import DownBlock
 from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
-from modules.vae.attn_block import MHAttnBlock, ViTBlock
+from modules.vae.attn_block import ViTBlock
 from modules.vae.fft_block import FFTAttnBlock
 from modules.vae.distributions import DiagonalGaussianDistribution
 from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure, MultiScaleStructuralSimilarityIndexMeasure
