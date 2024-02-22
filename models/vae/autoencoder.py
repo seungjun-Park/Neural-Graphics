@@ -344,7 +344,7 @@ class AutoencoderKL(pl.LightningModule):
         ssim = StructuralSimilarityIndexMeasure()
         target = target.detach().cpu()
         pred = pred.detach().cpu()
-        ssim_score = psnr(target[0], pred[0])
+        ssim_score = ssim(target[0], pred[0])
         self.log(f'{prefix}/ssim', ssim_score, self.global_step, prog_bar=False, logger=True, on_step=True, on_epoch=True)
 
         return
@@ -372,13 +372,14 @@ class AutoencoderKL(pl.LightningModule):
         return sample
 
     def configure_optimizers(self):
-        opt_ae = torch.optim.Adam(list(self.encoder.parameters()) +
-                                  list(self.decoder.parameters()) +
-                                  list(self.quant_conv.parameters()) +
-                                  list(self.post_quant_conv.parameters()),
-                                  lr=self.lr, betas=(0.5, 0.9))
-        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
-                                    lr=self.lr, betas=(0.5, 0.9))
+        opt_ae = torch.optim.AdamW(list(self.encoder.parameters()) +
+                                   list(self.decoder.parameters()) +
+                                   list(self.quant_conv.parameters()) +
+                                   list(self.post_quant_conv.parameters()),
+                                   lr=self.lr, betas=(0.5, 0.9))
+        opt_disc = torch.optim.AdamW(self.loss.discriminator.parameters(),
+                                     lr=self.lr,
+                                     betas=(0.5, 0.9))
         return [opt_ae, opt_disc], []
 
     def get_last_layer(self):
