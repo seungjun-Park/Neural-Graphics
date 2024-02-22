@@ -2,12 +2,11 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.fft as fft
 import pytorch_lightning as pl
 
 from typing import List, Dict
 
-from modules.utils import conv_nd, batch_norm_nd, activation_func, group_norm, instantiate_from_config
+from modules.utils import conv_nd, activation_func, group_norm, instantiate_from_config
 from modules.utils import img_to_freq, freq_to_img
 from modules.vae.down import DownBlock
 from modules.vae.up import UpBlock
@@ -239,6 +238,7 @@ class AutoencoderKL(pl.LightningModule):
                     stride=1,
                     padding=1,
                 ),
+                nn.Hardtanh(0, 1),
             )
         )
 
