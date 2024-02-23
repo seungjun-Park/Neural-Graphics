@@ -238,7 +238,6 @@ class AutoencoderKL(pl.LightningModule):
                     stride=1,
                     padding=1,
                 ),
-                nn.Hardtanh(0, 1),
             )
         )
 
