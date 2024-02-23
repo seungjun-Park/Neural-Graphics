@@ -26,7 +26,7 @@ class LPIPSWithDiscriminator(nn.Module):
         self.fd_weight = fd_weight
         self.freq_cos_sim_weight = freq_cos_sim_weight
         self.ssim_weight = ssim_weight
-        # self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
+        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
 
         # output log variance
         self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
@@ -63,6 +63,10 @@ class LPIPSWithDiscriminator(nn.Module):
             p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
+        if self.ssim_weight > 0:
+            ssim_loss = 1.0 - self.ssim(reconstructions.contiguous(), inputs.contiguous())
+            rec_loss = rec_loss + ssim_loss * self.ssim_weight
+
         nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
         weighted_nll_loss = nll_loss
         if weights is not None:
@@ -70,7 +74,6 @@ class LPIPSWithDiscriminator(nn.Module):
         weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
         nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
 
-        # ssim_loss = 1.0 - self.ssim(reconstructions.contiguous(), inputs.contiguous())
         fd_loss = FD(inputs.contiguous(), reconstructions.contiguous())
         # freq_cos_sim = frequency_cosine_similarity(inputs.contiguous(), reconstructions.contiguous())
 
@@ -98,14 +101,14 @@ class LPIPSWithDiscriminator(nn.Module):
                 d_weight = torch.tensor(0.0)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = weighted_nll_loss + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss + fd_loss * self.fd_weight# + ssim_loss * self.ssim_weight
+            loss = weighted_nll_loss + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss + fd_loss * self.fd_weight
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/logvar".format(split): self.logvar.detach(),
                    "{}/kl_loss".format(split): kl_loss.detach().mean(),
                    "{}/nll_loss".format(split): nll_loss.detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
-                   # "{}/ssim_loss".format(split): ssim_loss.detach().mean(),
+                   "{}/ssim_loss".format(split): ssim_loss.detach().mean(),
                    # "{}/p_loss".format(split): p_loss.detach().mean(),
                    "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
