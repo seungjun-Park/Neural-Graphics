@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torchmetrics.functional.image.ssim as ssim
+from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 
 from taming.modules.losses.vqperceptual import *
 from modules.utils import FD, LFD, frequency_cosine_similarity
@@ -26,6 +26,7 @@ class LPIPSWithDiscriminator(nn.Module):
         self.fd_weight = fd_weight
         self.freq_cos_sim_weight = freq_cos_sim_weight
         self.ssim_weight = ssim_weight
+        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
 
         # output log variance
         self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
@@ -69,7 +70,7 @@ class LPIPSWithDiscriminator(nn.Module):
         weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
         nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
 
-        ssim_loss = 1.0 - ssim(reconstructions.contiguous(), inputs.contiguous(), data_range=1.0)
+        ssim_loss = 1.0 - self.ssim(reconstructions.contiguous(), inputs.contiguous())
         fd_loss = FD(inputs.contiguous(), reconstructions.contiguous())
         # freq_cos_sim = frequency_cosine_similarity(inputs.contiguous(), reconstructions.contiguous())
 
