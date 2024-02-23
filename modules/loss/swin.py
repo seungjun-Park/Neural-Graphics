@@ -33,20 +33,17 @@ class SwinLoss(nn.Module):
         super().__init__(*args, **kwargs)
 
         self.type = type.lower()
+        self.training = False
 
         swin = get_pretrained_model(self.type)
-        features = swin.features.eval()
+        features = swin.features.eval().requires_grad_(False)
 
         self.layers = [
-            features[: 2].eval(),
-            features[2: 4].eval(),
-            features[4: 6].eval(),
-            features[6: ].eval(),
+            features[: 2].eval().requires_grad_(False),
+            features[2: 4].eval().requires_grad_(False),
+            features[4: 6].eval().requires_grad_(False),
+            features[6: ].eval().requires_grad_(False),
         ]
-
-        for layer in self.layers:
-            for p in layer.parameters():
-                p.requires_grad = False
 
         self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406])[None, :, None, None])
         self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225])[None, :, None, None])
@@ -63,25 +60,12 @@ class SwinLoss(nn.Module):
         target = self.preprocessing(target)
         pred = self.preprocessing(pred)
 
-        diffs = []
+        loss = 0.0
         for i, module in enumerate(self.layers):
             target = module(target)
             pred = module(pred)
-            diff = torch.square(normalize_tensor(target.permute(0, 3, 1, 2).contiguous()) - normalize_tensor(pred.permute(0, 3, 1, 2).contiguous()))
-            diff = spatial_average(diff)
-            diffs.append(diff)
 
-        loss = diffs[0]
-        for i in range(1, len(diffs)):
-            loss += diffs[i]
+            loss += F.l1_loss(target, pred)
 
-        return loss
+        return loss / len(self.layers)
 
-
-def normalize_tensor(x, eps=1e-10):
-    norm_factor = torch.sqrt(torch.sum(x ** 2, dim=1, keepdim=True))
-    return x / (norm_factor + eps)
-
-
-def spatial_average(x, keepdim=True):
-    return x.mean([2,3],keepdim=keepdim)

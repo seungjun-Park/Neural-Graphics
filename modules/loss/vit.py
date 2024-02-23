@@ -60,12 +60,13 @@ class ViTLoss(nn.Module):
         target = self.preprocessing(target)
         pred = self.preprocessing(pred)
 
-        l1_loss = 0.0
+        loss = 0.0
         for i, module in enumerate(self.encoder_blocks):
             target = module(target)
             pred = module(pred)
 
             l1_loss += F.l1_loss(target, pred)
 
-        return l1_loss
+        return l1_loss / len(self.encoder_blocks)
+
 

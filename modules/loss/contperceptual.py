@@ -20,8 +20,8 @@ class LPIPSWithDiscriminator(nn.Module):
         self.kl_weight = kl_weight
         self.pixel_weight = pixelloss_weight
         # self.perceptual_loss = LPIPS().eval()
-        # self.perceptual_loss = ViTLoss().eval()
-        self.perceptual_loss = SwinLoss(swin_type).eval()
+        self.perceptual_loss = ViTLoss().eval()
+        # self.perceptual_loss = SwinLoss(swin_type).eval()
         self.perceptual_weight = perceptual_weight
         self.fd_weight = fd_weight
         self.freq_cos_sim_weight = freq_cos_sim_weight
