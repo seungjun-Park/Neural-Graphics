@@ -38,10 +38,10 @@ class SwinLoss(nn.Module):
         features = swin.features.eval()
 
         self.layers = [
-            features[: 2],
-            features[2: 4],
-            features[4: 6],
-            features[6: ],
+            features[: 2].eval(),
+            features[2: 4].eval(),
+            features[4: 6].eval(),
+            features[6: ].eval(),
         ]
 
         for layer in self.layers:

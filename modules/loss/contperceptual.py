@@ -5,6 +5,7 @@ import torchmetrics.functional.image.ssim as ssim
 from taming.modules.losses.vqperceptual import *
 from modules.utils import FD, LFD, frequency_cosine_similarity
 from modules.loss.swin import SwinLoss
+from modules.loss.vit import ViTLoss
 
 
 class LPIPSWithDiscriminator(nn.Module):

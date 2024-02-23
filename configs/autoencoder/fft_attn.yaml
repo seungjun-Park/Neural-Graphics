@@ -35,6 +35,7 @@ module:
         use_actnorm: False
         disc_conditional: False
         disc_loss: "hinge"
+        swin_type: 'swin-v2-s'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -95,4 +96,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 10
+  max_epochs: 5
