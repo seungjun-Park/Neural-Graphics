@@ -6,6 +6,24 @@ from torchvision.models import swin_v2_t, swin_v2_s, swin_v2_b, swin_t, swin_s, 
 from torchvision.models import Swin_T_Weights, Swin_S_Weights, Swin_B_Weights, Swin_V2_T_Weights, Swin_V2_S_Weights, Swin_V2_B_Weights
 
 
+def get_pretrained_model(type):
+    if type == 'swin-t':
+        return swin_t(weights=Swin_T_Weights.DEFAULT)
+    elif type == 'swin-s':
+        return swin_s(weights=Swin_S_Weights.DEFAULT)
+    elif type == 'swin-b':
+        return swin_b(weights=Swin_B_Weights.DEFAULT)
+    elif type == 'swin-v2-t':
+        return swin_v2_t(weights=Swin_V2_T_Weights.DEFAULT)
+    elif type == 'swin-s':
+        return swin_v2_s(weights=Swin_V2_S_Weights.DEFAULT)
+    elif type == 'swin-b':
+        return swin_v2_b(weights=Swin_V2_B_Weights.DEFAULT)
+    else:
+        NotImplementedError(f'{self.type} is not available.')
+
+
+
 class SwinLoss(nn.Module):
     def __init__(self,
                  type='swin-t',
@@ -16,41 +34,23 @@ class SwinLoss(nn.Module):
 
         self.type = type.lower()
 
+        swin = get_pretrained_model(self.type).eval()
+        features = swin.features.eval()
+
+        self.layers = [
+            features[: 2],
+            features[2: 4],
+            features[4: 6],
+            features[6: ],
+        ]
+
+
         self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406])[None, :, None, None])
         self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225])[None, :, None, None])
 
-    def get_pretrained_model(self):
-        if self.type == 'swin-t':
-            return swin_t(weights=Swin_T_Weights.DEFAULT)
-        elif self.type == 'swin-s':
-            return swin_s(weights=Swin_S_Weights.DEFAULT)
-        elif self.type == 'swin-b':
-            return swin_b(weights=Swin_B_Weights.DEFAULT)
-        elif self.type == 'swin-v2-t':
-            return swin_v2_t(weights=Swin_V2_T_Weights.DEFAULT)
-        elif self.type == 'swin-s':
-            return swin_v2_s(weights=Swin_V2_S_Weights.DEFAULT)
-        elif self.type == 'swin-b':
-            return swin_v2_b(weights=Swin_V2_B_Weights.DEFAULT)
-        else:
-            NotImplementedError(f'{self.type} is not available.')
-
     def preprocessing(self, x):
         x = (x - self.mean) / self.std
-        x = F.interpolate(x, mode='bilinear', size=(self.image_size, self.image_size), align_corners=False, antialias=True)
-
-        b, c, h, w = x.shape
-        n_h = h // self.path_size
-        n_w = w // self.path_size
-
-        x = self.conv_proj(x)
-        x = x.reshape(b, self.hidden_dim, n_h * n_w)
-        x = x.permute(0, 2, 1)
-
-        batch_class_token = self.class_token.expand(b, -1, -1)
-        x = torch.cat([batch_class_token, x], dim=1)
-
-        x = x + self.pos_embedding
+        x = F.interpolate(x, mode='bilinear', size=(224, 224), align_corners=False, antialias=True)
 
         return x
 
@@ -60,11 +60,25 @@ class SwinLoss(nn.Module):
         target = self.preprocessing(target)
         pred = self.preprocessing(pred)
 
-        l1_loss = 0.0
-        for i, module in enumerate(self.encoder_blocks):
+        diffs = []
+        for i, module in enumerate(self.layers):
             target = module(target)
             pred = module(pred)
+            diff = torch.square(normalize_tensor(target.permute(0, 3, 1, 2).contiguous()) - normalize_tensor(pred.permute(0, 3, 1, 2).contiguous()))
+            diff = spatial_average(diff)
+            diffs.append(diff)
 
-            l1_loss += F.l1_loss(target, pred)
+        loss = diffs[0]
+        for i in range(1, len(diffs)):
+            loss += diffs[i]
 
-        return l1_loss
+        return loss
+
+
+def normalize_tensor(x, eps=1e-10):
+    norm_factor = torch.sqrt(torch.sum(x ** 2, dim=1, keepdim=True))
+    return x / (norm_factor + eps)
+
+
+def spatial_average(x, keepdim=True):
+    return x.mean([2,3],keepdim=keepdim)
