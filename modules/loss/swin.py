@@ -15,9 +15,9 @@ def get_pretrained_model(type):
         return swin_b(weights=Swin_B_Weights.DEFAULT)
     elif type == 'swin-v2-t':
         return swin_v2_t(weights=Swin_V2_T_Weights.DEFAULT)
-    elif type == 'swin-s':
+    elif type == 'swin-v2-s':
         return swin_v2_s(weights=Swin_V2_S_Weights.DEFAULT)
-    elif type == 'swin-b':
+    elif type == 'swin-v2-b':
         return swin_v2_b(weights=Swin_V2_B_Weights.DEFAULT)
     else:
         NotImplementedError(f'{self.type} is not available.')
