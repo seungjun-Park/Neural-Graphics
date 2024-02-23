@@ -59,12 +59,28 @@ class SwinLoss(nn.Module):
         target = self.preprocessing(target)
         pred = self.preprocessing(pred)
 
-        loss = 0.0
+        diffs = []
         for i, module in enumerate(self.layers):
             target = module(target)
             pred = module(pred)
 
-            loss += F.l1_loss(target, pred)
+            diff = normalize_tensor(target.contiguous()) - normalize_tensor(pred.contiguous())
+            diff = torch.square(diff)
+            diffs.append(diff)
 
-        return loss / len(self.layers)
+        loss = diffs[0]
+        for i in range(1, len(diffs)):
+            loss += diffs[i]
+
+        return loss
+
+
+
+def normalize_tensor(x,eps=1e-10):
+    norm_factor = torch.sqrt(torch.sum(x**2,dim=3,keepdim=True))
+    return x/(norm_factor+eps)
+
+
+def spatial_average(x, keepdim=True):
+    return x.mean([1,2],keepdim=keepdim)
 
