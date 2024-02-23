@@ -44,6 +44,9 @@ class SwinLoss(nn.Module):
             features[6: ],
         ]
 
+        for layer in self.layers:
+            for p in layer.parameters():
+                p.requires_grad = False
 
         self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406])[None, :, None, None])
         self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225])[None, :, None, None])
