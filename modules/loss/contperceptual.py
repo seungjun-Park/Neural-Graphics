@@ -4,8 +4,6 @@ from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 
 from taming.modules.losses.vqperceptual import *
 from modules.utils import FD, LFD, frequency_cosine_similarity
-from modules.loss.swin import SwinLoss
-from modules.loss.vit import ViTLoss
 
 
 class LPIPSWithDiscriminator(nn.Module):
@@ -19,9 +17,7 @@ class LPIPSWithDiscriminator(nn.Module):
         assert disc_loss in ["hinge", "vanilla"]
         self.kl_weight = kl_weight
         self.pixel_weight = pixelloss_weight
-        # self.perceptual_loss = LPIPS().eval()
-        # self.perceptual_loss = ViTLoss().eval()
-        self.perceptual_loss = SwinLoss(swin_type).eval()
+        self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
         self.fd_weight = fd_weight
         self.freq_cos_sim_weight = freq_cos_sim_weight
