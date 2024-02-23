@@ -33,10 +33,9 @@ class SwinLoss(nn.Module):
         super().__init__(*args, **kwargs)
 
         self.type = type.lower()
-        self.training = False
 
         swin = get_pretrained_model(self.type)
-        features = swin.features.eval().requires_grad_(False)
+        features = swin.features.eval().requires_grad_(False).cuda()
 
         self.layers = [
             features[: 2].eval().requires_grad_(False),
