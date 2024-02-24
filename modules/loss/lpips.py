@@ -86,7 +86,7 @@ class LPIPS(pl.LightningModule):
 
         loss = self.rankLoss(d0, d1, in_judge * 2. - 1.)
 
-        self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True, on_step=True, on_epoch=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True, on_step=True, on_epoch=True)
 
         self.iter += 1
@@ -107,8 +107,8 @@ class LPIPS(pl.LightningModule):
 
         loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
 
-        self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/acc_r', acc_r, prog_bar=True, logger=True, on_step=True, on_epoch=True)
 
         self.iter += 1
 
@@ -128,7 +128,7 @@ class LPIPS(pl.LightningModule):
 
         loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
 
-        self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True, on_step=True, on_epoch=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True, on_step=True, on_epoch=True)
 
         self.iter += 1
