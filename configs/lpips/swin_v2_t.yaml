@@ -11,7 +11,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 2
-    batch_size: 1
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.twoafc.TwoAFCDataset
@@ -48,12 +48,12 @@ logger:
 
 
 checkpoints:
-  latest_checkpoint:
+  best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/autoencoder/fft_attn'
-      filename: 'autoencoder'
-      monitor: 'step'
+      dirpath: './checkpoints/lpips/swin_v2_t'
+      filename: 'lpips'
+      monitor: 'val/acc_r'
       mode: 'max'
       save_top_k: 1
 
