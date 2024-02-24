@@ -173,7 +173,6 @@ class NetLinLayer(nn.Module):
 
         layers = [nn.Dropout(dropout)]
         layers += [nn.Conv2d(chn_in, chn_out, 1, stride=1, padding=0, bias=False)]
-        layers += [nn.GELU()]
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
