@@ -147,20 +147,14 @@ def export_layers(net, net_type: str):
         reverse_dims = (0, 2, 3, 1)
         layers.append(nn.Sequential(net.features[:2], Permute(dims=dims)))
         layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[2: 4], Permute(dims=dims)))
-        if 't' in net_type:
-            layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[4: 10], Permute(dims=dims)))
-            layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[10: ], Permute(dims=dims)))
-        elif 's' in net_type:
-            layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[4: 22], Permute(dims=dims)))
-            layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[22: ], Permute(dims=dims)))
-        elif 'b' in net_type:
-            layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[4: 22], Permute(dims=dims)))
-            layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[22: ], Permute(dims=dims)))
+        layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[4: 6], Permute(dims=dims)))
+        layers.append(nn.Sequential(Permute(dims=reverse_dims), net.features[6: ], Permute(dims=dims)))
 
     else:
         NotImplementedError(f'{net_type} is not implemented.')
 
     return layers
+
 
 def get_layer_dims(net_type):
     if '_' in net_type:

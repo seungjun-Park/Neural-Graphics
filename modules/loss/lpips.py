@@ -24,6 +24,7 @@ class LPIPS(pl.LightningModule):
         self.weight_decay = weight_decay
         self.iter = 0
 
+        net_type = net_type.lower()
         net = get_pretrained_model(net_type).eval()
         self.layers = export_layers(net, net_type)
 
@@ -31,10 +32,10 @@ class LPIPS(pl.LightningModule):
         self.lins = nn.ModuleList()
         self.rankLoss = BCERankingLoss()
 
-        self.dims = get_layer_dims(net)
+        self.dims = get_layer_dims(net_type)
 
         for i, dim in enumerate(self.dims):
-            self.lin.append(NetLinLayer(dim, dropout=dropout))
+            self.lins.append(NetLinLayer(dim, dropout=dropout))
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
@@ -54,15 +55,15 @@ class LPIPS(pl.LightningModule):
     def compute_accuracy(self, d0, d1, judge):
         d1_lt_d0 = (d1 < d0).detach().flatten()
         judge_per = judge.detach().flatten()
-        return d1_lt_d0 * judge_per + (1 - d1_lt_d0) * (1 - judge_per)
+        return d1_lt_d0 * judge_per + ~d1_lt_d0 * (1 - judge_per)
 
     def forward(self, in0, in1):
         in0, in1 = self.scaling_layer(in0), self.scaling_layer(in1)
         diffs = []
 
         for feat, lin in zip(self.layers, self.lins):
-            feat0, feat1 = feat(in0), feat(in1)
-            diff = (normalize_tensor(feat0.contiguous()) - normalize_tensor(feat1.contiguous())) ** 2
+            in0, in1 = feat(in0), feat(in1)
+            diff = (normalize_tensor(in0) - normalize_tensor(in1)) ** 2
             diffs.append(spatial_average(lin(diff), keepdim=True))
 
         val = diffs[0]
@@ -70,6 +71,10 @@ class LPIPS(pl.LightningModule):
             val += diffs[i]
 
         return val
+
+    def on_train_start(self):
+        for module in self.layers:
+            module.to(device=self.device)
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
         prefix = 'train'
@@ -88,6 +93,10 @@ class LPIPS(pl.LightningModule):
 
         return loss
 
+    def on_validation_start(self):
+        for module in self.layers:
+            module.to(device=self.device)
+
     def validation_step(self, batch, batch_idx, *args, **kwargs):
         prefix = 'val'
         in_ref, in_p0, in_p1, in_judge = batch
@@ -104,6 +113,10 @@ class LPIPS(pl.LightningModule):
         self.iter += 1
 
         return self.log_dict
+
+    def on_test_start(self):
+        for module in self.layers:
+            module.to(device=self.device)
 
     def test_step(self, batch, batch_idx, *args, **kwargs):
         prefix = 'test'
@@ -124,7 +137,8 @@ class LPIPS(pl.LightningModule):
 
     def configure_optimizers(self):
         opt = torch.optim.AdamW(
-            self.lins.parameters(),
+            list(self.lins.parameters()) +
+            list(self.rankLoss.net.parameters()),
             lr=self.lr,
             betas=(0.5, 0.9),
             weight_decay=self.weight_decay

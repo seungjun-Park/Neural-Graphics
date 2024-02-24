@@ -8,6 +8,7 @@ from torch.utils.data import Dataset, IterableDataset
 from torchvision import transforms
 from modules.utils import instantiate_from_config
 
+
 class JNDDataset(Dataset):
     def __init__(self,
                  root,

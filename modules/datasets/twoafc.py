@@ -29,15 +29,16 @@ class TwoAFCDataset(Dataset):
             root = os.path.join(root, 'train', dataset_type)
 
         else:
-            root = os.path.join(root, 'test', dataset_type)
+            root = os.path.join(root, 'val', dataset_type)
 
-        self.root = root
+        self.root = os.path.normpath(root)
 
         file_path = glob.glob(f'{self.root}/ref/*.*')
         file_names = list()
         for path in file_path:
+            path = os.path.normpath(path)
             file_name, file_format = path.rsplit('.', 1)
-            file_name = file_name.rsplit('/', 1)[-1]
+            file_name = file_name.rsplit('\\', 1)[-1]
             if file_name in file_names:
                 continue
             file_names.append(file_name)
