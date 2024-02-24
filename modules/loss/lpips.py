@@ -55,7 +55,7 @@ class LPIPS(pl.LightningModule):
     def compute_accuracy(self, d0, d1, judge):
         d1_lt_d0 = (d1 < d0).detach().flatten()
         judge_per = judge.detach().flatten()
-        return d1_lt_d0 * judge_per + ~d1_lt_d0 * (1 - judge_per)
+        return torch.mean(d1_lt_d0 * judge_per + ~d1_lt_d0 * (1 - judge_per))
 
     def forward(self, in0, in1):
         in0, in1 = self.scaling_layer(in0), self.scaling_layer(in1)
