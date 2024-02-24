@@ -38,7 +38,7 @@ class TwoAFCDataset(Dataset):
         for path in file_path:
             path = os.path.normpath(path)
             file_name, file_format = path.rsplit('.', 1)
-            file_name = file_name.rsplit('\\', 1)[-1]
+            file_name = file_name.rsplit('/', 1)[-1]
             if file_name in file_names:
                 continue
             file_names.append(file_name)
