@@ -54,6 +54,7 @@ class AutoencoderKL(pl.LightningModule):
         self.use_attn = use_attn
         self.attn_type = attn_type.lower()
         self.automatic_optimization = False
+        self.iter = 0
 
         self.loss = instantiate_from_config(loss_config)
 
@@ -275,7 +276,7 @@ class AutoencoderKL(pl.LightningModule):
 
         recon_img, posterior = self(img)
 
-        if self.global_step % self.log_interval == 0:
+        if self.iter % self.log_interval == 0:
             prefix = 'train' if self.training else 'val'
             self.log_img(img, split=f'{prefix}/img')
             self.log_img(recon_img, split=f'{prefix}/recon')
@@ -303,12 +304,14 @@ class AutoencoderKL(pl.LightningModule):
         self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
 
+        self.iter += 1
+
     def validation_step(self, batch, batch_idx, *args, **kwargs):
         img, label = batch
 
         recon_img, posterior = self(img)
 
-        if self.global_step % self.log_interval == 0:
+        if self.iter % self.log_interval == 0:
             prefix = 'train' if self.training else 'val'
             self.log_img(img, split=f'{prefix}/img')
             self.log_img(recon_img, split=f'{prefix}/recon')
@@ -323,6 +326,8 @@ class AutoencoderKL(pl.LightningModule):
         self.log("val/total_loss", log_dict_ae["val/total_loss"])
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
+
+        self.iter += 1
 
         return self.log_dict
 

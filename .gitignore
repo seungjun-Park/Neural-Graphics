@@ -168,3 +168,4 @@ slurm/
 *.tar
 *.jpg
 checkpoints/*
+*.gz

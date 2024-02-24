@@ -22,12 +22,13 @@ class LPIPS(pl.LightningModule):
         self.log_interval = log_interval
         self.lr = lr
         self.weight_decay = weight_decay
+        self.iter = 0
 
         net = get_pretrained_model(net_type).eval()
         self.layers = export_layers(net, net_type)
 
         self.scaling_layer = ScalingLayer()
-        self.lin = nn.ModuleList()
+        self.lins = nn.ModuleList()
         self.rankLoss = BCERankingLoss()
 
         self.dims = get_layer_dims(net)
@@ -59,8 +60,8 @@ class LPIPS(pl.LightningModule):
         in0, in1 = self.scaling_layer(in0), self.scaling_layer(in1)
         diffs = []
 
-        for feat, lin in zip(self.layers, self.lin):
-            feat0, feat1 = module(in0), module(in1)
+        for feat, lin in zip(self.layers, self.lins):
+            feat0, feat1 = feat(in0), feat(in1)
             diff = (normalize_tensor(feat0.contiguous()) - normalize_tensor(feat1.contiguous())) ** 2
             diffs.append(spatial_average(lin(diff), keepdim=True))
 
@@ -71,7 +72,6 @@ class LPIPS(pl.LightningModule):
         return val
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
-        loss_dict = dict()
         prefix = 'train'
         in_ref, in_p0, in_p1, in_judge = batch
 
@@ -81,10 +81,14 @@ class LPIPS(pl.LightningModule):
 
         loss = self.rankLoss(d0, d1, in_judge * 2. - 1.)
 
+        self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+
+        self.iter += 1
+
         return loss
 
     def validation_step(self, batch, batch_idx, *args, **kwargs):
-        loss_dict = dict()
         prefix = 'val'
         in_ref, in_p0, in_p1, in_judge = batch
 
@@ -94,10 +98,14 @@ class LPIPS(pl.LightningModule):
 
         loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
 
-        return loss
+        self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+
+        self.iter += 1
+
+        return self.log_dict
 
     def test_step(self, batch, batch_idx, *args, **kwargs):
-        loss_dict = dict()
         prefix = 'test'
         in_ref, in_p0, in_p1, in_judge = batch
 
@@ -107,10 +115,16 @@ class LPIPS(pl.LightningModule):
 
         loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
 
-        return loss
+        self.log(f'{prefix}/loss', loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+
+        self.iter += 1
+
+        return self.log_dict
 
     def configure_optimizers(self):
         opt = torch.optim.AdamW(
+            self.lins.parameters(),
             lr=self.lr,
             betas=(0.5, 0.9),
             weight_decay=self.weight_decay
