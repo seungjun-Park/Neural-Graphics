@@ -58,7 +58,7 @@ class TwoAFCDataset(Dataset):
         ref_img = cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB)
 
         judge_img = np.load(f'{self.root}/judge/{file_name}.npy').reshape((1, 1, 1, ))  # [0,1]
-        judge_img = torch.FloatTensor(judge_img)
+        judge_img = torch.from_numpy(judge_img)
 
         if self.transform is not None:
             p0_img = self.transform(p0_img)

@@ -48,15 +48,16 @@ logger:
 
 
 checkpoints:
-  best_checkpoint:
+  latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/lpips/swin_v2_t'
-      filename: 'lpips'
-      monitor: 'val/loss'
-      mode: 'min'
+      dirpath: './checkpoints/autoencoder/fft_attn'
+      filename: 'autoencoder'
+      monitor: 'step'
+      mode: 'max'
       save_top_k: 1
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 5
+  max_epochs: 2
+  gradient_clip_val: 0
