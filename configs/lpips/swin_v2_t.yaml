@@ -4,8 +4,8 @@ module:
     net_type: 'swin_v2_t'
     dropout: 0.1
     log_interval: 100
-    lr: 1e-4
-    weight_decay: 0.1
+    lr: 2e-5
+    weight_decay: 0.0
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
