@@ -60,5 +60,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 10
+  max_epochs: 5
   gradient_clip_val: 0
