@@ -45,14 +45,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'lpips'
-    version: 'swin_v2_t'
+    version: 'swin_v2_t_test'
 
 
 checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/lpips/swin_v2_t'
+      dirpath: './checkpoints/lpips/swin_v2_t_test'
       filename: 'lpips'
       monitor: 'val/loss'
       mode: 'min'
