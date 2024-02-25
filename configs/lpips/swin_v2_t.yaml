@@ -18,17 +18,7 @@ data:
       params:
         root: '/local_datasets/twoafc'
         dataset_type: 'train'
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 224, 224 ]
-    test:
-      target: modules.datasets.twoafc.TwoAFCDataset
-      params:
-        root: '/local_datasets/twoafc'
-        dataset_type: 'test'
+        subdir_type: 'distortion'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
@@ -41,6 +31,7 @@ data:
       params:
         root: '/local_datasets/twoafc'
         dataset_type: 'val'
+        subdir_type: 'real'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
