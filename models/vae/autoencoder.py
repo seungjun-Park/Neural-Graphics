@@ -78,6 +78,9 @@ class AutoencoderKL(pl.LightningModule):
 
         z = torch.cat([low, high], dim=1)
 
+        for module in self.middle_block:
+            z = module(z)
+
         z = self.quant_conv(z)
         posterior = DiagonalGaussianDistribution(z)
         z = posterior.reparameterization()

@@ -8,7 +8,7 @@ from .utils import get_pretrained_model, export_layers, normalize_tensor, spatia
 
 class LPIPS(pl.LightningModule):
     def __init__(self,
-                 net_type='swin-v2-t',
+                 net_type='swin_v2_t',
                  dropout=0.0,
                  log_interval=100,
                  lr=2e-5,

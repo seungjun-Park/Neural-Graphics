@@ -16,7 +16,7 @@ class Decoder(nn.Module):
                  out_channels,
                  embed_dim,
                  hidden_dims,
-                 num_res_blocks,
+                 num_res_blocks=1,
                  dropout=0.,
                  resamp_with_conv=True,
                  act='relu',

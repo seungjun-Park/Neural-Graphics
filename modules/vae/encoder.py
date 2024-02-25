@@ -15,11 +15,10 @@ class Encoder(nn.Module):
                  in_channels,
                  embed_dim,
                  hidden_dims,
-                 num_res_blocks,
+                 num_res_blocks=1,
                  dropout=0.,
                  resamp_with_conv=True,
                  act='relu',
-                 num_classes=None,
                  dim=2,
                  **ignorekwargs
                  ):
@@ -28,7 +27,6 @@ class Encoder(nn.Module):
         self.in_channels = in_channels
         self.embed_dim = embed_dim
         self.hidden_dims = hidden_dims
-        self.num_classes = num_classes
         self.act = act
         self.dim = dim
 
@@ -40,12 +38,6 @@ class Encoder(nn.Module):
                                kernel_size=3,
                                stride=1,
                                padding=1)
-
-        if num_classes is not None:
-            self.embed_layer = nn.Sequential(
-                nn.Embedding(num_classes, in_channels),
-                nn.Linear(in_channels, in_channels)
-            )
 
         in_ch = embed_dim
 
@@ -64,13 +56,7 @@ class Encoder(nn.Module):
             layer.append(DownBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
             self.down.append(nn.Sequential(*layer))
 
-    def forward(self, x, label=None):
-        if self.num_classes is not None:
-            embed = self.embed_layer(label)
-            while len(embed.shape) < len(x.shape):
-                embed = embed[..., None]
-            x = x + embed
-
+    def forward(self, x):
         x = self.conv_in(x)
         for module in self.down:
             x = module(x)

@@ -10,7 +10,7 @@ from modules.utils import conv_nd, group_norm, activation_func
 class MiddleBlock(nn.Module):
     def __init__(self,
                  in_channels,
-                 num_attn_blocks,
+                 num_attn_blocks=1,
                  dropout=0.,
                  attn_dropout=0.,
                  num_heads=-1,
