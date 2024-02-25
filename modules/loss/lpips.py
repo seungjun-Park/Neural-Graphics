@@ -91,6 +91,7 @@ class LPIPS(pl.LightningModule):
         d1 = self(in_ref, in_p1)
         acc_r = self.compute_accuracy(d0, d1, judge=in_judge)
         self.train_acc_avg += acc_r
+        self.train_iter += 1
 
         loss = self.rankLoss(d0, d1, in_judge * 2. - 1.)
 
@@ -98,7 +99,9 @@ class LPIPS(pl.LightningModule):
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True)
         self.log(f'{prefix}/acc_avg', self.train_acc_avg / self.train_iter, prog_bar=True, logger=True)
 
-        self.train_iter += 1
+        if self.train_iter % self.log_interval == 0:
+            self.train_acc_avg /= self.train_iter
+            self.train_iter %= self.log_interval
 
         return loss
 
@@ -118,6 +121,7 @@ class LPIPS(pl.LightningModule):
         d1 = self(in_ref, in_p1)
         acc_r = self.compute_accuracy(d0, d1, judge=in_judge)
         self.val_acc_avg += acc_r
+        self.val_iter += 1
 
         loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
 
@@ -125,7 +129,9 @@ class LPIPS(pl.LightningModule):
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_avg', self.val_acc_avg / self.val_iter, prog_bar=True, logger=True)
 
-        self.val_iter += 1
+        if self.val_iter % self.log_interval == 0:
+            self.val_acc_avg /= self.val_iter
+            self.val_iter %= self.log_interval
 
         return self.log_dict
 
@@ -145,6 +151,7 @@ class LPIPS(pl.LightningModule):
         d1 = self(in_ref, in_p1)
         acc_r = self.compute_accuracy(d0, d1, judge=in_judge)
         self.test_acc_avg += acc_r
+        self.test_iter += 1
 
         loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
 
@@ -152,7 +159,9 @@ class LPIPS(pl.LightningModule):
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True)
         self.log(f'{prefix}/acc_avg', self.test_acc_avg / self.test_iter, prog_bar=True, logger=True)
 
-        self.test_iter += 1
+        if self.test_iter % self.log_interval == 0:
+            self.test_acc_avg /= self.test_iter
+            self.test_iter %= self.log_interval
 
         return self.log_dict
 
