@@ -31,6 +31,8 @@ class TwoAFCDataset(Dataset):
         root = os.path.join(root, dataset_type)
         self.root = os.path.normpath(root)
 
+        self.subdirs = []
+
         if dataset_type == 'train':
             self.subdirs = ['traditional', 'cnn', 'mix']
         elif dataset_type == 'val':
@@ -54,6 +56,7 @@ class TwoAFCDataset(Dataset):
     def __getitem__(self, idx):
         file_path = self.file_paths[idx]
         root, dir_name, file_name = file_path.rsplit('/', 2)
+        file_name = file_name.rsplit('.', 1)[0]
 
         print(root, dir_name, file_name)
 
