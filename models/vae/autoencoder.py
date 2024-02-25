@@ -53,7 +53,7 @@ class AutoencoderKL(pl.LightningModule):
         self.middle_block = instantiate_from_config(middle_block_config)
 
         self.quant_conv = conv_nd(dim=dim, in_channels=2 * z_channels, out_channels=2 * latent_dim, kernel_size=1)
-        self.post_quant_con = conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1)
+        self.post_quant_conv = conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1)
 
         self.decoder = instantiate_from_config(decoder_config)
 
