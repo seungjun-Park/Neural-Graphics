@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 
-from .utils import get_pretrained_model, export_layers, normalize_tensor, spatial_average, get_layer_dims, BCERankingLoss
+from .utils import get_pretrained_model, export_layers, normalize_tensor, spatial_average, get_layer_dims
 
 
 class LPIPS(pl.LightningModule):
@@ -36,7 +36,7 @@ class LPIPS(pl.LightningModule):
 
         self.scaling_layer = ScalingLayer()
         self.lins = nn.ModuleList()
-        self.rankLoss = BCERankingLoss()
+        self.rankLoss = BCELoss()
 
         self.dims = get_layer_dims(net_type)
 
@@ -93,7 +93,7 @@ class LPIPS(pl.LightningModule):
         self.train_acc_avg += acc_r
         self.train_iter += 1
 
-        loss = self.rankLoss(d0, d1, in_judge * 2. - 1.)
+        loss = torch.mean(self.rankLoss(d0, d1, in_judge))
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True)
@@ -123,7 +123,7 @@ class LPIPS(pl.LightningModule):
         self.val_acc_avg += acc_r
         self.val_iter += 1
 
-        loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
+        loss = torch.mean(self.rankLoss(d0, d1, in_judge))
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=True, logger=True)
@@ -211,3 +211,36 @@ class NetLinLayer(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+
+
+class Dist2LogitLayer(nn.Module):
+    ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
+    def __init__(self, chn_mid=32, use_sigmoid=True):
+        super(Dist2LogitLayer, self).__init__()
+
+        layers = [nn.Conv2d(5, chn_mid, 1, stride=1, padding=0, bias=True),]
+        layers += [nn.LeakyReLU(0.2, True),]
+        layers += [nn.Conv2d(chn_mid, chn_mid, 1, stride=1, padding=0, bias=True),]
+        layers += [nn.LeakyReLU(0.2, True),]
+        layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=True),]
+        layers += [nn.Sigmoid(), ]
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, d0, d1, eps=1e-5):
+        return self.model.forward(torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)),dim=1))
+
+
+class BCERankingLoss(nn.Module):
+    def __init__(self,
+                 chn_mid=32,
+                 *args,
+                 **kwargs,
+                 ):
+        super().__init__(*args, **kwargs)
+
+        self.net = Dist2LogitLayer(chn_mid=chn_mid)
+        self.loss = nn.BCELoss()
+
+    def forward(self, d0, d1, judge):
+        logit = self.net(d0, d1)
+        return self.loss(logit, judge)
