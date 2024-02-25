@@ -13,8 +13,12 @@ class TwoAFCDataset(Dataset):
     def __init__(self,
                  root,
                  dataset_type='train',
+                 subdir_type='real',
                  transform_configs=None,
                  ):
+        subdir_type = subdir_type.lower()
+        dataset_type = dataset_type.lower()
+
         if transform_configs is not None:
             transform_list = list()
             for transform_config in transform_configs['transforms']:
@@ -30,9 +34,13 @@ class TwoAFCDataset(Dataset):
         if dataset_type == 'train':
             self.subdirs = ['traditional', 'cnn', 'mix']
         elif dataset_type == 'val':
-            self.subdirs = ['traditional', 'cnn']
-        elif dataset_type == 'test':
-            self.subdirs = ['superres', 'deblur', 'color', 'frameinterp']
+            if subdir_type == 'distortion':
+                self.subdirs = ['traditional', 'cnn']
+            elif subdir_type == 'real':
+                self.subdirs = ['superres', 'deblur', 'color', 'frameinterp']
+            else:
+                NotImplementedError(f'{subdir_type} is not exist.')
+
         else:
             NotImplementedError(f'{dataset_type} is not exist.')
 
@@ -41,9 +49,13 @@ class TwoAFCDataset(Dataset):
             file_path = glob.glob(f'{self.root}/{subdir}/ref/*.*')
             self.file_paths += file_path
 
+        print(self.file_paths)
+
     def __getitem__(self, idx):
         file_path = self.file_paths[idx]
         root, dir_name, file_name = file_path.rsplit('/', 2)
+
+        print(root, dir_name, file_name)
 
         p0_img = cv2.imread(f'{root}/p0/{file_name}.png', cv2.IMREAD_COLOR)
         p0_img = cv2.cvtColor(p0_img, cv2.COLOR_BGR2RGB)
