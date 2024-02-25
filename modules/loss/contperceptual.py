@@ -2,27 +2,22 @@ import torch
 import torch.nn as nn
 from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 
-from taming.modules.losses.vqperceptual import *
-from modules.utils import FD, LFD, frequency_cosine_similarity
+from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight
+from modules.loss.lpips import LPIPS
 
 
 class LPIPSWithDiscriminator(nn.Module):
-    def __init__(self, disc_start, logvar_init=0.0, kl_weight=1.0, pixelloss_weight=1.0,
+    def __init__(self, disc_start, lpips_config, logvar_init=0.0, kl_weight=1.0, pixelloss_weight=1.0,
                  disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
-                 perceptual_weight=1.0, fd_weight=1.0, freq_cos_sim_weight=1.0, ssim_weight=1.0,
-                 use_actnorm=False, disc_conditional=False, disc_loss="hinge", freq_filter='high',
-                 swin_type='swin-v2-t'):
+                 perceptual_weight=1.0,
+                 use_actnorm=False, disc_conditional=False, disc_loss="hinge"):
 
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
         self.kl_weight = kl_weight
         self.pixel_weight = pixelloss_weight
-        self.perceptual_loss = LPIPS().eval()
+        self.perceptual_loss = LPIPS(**lpips_config).eval()
         self.perceptual_weight = perceptual_weight
-        self.fd_weight = fd_weight
-        self.freq_cos_sim_weight = freq_cos_sim_weight
-        self.ssim_weight = ssim_weight
-        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
 
         # output log variance
         self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
@@ -70,9 +65,6 @@ class LPIPSWithDiscriminator(nn.Module):
         weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
         nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
 
-        fd_loss = FD(inputs.contiguous(), reconstructions.contiguous())
-        # freq_cos_sim = frequency_cosine_similarity(inputs.contiguous(), reconstructions.contiguous())
-
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
 
@@ -97,20 +89,16 @@ class LPIPSWithDiscriminator(nn.Module):
                 d_weight = torch.tensor(0.0)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = weighted_nll_loss + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss + fd_loss * self.fd_weight
+            loss = weighted_nll_loss + self.kl_weight * kl_loss + d_weight * disc_factor * g_loss
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/logvar".format(split): self.logvar.detach(),
                    "{}/kl_loss".format(split): kl_loss.detach().mean(),
                    "{}/nll_loss".format(split): nll_loss.detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
-                   "{}/ssim_loss".format(split): ssim_loss.detach().mean(),
-                   # "{}/p_loss".format(split): p_loss.detach().mean(),
                    "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
-                   "{}/fd_loss".format(split): fd_loss.detach().mean(),
-                   # "{}/freq_cos_sim_loss".format(split): freq_cos_sim.detach().mean(),
                    }
             return loss, log
 

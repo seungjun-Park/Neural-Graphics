@@ -67,6 +67,7 @@ def freq_to_img(freq, dim=2):
 
     return img
 
+
 def freq_filter(freq, dim=2, bandwidth=[0, 1]):
     assert len(bandwidth) == 2
 

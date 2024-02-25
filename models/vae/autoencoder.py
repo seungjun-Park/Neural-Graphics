@@ -7,40 +7,31 @@ import pytorch_lightning as pl
 from typing import List, Dict
 
 from modules.utils import conv_nd, activation_func, group_norm, instantiate_from_config
-from modules.utils import img_to_freq, freq_to_img
 from modules.vae.down import DownBlock
 from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
-from modules.vae.attn_block import ViTBlock
-from modules.vae.fft_block import FFTAttnBlock
+from modules.vae.attn_block import AttnBlock
 from modules.vae.distributions import DiagonalGaussianDistribution
-from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure, MultiScaleStructuralSimilarityIndexMeasure
+from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 from torchmetrics.image.psnr import PeakSignalNoiseRatio
 
 
 class AutoencoderKL(pl.LightningModule):
     def __init__(self,
-                 in_channels: int,
-                 out_channels: int,
-                 hidden_dims: List,
+                 encoder_low_config,
+                 encoder_high_config,
+                 middle_block_config,
+                 decoder_config,
                  z_channels,
                  latent_dim,
                  loss_config,
-                 num_res_blocks=2,
-                 dropout=0.,
-                 resamp_with_conv=True,
-                 num_heads=-1,
-                 num_head_channels=-1,
-                 act='relu',
-                 dim=2,
                  lr=2e-5,
                  weight_decay=0.,
                  log_interval=100,
                  ckpt_path=None,
-                 eps=0.,
                  use_fp16=False,
-                 use_attn=True,
-                 attn_type='fft',
+                 dim=2,
+
                  *args,
                  **kwargs,
                  ):
@@ -49,198 +40,22 @@ class AutoencoderKL(pl.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
         self.log_interval = log_interval
-        self.eps = eps
         self.use_fp16 = use_fp16
-        self.use_attn = use_attn
-        self.attn_type = attn_type.lower()
         self.automatic_optimization = False
-        self.iter = 0
+
+        self.dim = dim
 
         self.loss = instantiate_from_config(loss_config)
 
-        assert num_head_channels != -1 or num_heads != 1
+        self.encoder_low = instantiate_from_config(encoder_low_config)
+        self.encoder_high = instantiate_from_config(encoder_high_config)
 
-        self.in_channels = in_channels
-        self.hidden_dims = hidden_dims
-        self.latent_dim = latent_dim
-        self.num_heads = num_heads
-        self.num_head_channels = num_head_channels
-        self.act = act
-        self.dim = dim
-
-        self.encoder = nn.ModuleList()
-
-        in_ch = in_channels
-        out_ch = hidden_dims[0]
-        self.encoder.append(
-            conv_nd(dim=dim,
-                    in_channels=in_ch,
-                    out_channels=out_ch,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1)
-        )
-        in_ch = out_ch
-
-        for i, hidden_dim in enumerate(hidden_dims):
-            layer = nn.ModuleList()
-            out_ch = hidden_dim
-
-            for j in range(num_res_blocks):
-                layer.append(ResidualBlock(in_channels=in_ch,
-                                           out_channels=out_ch,
-                                           dropout=dropout,
-                                           act=act,
-                                           dim=dim,
-                                           ))
-                in_ch = out_ch
-
-            if self.use_attn:
-                if self.attn_type == 'vanilla':
-                    if self.num_heads == -1:
-                        heads = in_ch // self.num_head_channels
-                    else:
-                        heads = self.num_heads
-
-                    layer.append(MHAttnBlock(in_channels=in_ch,
-                                             heads=heads))
-
-                elif self.attn_type == 'fft':
-                    layer.append(FFTAttnBlock(in_ch))
-
-            layer.append(DownBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
-
-            self.encoder.append(nn.Sequential(*layer))
-
-        if self.num_heads == -1:
-            heads = in_ch // self.num_head_channels
-        else:
-            heads = self.num_heads
-
-        self.encoder.append(
-            nn.Sequential(
-                ResidualBlock(
-                    in_channels=in_ch,
-                    out_channels=in_ch,
-                    dropout=dropout,
-                    act=act,
-                    dim=dim,
-                ),
-                # MHAttnBlock(in_channels=in_ch,
-                #             heads=heads),
-                ViTBlock(in_channels=in_ch,
-                         heads=heads,
-                         dropout=dropout,
-                         attn_dropout=dropout),
-                # FFTAttnBlock(in_ch),
-                ResidualBlock(
-                    in_channels=in_ch,
-                    out_channels=in_ch,
-                    dropout=dropout,
-                    act=act,
-                    dim=dim,
-                ),
-                group_norm(in_ch),
-                activation_func(act),
-                conv_nd(dim=dim,
-                        in_channels=in_ch,
-                        out_channels=2 * z_channels,
-                        kernel_size=3,
-                        stride=1,
-                        padding=1)
-            )
-        )
+        self.middle_block = instantiate_from_config(middle_block_config)
 
         self.quant_conv = conv_nd(dim=dim, in_channels=2 * z_channels, out_channels=2 * latent_dim, kernel_size=1)
-        self.post_quant_conv = conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1)
+        self.post_quant_con = conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1)
 
-        self.decoder = nn.ModuleList()
-        self.decoder.append(
-            conv_nd(
-                dim=dim,
-                in_channels=z_channels,
-                out_channels=in_ch,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-            )
-        )
-
-        if self.num_heads == -1:
-            heads = in_ch // self.num_head_channels
-        else:
-            heads = self.num_heads
-
-        self.decoder.append(
-            nn.Sequential(
-                ResidualBlock(in_channels=in_ch,
-                              out_channels=in_ch,
-                              dropout=dropout,
-                              act=act,
-                              dim=dim,
-                              ),
-                # MHAttnBlock(in_channels=in_ch,
-                #             heads=heads),
-                ViTBlock(in_channels=in_ch,
-                         heads=heads,
-                         dropout=dropout,
-                         attn_dropout=dropout),
-                # FFTAttnBlock(in_ch),
-                ResidualBlock(in_channels=in_ch,
-                              out_channels=in_ch,
-                              dropout=dropout,
-                              act=act,
-                              dim=dim,
-                              ),
-            )
-        )
-
-        hidden_dims.reverse()
-
-        for i, hidden_dim in enumerate(hidden_dims):
-            layer = nn.ModuleList()
-            out_ch = hidden_dim
-
-            for j in range(num_res_blocks + 1):
-                layer.append(ResidualBlock(in_channels=in_ch,
-                                           out_channels=out_ch,
-                                           dropout=dropout,
-                                           act=act,
-                                           dim=dim,
-                                           ))
-                in_ch = out_ch
-
-            if self.use_attn:
-                if self.attn_type == 'vanilla':
-                    if self.num_heads == -1:
-                        heads = in_ch // self.num_head_channels
-                    else:
-                        heads = self.num_heads
-
-                    layer.append(MHAttnBlock(in_channels=in_ch,
-                                             heads=heads))
-
-                elif self.attn_type == 'fft':
-                    layer.append(FFTAttnBlock(in_ch))
-
-            layer.append(UpBlock(in_ch, dim=dim, use_conv=resamp_with_conv))
-
-            self.decoder.append(nn.Sequential(*layer))
-
-        self.decoder.append(
-            nn.Sequential(
-                group_norm(in_ch),
-                activation_func(act),
-                conv_nd(
-                    dim=dim,
-                    in_channels=in_ch,
-                    out_channels=out_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                ),
-            )
-        )
+        self.decoder = instantiate_from_config(decoder_config)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -256,14 +71,16 @@ class AutoencoderKL(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def forward(self, x):
-        for module in self.encoder:
-            x = module(x)
+    def forward(self, low, high):
+        for module_low, module_high in zip(self.encoder_low, self.encoder_high):
+            low = module_low(low)
+            high = module_high(high)
 
-        x = self.quant_conv(x)
-        posterior = DiagonalGaussianDistribution(x)
+        z = torch.cat([low, high], dim=1)
+
+        z = self.quant_conv(z)
+        posterior = DiagonalGaussianDistribution(z)
         z = posterior.reparameterization()
-        z = z
         z = self.post_quant_conv(z)
 
         for module in self.decoder:
@@ -272,9 +89,9 @@ class AutoencoderKL(pl.LightningModule):
         return z, posterior
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
-        img, label = batch
+        img, img_low, img_high, label = batch
 
-        recon_img, posterior = self(img)
+        recon_img, posterior = self(img_low, img_high)
 
         if self.iter % self.log_interval == 0:
             prefix = 'train' if self.training else 'val'
@@ -291,8 +108,8 @@ class AutoencoderKL(pl.LightningModule):
         self.manual_backward(aeloss)
         opt_ae.step()
 
-        self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        self.log("aeloss", aeloss, prog_bar=True, logger=True)
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True)
 
         # train the discriminator
         opt_disc.zero_grad()
@@ -301,21 +118,21 @@ class AutoencoderKL(pl.LightningModule):
         self.manual_backward(discloss)
         opt_disc.step()
 
-        self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+        self.log("discloss", discloss, prog_bar=True, logger=True)
+        self.log_dict(log_dict_disc, prog_bar=False, logger=True)
 
-        self.iter += 1
+        self.log_ssim(img, recon_img)
+        self.log_psnr(img, recon_img)
 
     def validation_step(self, batch, batch_idx, *args, **kwargs):
-        img, label = batch
+        img, img_low, img_high, label = batch
 
-        recon_img, posterior = self(img)
+        recon_img, posterior = self(img_low, img_high)
 
-        if self.iter % self.log_interval == 0:
-            prefix = 'train' if self.training else 'val'
-            self.log_img(img, split=f'{prefix}/img')
-            self.log_img(recon_img, split=f'{prefix}/recon')
-            self.log_img(self.sample(posterior), split=f'{prefix}/sample')
+        prefix = 'train' if self.training else 'val'
+        self.log_img(img, split=f'{prefix}/img')
+        self.log_img(recon_img, split=f'{prefix}/recon')
+        self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
         aeloss, log_dict_ae = self.loss(img, recon_img, posterior, 0, self.global_step,
                                         last_layer=self.get_last_layer(), split="val")
@@ -324,10 +141,10 @@ class AutoencoderKL(pl.LightningModule):
                                             last_layer=self.get_last_layer(), split="val")
 
         self.log("val/total_loss", log_dict_ae["val/total_loss"])
+        self.log_ssim(img, recon_img)
+        self.log_psnr(img, recon_img)
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
-
-        self.iter += 1
 
         return self.log_dict
 
@@ -338,7 +155,7 @@ class AutoencoderKL(pl.LightningModule):
         target = target.detach().cpu()
         pred = pred.detach().cpu()
         psnr_score = psnr(target[0], pred[0])
-        self.log(f'{prefix}/psnr', psnr_score, self.global_step, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/psnr', psnr_score, prog_bar=False, logger=True)
 
         return
 
@@ -349,7 +166,7 @@ class AutoencoderKL(pl.LightningModule):
         target = target.detach().cpu()
         pred = pred.detach().cpu()
         ssim_score = ssim(target[0], pred[0])
-        self.log(f'{prefix}/ssim', ssim_score, self.global_step, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+        self.log(f'{prefix}/ssim', ssim_score, prog_bar=False, logger=True)
 
         return
 
@@ -376,11 +193,13 @@ class AutoencoderKL(pl.LightningModule):
         return sample
 
     def configure_optimizers(self):
-        opt_ae = torch.optim.AdamW(list(self.encoder.parameters()) +
+        opt_ae = torch.optim.AdamW(list(self.encoder_low.parameters()) +
+                                   list(self.encoder_high.parameters()) +
                                    list(self.decoder.parameters()) +
                                    list(self.quant_conv.parameters()) +
                                    list(self.post_quant_conv.parameters()),
                                    lr=self.lr, betas=(0.5, 0.9))
+
         opt_disc = torch.optim.AdamW(self.loss.discriminator.parameters(),
                                      lr=self.lr,
                                      betas=(0.5, 0.9))

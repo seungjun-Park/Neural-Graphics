@@ -8,7 +8,7 @@ from modules.utils import activation_func, group_norm, conv_nd
 from typing import Any, Callable, List, Optional
 
 
-class ViTBlock(nn.Module):
+class AttnBlock(nn.Module):
     def __init__(self,
                  in_channels,
                  heads=-1,
@@ -28,17 +28,18 @@ class ViTBlock(nn.Module):
             assert in_channels % num_head_channels == 0
             self.heads = in_channels // num_head_channels
 
-
         self.proj_in = nn.Sequential(
             nn.LayerNorm(in_channels),
             nn.Linear(in_channels, in_channels),
+            nn.GELU(),
         )
         self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout, batch_first=True)
         self.dropout = nn.Dropout(dropout)
 
         self.proj_out = nn.Sequential(
             nn.LayerNorm(in_channels),
-            nn.Linear(in_channels, in_channels)
+            nn.Linear(in_channels, in_channels),
+            nn.GELU(),
         )
 
     def forward(self, x):

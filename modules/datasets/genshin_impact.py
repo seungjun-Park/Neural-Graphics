@@ -6,6 +6,8 @@ from torch.utils.data import Dataset, IterableDataset
 from torchvision import transforms
 from modules.utils import instantiate_from_config
 
+from modules.utils import img_to_freq, freq_to_img, freq_filter
+
 IMG_FORMATS = ['png', 'jpg']
 STR_FORMATS = ['txt', 'csv']
 
@@ -14,9 +16,12 @@ class GenshinImpactDataset(Dataset):
     def __init__(self,
                  root,
                  train=True,
+                 bandwidth=0.2,
                  transform_configs=None,
                  target_transform_configs=None,
                  ):
+        self.bandwidth = bandwidth
+
         if transform_configs is not None:
             transform_list = list()
             for transform_config in transform_configs['transforms']:
@@ -59,19 +64,22 @@ class GenshinImpactDataset(Dataset):
 
     def __getitem__(self, index):
         file_name = self.file_names[index]
-        for img_format in self.img_formats:
-            img = cv2.imread(f'{file_name}.{img_format}', cv2.IMREAD_COLOR)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            if self.transform is not None:
-                img = self.transform(img)
 
-        for str_format in self.str_formats:
-            txt_file = open(f'{file_name}.{str_format}', 'r')
-            label = txt_file.readlines()
-            if self.target_transform is not None:
-                label = self.target_transform(label)
+        img = cv2.imread(f'{file_name}.jpg', cv2.IMREAD_COLOR)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if self.transform is not None:
+            img = self.transform(img)
 
-        return img, label
+        freq = img_to_freq(img, dim=2)
+        img_low = freq_to_img(freq_filter(freq, dim=2, bandwidth=[0.0, self.bandwidth]), dim=2)
+        img_high = freq_to_img(freq_filter(freq, dim=2, bandwidth=[self.bandwidth, 1.0]), dim=2)
+
+        txt_file = open(f'{file_name}.txt', 'r')
+        label = txt_file.readlines()
+        if self.target_transform is not None:
+            label = self.target_transform(label)
+
+        return img, img_low, img_high, label
 
     def __len__(self):
         return len(self.file_names)
