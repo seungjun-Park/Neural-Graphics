@@ -36,7 +36,7 @@ class LPIPS(pl.LightningModule):
 
         self.scaling_layer = ScalingLayer()
         self.lins = nn.ModuleList()
-        self.rankLoss = BCELoss()
+        self.rankLoss = BCERankingLoss()
 
         self.dims = get_layer_dims(net_type)
 
