@@ -23,6 +23,7 @@ class LPIPS(pl.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
         self.iter = 0
+        self.acc_avg = 0
 
         net_type = net_type.lower()
         net = get_pretrained_model(net_type).eval()
@@ -55,7 +56,10 @@ class LPIPS(pl.LightningModule):
     def compute_accuracy(self, d0, d1, judge):
         d1_lt_d0 = (d1 < d0).detach().flatten()
         judge_per = judge.detach().flatten()
-        return torch.mean(d1_lt_d0 * judge_per + ~d1_lt_d0 * (1 - judge_per))
+        acc_r = torch.mean(d1_lt_d0 * judge_per + ~d1_lt_d0 * (1 - judge_per))
+        self.acc_avg += acc_r
+        self.acc_avg = torch.mean(self.acc_avg)
+        return acc_r
 
     def forward(self, in0, in1):
         in0, in1 = self.scaling_layer(in0), self.scaling_layer(in1)
@@ -109,6 +113,7 @@ class LPIPS(pl.LightningModule):
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=True, logger=True)
+        self.log(f'{prefix}/acc_avg', self.acc_avg, prog_bar=True, logger=True)
 
         self.iter += 1
 
@@ -130,6 +135,7 @@ class LPIPS(pl.LightningModule):
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True)
+        self.log(f'{prefix}/acc_avg', self.acc_avg, prog_bar=True, logger=True)
 
         self.iter += 1
 
