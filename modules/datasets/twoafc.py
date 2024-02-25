@@ -12,8 +12,7 @@ from modules.utils import instantiate_from_config
 class TwoAFCDataset(Dataset):
     def __init__(self,
                  root,
-                 dataset_type='cnn',
-                 train=True,
+                 dataset_type='train',
                  transform_configs=None,
                  ):
         if transform_configs is not None:
@@ -25,39 +24,37 @@ class TwoAFCDataset(Dataset):
         else:
             self.transform = None
 
-        if train:
-            root = os.path.join(root, 'train', dataset_type)
-
-        else:
-            root = os.path.join(root, 'val', dataset_type)
-
+        root = os.path.join(root, dataset_type)
         self.root = os.path.normpath(root)
 
-        file_path = glob.glob(f'{self.root}/ref/*.*')
-        file_names = list()
-        for path in file_path:
-            path = os.path.normpath(path)
-            file_name, file_format = path.rsplit('.', 1)
-            file_name = file_name.rsplit('/', 1)[-1]
-            if file_name in file_names:
-                continue
-            file_names.append(file_name)
+        if dataset_type == 'train':
+            self.subdirs = ['traditional', 'cnn', 'mix']
+        elif dataset_type == 'val':
+            self.subdirs = ['traditional', 'cnn']
+        elif dataset_type == 'test':
+            self.subdirs = ['superres', 'deblur', 'color', 'frameinterp']
+        else:
+            NotImplementedError(f'{dataset_type} is not exist.')
 
-        self.file_names = list(set(file_names))
+        self.file_paths = []
+        for subdir in self.subdirs:
+            file_path = glob.glob(f'{self.root}/{subdir}/ref/*.*')
+            self.file_paths += file_path
 
     def __getitem__(self, idx):
-        file_name = self.file_names[idx]
+        file_path = self.file_paths[idx]
+        root, dir_name, file_name = file_path.rsplit('/', 2)
 
-        p0_img = cv2.imread(f'{self.root}/p0/{file_name}.png', cv2.IMREAD_COLOR)
+        p0_img = cv2.imread(f'{root}/p0/{file_name}.png', cv2.IMREAD_COLOR)
         p0_img = cv2.cvtColor(p0_img, cv2.COLOR_BGR2RGB)
 
-        p1_img = cv2.imread(f'{self.root}/p1/{file_name}.png', cv2.IMREAD_COLOR)
+        p1_img = cv2.imread(f'{root}/p1/{file_name}.png', cv2.IMREAD_COLOR)
         p1_img = cv2.cvtColor(p1_img, cv2.COLOR_BGR2RGB)
 
-        ref_img = cv2.imread(f'{self.root}/ref/{file_name}.png', cv2.IMREAD_COLOR)
+        ref_img = cv2.imread(f'{root}/ref/{file_name}.png', cv2.IMREAD_COLOR)
         ref_img = cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB)
 
-        judge_img = np.load(f'{self.root}/judge/{file_name}.npy').reshape((1, 1, 1, ))  # [0,1]
+        judge_img = np.load(f'{root}/judge/{file_name}.npy').reshape((1, 1, 1, ))  # [0,1]
         judge_img = torch.from_numpy(judge_img)
 
         if self.transform is not None:
@@ -68,4 +65,4 @@ class TwoAFCDataset(Dataset):
         return ref_img, p0_img, p1_img, judge_img
 
     def __len__(self):
-        return len(self.file_names)
+        return len(self.file_paths)

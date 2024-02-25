@@ -22,8 +22,13 @@ class LPIPS(pl.LightningModule):
         self.log_interval = log_interval
         self.lr = lr
         self.weight_decay = weight_decay
-        self.iter = 0
-        self.acc_avg = 0
+
+        self.train_iter = 0
+        self.train_acc_avg = 0
+        self.val_iter = 0
+        self.val_acc_avg = 0
+        self.test_iter = 0
+        self.test_acc_avg = 0
 
         net_type = net_type.lower()
         net = get_pretrained_model(net_type).eval()
@@ -57,8 +62,6 @@ class LPIPS(pl.LightningModule):
         d1_lt_d0 = (d1 < d0).detach().flatten()
         judge_per = judge.detach().flatten()
         acc_r = torch.mean(d1_lt_d0 * judge_per + ~d1_lt_d0 * (1 - judge_per))
-        self.acc_avg += acc_r
-        self.acc_avg = torch.mean(self.acc_avg)
         return acc_r
 
     def forward(self, in0, in1):
@@ -87,16 +90,21 @@ class LPIPS(pl.LightningModule):
         d0 = self(in_ref, in_p0)
         d1 = self(in_ref, in_p1)
         acc_r = self.compute_accuracy(d0, d1, judge=in_judge)
+        self.train_acc_avg += acc_r
 
         loss = self.rankLoss(d0, d1, in_judge * 2. - 1.)
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True)
-        self.log(f'{prefix}/acc_avg', self.acc_avg, prog_bar=True, logger=True)
+        self.log(f'{prefix}/acc_avg', self.train_acc_avg / self.train_iter, prog_bar=True, logger=True)
 
-        self.iter += 1
+        self.train_iter += 1
 
         return loss
+
+    def on_train_epoch_end(self):
+        self.train_iter = 0
+        self.train_acc_avg = 0
 
     def on_validation_start(self):
         for module in self.layers:
@@ -109,16 +117,21 @@ class LPIPS(pl.LightningModule):
         d0 = self(in_ref, in_p0)
         d1 = self(in_ref, in_p1)
         acc_r = self.compute_accuracy(d0, d1, judge=in_judge)
+        self.val_acc_avg += acc_r
 
         loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=True, logger=True)
-        self.log(f'{prefix}/acc_avg', self.acc_avg, prog_bar=True, logger=True)
+        self.log(f'{prefix}/acc_avg', self.val_acc_avg / self.val_iter, prog_bar=True, logger=True)
 
-        self.iter += 1
+        self.val_iter += 1
 
         return self.log_dict
+
+    def on_validation_epoch_end(self):
+        self.val_iter = 0
+        self.val_acc_avg = 0
 
     def on_test_start(self):
         for module in self.layers:
@@ -131,16 +144,21 @@ class LPIPS(pl.LightningModule):
         d0 = self(in_ref, in_p0)
         d1 = self(in_ref, in_p1)
         acc_r = self.compute_accuracy(d0, d1, judge=in_judge)
+        self.test_acc_avg += acc_r
 
         loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True)
-        self.log(f'{prefix}/acc_avg', self.acc_avg, prog_bar=True, logger=True)
+        self.log(f'{prefix}/acc_avg', self.test_acc_avg / self.test_iter, prog_bar=True, logger=True)
 
-        self.iter += 1
+        self.test_iter += 1
 
         return self.log_dict
+
+    def on_test_epoch_end(self):
+        self.test_iter = 0
+        self.test_acc_avg = 0
 
     def configure_optimizers(self):
         opt = torch.optim.AdamW(

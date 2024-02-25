@@ -61,11 +61,9 @@ def main():
     checkpoint_callbacks = [instantiate_from_config(config.checkpoints[cfg]) for cfg in config.checkpoints]
 
     trainer_configs = config.trainer
-    # trainer_configs['logger'] = logger
-    # trainer_configs['callbacks'] = checkpoint_callbacks
-    # trainer = Trainer(accelerator='gpu', max_epochs=opt.epoch, logger=logger, callbacks=checkpoint_callbacks)
     trainer = Trainer(logger=logger, callbacks=checkpoint_callbacks, **trainer_configs)
     trainer.fit(model=model, datamodule=datamodule)
+    trainer.test(model=model)
 
 
 if __name__ == '__main__':

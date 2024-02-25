@@ -6,7 +6,6 @@ module:
     log_interval: 1000
     lr: 2e-6
     weight_decay: 0.2
-    ckpt_path: './checkpoints/lpips/swin_v2_t/lpips-v1.ckpt'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -18,8 +17,7 @@ data:
       target: modules.datasets.twoafc.TwoAFCDataset
       params:
         root: '/local_datasets/twoafc'
-        dataset_type: 'mix'
-        train: True
+        dataset_type: 'train'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
@@ -30,20 +28,19 @@ data:
       target: modules.datasets.twoafc.TwoAFCDataset
       params:
         root: '/local_datasets/twoafc'
-        dataset_type: 'superres'
-        train: False
+        dataset_type: 'test'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
                 size: [ 224, 224 ]
+
     validation:
       target: modules.datasets.twoafc.TwoAFCDataset
       params:
         root: '/local_datasets/twoafc'
-        dataset_type: 'cnn'
-        train: False
+        dataset_type: 'val'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
@@ -57,14 +54,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'lpips'
-    version: 'swin_v2_t_test'
+    version: 'swin_v2_t'
 
 
 checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/lpips/swin_v2_t_test'
+      dirpath: './checkpoints/lpips/swin_v2_t'
       filename: 'lpips'
       monitor: 'val/loss'
       mode: 'min'
@@ -72,5 +69,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 1
+  max_epochs: 10
   gradient_clip_val: 0
