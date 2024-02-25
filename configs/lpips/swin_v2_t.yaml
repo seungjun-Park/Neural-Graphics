@@ -2,10 +2,10 @@ module:
   target: modules.loss.lpips.LPIPS
   params:
     net_type: 'swin_v2_t'
-    dropout: 0.0
+    dropout: 0.1
     log_interval: 1000
     lr: 2e-6
-    weight_decay: 0.0
+    weight_decay: 0.2
     ckpt_path: './checkpoints/lpips/swin_v2_t/lpips-v1.ckpt'
 
 data:
@@ -18,7 +18,7 @@ data:
       target: modules.datasets.twoafc.TwoAFCDataset
       params:
         root: '/local_datasets/twoafc'
-        dataset_type: 'traditional'
+        dataset_type: 'mix'
         train: True
         transform_configs:
           transforms:
