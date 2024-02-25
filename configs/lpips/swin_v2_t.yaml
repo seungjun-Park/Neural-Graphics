@@ -14,6 +14,18 @@ data:
     num_workers: 2
     batch_size: 5
     wrap: True
+    train:
+      target: modules.datasets.twoafc.TwoAFCDataset
+      params:
+        root: '/local_datasets/twoafc'
+        dataset_type: 'traditional'
+        train: True
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 224, 224 ]
     test:
       target: modules.datasets.twoafc.TwoAFCDataset
       params:
@@ -60,5 +72,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 5
+  max_epochs: 1
   gradient_clip_val: 0
