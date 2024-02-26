@@ -83,7 +83,11 @@ def freq_filter(freq, dim=2, bandwidth=[0, 1]):
     eps_w = [int(half_w * bandwidth[0]), int(half_w * bandwidth[1])]
 
     filter = torch.zeros(freq.shape)
-    filter[:, :, half_h - eps_h[1]: half_h + eps_h[1], half_w - eps_w[1]: half_w + eps_w[1]] = 1
-    filter[:, :, half_h - eps_h[0]: half_h + eps_h[0], half_w - eps_w[0]: half_w + eps_w[0]] = 0
+    if len(freq.shape) == 4:
+        filter[:, :, half_h - eps_h[1]: half_h + eps_h[1], half_w - eps_w[1]: half_w + eps_w[1]] = 1
+        filter[:, :, half_h - eps_h[0]: half_h + eps_h[0], half_w - eps_w[0]: half_w + eps_w[0]] = 0
+    elif len(freq.shape) == 3:
+        filter[:, half_h - eps_h[1]: half_h + eps_h[1], half_w - eps_w[1]: half_w + eps_w[1]] = 1
+        filter[:, half_h - eps_h[0]: half_h + eps_h[0], half_w - eps_w[0]: half_w + eps_w[0]] = 0
 
     return freq * filter
