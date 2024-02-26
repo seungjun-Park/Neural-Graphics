@@ -234,14 +234,29 @@ class NetLinLayer(nn.Module):
 
 class Dist2LogitLayer(nn.Module):
     ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
-    def __init__(self, chn_mid=32, use_sigmoid=True):
+    def __init__(self,
+                 chn_mid=32,
+                 num_heads=-1,
+                 num_head_channels=-1,
+                 dropout=0.0,
+                 attn_dropout=0.0,):
         super(Dist2LogitLayer, self).__init__()
 
         layers = [nn.Conv2d(5, chn_mid, 1, stride=1, padding=0, bias=True),]
-        layers += [nn.LeakyReLU(0.2, True),]
+        layers += [nn.GELU(), ]
         layers += [nn.Conv2d(chn_mid, chn_mid, 1, stride=1, padding=0, bias=True),]
-        layers += [nn.LeakyReLU(0.2, True),]
-        layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=True),]
+        layers += [nn.GELU(), ]
+        layers += [
+            AttnBlock(
+                chn_mid,
+                1,
+                num_heads=num_heads,
+                num_head_channels=num_head_channels,
+                dropout=dropout,
+                attn_dropout=attn_dropout
+            )
+        ]
+        # layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=True),]
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)
 
