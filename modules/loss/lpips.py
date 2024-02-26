@@ -41,7 +41,7 @@ class LPIPS(pl.LightningModule):
         self.scaling_layer = ScalingLayer()
         self.lins = nn.ModuleList()
         self.rankLoss = BCERankingLoss(
-            num_heads=num_heads,
+            heads=num_heads,
             num_head_channels=num_head_channels,
             dropout=dropout,
             attn_dropout=attn_dropout
@@ -53,7 +53,7 @@ class LPIPS(pl.LightningModule):
             self.lins.append(
                 NetLinLayer(
                     dim,
-                    num_heads=num_heads,
+                    heads=num_heads,
                     num_head_channels=num_head_channels,
                     dropout=dropout,
                     attn_dropout=attn_dropout
@@ -221,7 +221,7 @@ class NetLinLayer(nn.Module):
     def __init__(self,
                  chn_in,
                  chn_out=1,
-                 num_heads=-1,
+                 heads=-1,
                  num_head_channels=-1,
                  dropout=0.0,
                  attn_dropout=0.0,
@@ -230,7 +230,7 @@ class NetLinLayer(nn.Module):
                  ):
         super().__init__(*args, **kwargs)
 
-        layers = AttnBlock(chn_in, chn_out, num_heads, num_head_channels, dropout, attn_dropout)
+        layers = AttnBlock(chn_in, chn_out, heads, num_head_channels, dropout, attn_dropout)
         self.model = nn.Sequential(layers)
 
     def forward(self, x):
@@ -241,7 +241,7 @@ class Dist2LogitLayer(nn.Module):
     ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
     def __init__(self,
                  chn_mid=32,
-                 num_heads=-1,
+                 heads=-1,
                  num_head_channels=-1,
                  dropout=0.0,
                  attn_dropout=0.0,):
@@ -255,7 +255,7 @@ class Dist2LogitLayer(nn.Module):
             AttnBlock(
                 chn_mid,
                 1,
-                num_heads=num_heads,
+                heads=heads,
                 num_head_channels=num_head_channels,
                 dropout=dropout,
                 attn_dropout=attn_dropout
@@ -272,7 +272,7 @@ class Dist2LogitLayer(nn.Module):
 class BCERankingLoss(nn.Module):
     def __init__(self,
                  chn_mid=32,
-                 num_heads=-1,
+                 heads=-1,
                  num_head_channels=-1,
                  dropout=0.0,
                  attn_dropout=0.0,
@@ -283,7 +283,7 @@ class BCERankingLoss(nn.Module):
 
         self.net = Dist2LogitLayer(
                  chn_mid=chn_mid,
-                 num_heads=num_heads,
+                 heads=heads,
                  num_head_channels=num_head_channels,
                  dropout=dropout,
                  attn_dropout=attn_dropout,
