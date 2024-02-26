@@ -72,24 +72,20 @@ class AutoencoderKL(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, low, high):
-        for module_low, module_high in zip(self.encoder_low, self.encoder_high):
-            low = module_low(low)
-            high = module_high(high)
+        low = self.encoder_low(low)
+        high = self.encoder_high(high)
 
         z = torch.cat([low, high], dim=1)
-
-        for module in self.middle_block:
-            z = module(z)
+        z = self.middle_block(z)
 
         z = self.quant_conv(z)
         posterior = DiagonalGaussianDistribution(z)
         z = posterior.reparameterization()
         z = self.post_quant_conv(z)
 
-        for module in self.decoder:
-            z = module(z)
+        x = self.decoder(z)
 
-        return z, posterior
+        return x, posterior
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
         img, img_low, img_high, label = batch
