@@ -40,7 +40,7 @@ class AttnBlock(nn.Module):
 
         self.proj_out = nn.Sequential(
             nn.Linear(in_channels, out_channels, bias=False),
-            nn.LayerNorm(in_channels),
+            nn.LayerNorm(out_channels),
         )
 
     def forward(self, x):
