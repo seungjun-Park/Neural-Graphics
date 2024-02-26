@@ -39,9 +39,16 @@ class AttnBlock(nn.Module):
                                                   batch_first=True, bias=False)
 
         self.proj_out = nn.Sequential(
+            nn.LayerNorm(in_channels),
             nn.Linear(in_channels, out_channels, bias=False),
-            nn.LayerNorm(out_channels),
         )
+
+        self.ln = nn.LayerNorm(out_channels)
+
+        if out_channels != in_channels:
+            self.short_cut = nn.Linear(in_channels, out_channels, bias=False)
+        else:
+            self.short_cut = nn.Identity()
 
     def forward(self, x):
         b, c, *spatial = x.shape
@@ -57,7 +64,8 @@ class AttnBlock(nn.Module):
         h = h + x
 
         z = self.proj_out(h)
-        z = z + h
+        z = z + self.short_cut(h)
+        z = self.ln(z)
         z = z.permute(0, 2, 1)
         z = z.reshape(b, -1, *spatial)
 
