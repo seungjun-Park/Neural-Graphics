@@ -191,8 +191,8 @@ class AutoencoderKL(pl.LightningModule):
         return sample
 
     def configure_optimizers(self):
-        opt_ae = torch.optim.AdamW(list(self.encoder_low.parameters()) +
-                                   list(self.encoder_high.parameters()) +
+        opt_ae = torch.optim.AdamW(list(self.encoder.parameters()) +
+                                   list(self.middle_block.parameters()) +
                                    list(self.decoder.parameters()) +
                                    list(self.quant_conv.parameters()) +
                                    list(self.post_quant_conv.parameters()),
