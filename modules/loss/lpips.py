@@ -79,6 +79,11 @@ class LPIPS(pl.LightningModule):
 
         return val
 
+    def to(self, device='cuda', *args, **kwargs):
+        super().to(device=None, *args, **kwargs)
+        for module in self.layers:
+            module.to(device=device)
+
     def on_train_start(self):
         for module in self.layers:
             module.to(device=self.device)

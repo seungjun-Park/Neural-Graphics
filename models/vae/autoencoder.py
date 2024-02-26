@@ -86,6 +86,9 @@ class AutoencoderKL(pl.LightningModule):
 
         return x, posterior
 
+    def on_train_start(self):
+        self.loss.perceptual_loss.to(self.device)
+
     def training_step(self, batch, batch_idx, *args, **kwargs):
         img, img_low, img_high, label = batch
 
@@ -121,6 +124,9 @@ class AutoencoderKL(pl.LightningModule):
 
         self.log_ssim(img, recon_img)
         self.log_psnr(img, recon_img)
+
+    def on_validation_start(self):
+        self.loss.perceptual_loss.to(self.device)
 
     def validation_step(self, batch, batch_idx, *args, **kwargs):
         img, img_low, img_high, label = batch
