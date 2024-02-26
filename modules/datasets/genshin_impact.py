@@ -70,16 +70,12 @@ class GenshinImpactDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
 
-        freq = img_to_freq(img, dim=2)
-        img_low = freq_to_img(freq_filter(freq, dim=2, bandwidth=[0.0, self.bandwidth]), dim=2)
-        img_high = freq_to_img(freq_filter(freq, dim=2, bandwidth=[self.bandwidth, 1.0]), dim=2)
-
         txt_file = open(f'{file_name}.txt', 'r')
         label = txt_file.readlines()
         if self.target_transform is not None:
             label = self.target_transform(label)
 
-        return img, img_low, img_high, label
+        return img, label
 
     def __len__(self):
         return len(self.file_names)

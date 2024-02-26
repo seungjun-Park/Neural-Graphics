@@ -192,13 +192,12 @@ class ScalingLayer(nn.Module):
                  **kwargs,
                  ):
         super(ScalingLayer, self).__init__(*args, **kwargs)
-        self.register_buffer('mean', torch.Tensor([0.485, 0.456, 0.406])[None,:,None,None])
-        self.register_buffer('std', torch.Tensor([0.229, 0.224, 0.225])[None,:,None,None])
+        self.register_buffer('shift', torch.Tensor([-.030, -.088, -.188])[None, :, None, None])
+        self.register_buffer('scale', torch.Tensor([.458, .448, .450])[None, :, None, None])
 
     def forward(self, inp):
-        inp = (inp - self.mean) / self.std
         inp = F.interpolate(inp, size=(224, 224), antialias=True, mode='bicubic', align_corners=True)
-        return inp
+        return (inp - self.shift) / self.scale
 
 
 class NetLinLayer(nn.Module):
@@ -231,7 +230,7 @@ class Dist2LogitLayer(nn.Module):
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)
 
-    def forward(self, d0, d1, eps=1e-5):
+    def forward(self, d0, d1, eps=0.1):
         return self.model.forward(torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)),dim=1))
 
 

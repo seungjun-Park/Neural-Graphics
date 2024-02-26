@@ -1,7 +1,14 @@
 module:
   target: models.vae.autoencoder.AutoencoderKL
   params:
-    encoder_low_config:
+    z_channels: 4
+    latent_dim: 4
+    dim: 2
+    lr: 2e-5
+    weight_decay: 0.
+    log_interval: 1000
+
+    encoder_config:
       target: modules.vae.encoder.Encoder
       params:
         in_channels: 3
@@ -11,20 +18,11 @@ module:
         dropout: 0.1
         dim: 2
         act: 'gelu'
-    encoder_high_config:
-      target: modules.vae.encoder.Encoder
-      params:
-        in_channels: 3
-        embed_dim: 64
-        hidden_dims: [ 128, 256, 512, 512 ]
-        num_res_blocks: 2
-        dropout: 0.1
-        dim: 2
-        act: 'gelu'
+
     middle_block_config:
       target: modules.vae.middle_block.MiddleBlock
       params:
-        in_channels: 1024
+        in_channels: 512
         out_channels: 4  # same as z_channels
         num_attn_blocks: 2
         num_head_channels: 32
@@ -45,12 +43,6 @@ module:
         dim: 2
         act: 'gelu'
 
-    z_channels: 4
-    latent_dim: 4
-    dim: 2
-    lr: 2e-5
-    weight_decay: 0.
-    log_interval: 1000
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
@@ -81,7 +73,6 @@ data:
       params:
         root: '/local_datasets/genshin_impact'
         train: True
-        bandwidth: 0.3
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
@@ -93,7 +84,6 @@ data:
       params:
         root: '/local_datasets/genshin_impact'
         train: False
-        bandwidth: 0.3
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor

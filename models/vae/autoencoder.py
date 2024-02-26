@@ -18,8 +18,7 @@ from torchmetrics.image.psnr import PeakSignalNoiseRatio
 
 class AutoencoderKL(pl.LightningModule):
     def __init__(self,
-                 encoder_low_config,
-                 encoder_high_config,
+                 encoder_config,
                  middle_block_config,
                  decoder_config,
                  z_channels,
@@ -46,8 +45,7 @@ class AutoencoderKL(pl.LightningModule):
 
         self.loss = instantiate_from_config(loss_config)
 
-        self.encoder_low = instantiate_from_config(encoder_low_config)
-        self.encoder_high = instantiate_from_config(encoder_high_config)
+        self.encoder = instantiate_from_config(encoder_config)
 
         self.middle_block = instantiate_from_config(middle_block_config)
 
@@ -70,12 +68,9 @@ class AutoencoderKL(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def forward(self, low, high):
-        low = self.encoder_low(low)
-        high = self.encoder_high(high)
-
-        z = torch.cat([low, high], dim=1)
-        z = self.middle_block(z)
+    def forward(self, x):
+        x = self.encoder(x)
+        z = self.middle_block(x)
 
         z = self.quant_conv(z)
         posterior = DiagonalGaussianDistribution(z)
@@ -90,9 +85,9 @@ class AutoencoderKL(pl.LightningModule):
         self.loss.perceptual_loss.to(self.device)
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
-        img, img_low, img_high, label = batch
+        img, label = batch
 
-        recon_img, posterior = self(img_low, img_high)
+        recon_img, posterior = self(img)
 
         if self.global_step % self.log_interval == 0:
             prefix = 'train' if self.training else 'val'
@@ -129,9 +124,9 @@ class AutoencoderKL(pl.LightningModule):
         self.loss.perceptual_loss.to(self.device)
 
     def validation_step(self, batch, batch_idx, *args, **kwargs):
-        img, img_low, img_high, label = batch
+        img, label = batch
 
-        recon_img, posterior = self(img_low, img_high)
+        recon_img, posterior = self(img)
 
         prefix = 'train' if self.training else 'val'
         self.log_img(img, split=f'{prefix}/img')
