@@ -40,7 +40,12 @@ class LPIPS(pl.LightningModule):
 
         self.scaling_layer = ScalingLayer()
         self.lins = nn.ModuleList()
-        self.rankLoss = BCERankingLoss()
+        self.rankLoss = BCERankingLoss(
+            num_heads=num_heads,
+            num_head_channels=num_head_channels,
+            dropout=dropout,
+            attn_dropout=attn_dropout
+        )
 
         self.dims = get_layer_dims(net_type)
 
@@ -267,12 +272,22 @@ class Dist2LogitLayer(nn.Module):
 class BCERankingLoss(nn.Module):
     def __init__(self,
                  chn_mid=32,
+                 num_heads=-1,
+                 num_head_channels=-1,
+                 dropout=0.0,
+                 attn_dropout=0.0,
                  *args,
                  **kwargs,
                  ):
         super().__init__(*args, **kwargs)
 
-        self.net = Dist2LogitLayer(chn_mid=chn_mid)
+        self.net = Dist2LogitLayer(
+                 chn_mid=chn_mid,
+                 num_heads=num_heads,
+                 num_head_channels=num_head_channels,
+                 dropout=dropout,
+                 attn_dropout=attn_dropout,
+        )
         self.loss = nn.BCELoss()
 
     def forward(self, d0, d1, judge):

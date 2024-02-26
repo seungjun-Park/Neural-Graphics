@@ -178,6 +178,7 @@ def get_layer_dims(net_type):
         NotImplementedError(f'{net_type} is not implemented.')
     return dims
 
+
 def normalize_tensor(in_feat,eps=1e-10):
     norm_factor = torch.sqrt(torch.sum(in_feat**2,dim=1,keepdim=True))
     return in_feat/(norm_factor+eps)
