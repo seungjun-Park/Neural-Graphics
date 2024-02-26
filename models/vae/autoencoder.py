@@ -94,7 +94,7 @@ class AutoencoderKL(pl.LightningModule):
 
         recon_img, posterior = self(img_low, img_high)
 
-        if self.iter % self.log_interval == 0:
+        if self.global_step % self.log_interval == 0:
             prefix = 'train' if self.training else 'val'
             self.log_img(img, split=f'{prefix}/img')
             self.log_img(recon_img, split=f'{prefix}/recon')
