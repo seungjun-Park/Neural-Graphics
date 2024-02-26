@@ -16,8 +16,6 @@ class AttnBlock(nn.Module):
                  ):
         super().__init__(*args, **kwargs)
 
-        out_channels = out_channels if out_channels is not None else in_channels
-
         assert heads != -1 or num_head_channels != -1
         if heads != -1:
             assert in_channels % heads == 0
