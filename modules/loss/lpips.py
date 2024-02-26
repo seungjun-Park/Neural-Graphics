@@ -4,12 +4,16 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from .utils import get_pretrained_model, export_layers, normalize_tensor, spatial_average, get_layer_dims
+from .attn_block import AttnBlock
 
 
 class LPIPS(pl.LightningModule):
     def __init__(self,
                  net_type='swin_v2_t',
+                 num_heads=-1,
+                 num_head_channels=-1,
                  dropout=0.0,
+                 attn_dropout=0.0,
                  log_interval=100,
                  lr=2e-5,
                  weight_decay=0.0,
@@ -41,7 +45,15 @@ class LPIPS(pl.LightningModule):
         self.dims = get_layer_dims(net_type)
 
         for i, dim in enumerate(self.dims):
-            self.lins.append(NetLinLayer(dim, dropout=dropout))
+            self.lins.append(
+                NetLinLayer(
+                    dim,
+                    num_heads=num_heads,
+                    num_head_channels=num_head_channels,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout
+                )
+            )
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
@@ -200,17 +212,21 @@ class ScalingLayer(nn.Module):
 
 
 class NetLinLayer(nn.Module):
-    ''' A single linear layer which does a 1x1 conv '''
+    ''' A single layer which does a multi heads self attention. '''
     def __init__(self,
                  chn_in,
                  chn_out=1,
+                 num_heads=-1,
+                 num_head_channels=-1,
                  dropout=0.0,
+                 attn_dropout=0.0,
+                 *args,
+                 **kwargs
                  ):
-        super(NetLinLayer, self).__init__()
+        super().__init__(*args, **kwargs)
 
-        layers = [nn.Dropout(dropout)]
-        layers += [nn.Conv2d(chn_in, chn_out, 1, stride=1, padding=0, bias=False)]
-        self.model = nn.Sequential(*layers)
+        layers = AttnBlock(chn_in, chn_out, num_heads, num_head_channels, dropout, attn_dropout)
+        self.model = nn.Sequential(layers)
 
     def forward(self, x):
         return self.model(x)
@@ -229,8 +245,8 @@ class Dist2LogitLayer(nn.Module):
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)
 
-    def forward(self, d0, d1, eps=0.1):
-        return self.model.forward(torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)),dim=1))
+    def forward(self, d0, d1, eps=1e-6):
+        return self.model.forward(torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)), dim=1))
 
 
 class BCERankingLoss(nn.Module):
