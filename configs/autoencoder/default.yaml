@@ -57,7 +57,7 @@ module:
         lpips_config:
           net_type: 'swin_v2_t'
           ckpt_path: 'checkpoints/lpips/swin_v2_t/lpips.ckpt'
-        disc_start: 0
+        disc_start: 50001
         logvar_init: 0.0
         kl_weight: 1e-5
         pixelloss_weight: 1.0
