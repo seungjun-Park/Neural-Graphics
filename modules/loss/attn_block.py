@@ -3,14 +3,61 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class MLP(torch.nn.Sequential):
+    def __init__(
+        self,
+        in_channels: int,
+        hidden_channels: List[int],
+        norm_layer: Optional[Callable[..., torch.nn.Module]] = None,
+        activation_layer: Optional[Callable[..., torch.nn.Module]] = torch.nn.ReLU,
+        inplace: Optional[bool] = None,
+        bias: bool = True,
+        dropout: float = 0.0,
+    ):
+        # The addition of `norm_layer` is inspired from the implementation of TorchMultimodal:
+        # https://github.com/facebookresearch/multimodal/blob/5dec8a/torchmultimodal/modules/layers/mlp.py
+        params = {} if inplace is None else {"inplace": inplace}
+
+        layers = []
+        in_dim = in_channels
+        for hidden_dim in hidden_channels[:-1]:
+            layers.append(torch.nn.Linear(in_dim, hidden_dim, bias=bias))
+            if norm_layer is not None:
+                layers.append(norm_layer(hidden_dim))
+            layers.append(activation_layer(**params))
+            layers.append(torch.nn.Dropout(dropout, **params))
+            in_dim = hidden_dim
+
+        layers.append(torch.nn.Linear(in_dim, hidden_channels[-1], bias=bias))
+        layers.append(torch.nn.Dropout(dropout, **params))
+
+        super().__init__(*layers)
+        _log_api_usage_once(self)
+
+class MLPBlock(MLP):
+    """Transformer MLP block."""
+
+    _version = 2
+
+    def __init__(self, in_dim, mlp_dim, dropout, *args, **kwargs):
+        super().__init__(in_dim, [mlp_dim, in_dim], *args, activation_layer=nn.GELU, inplace=None, dropout=dropout, **kwargs)
+
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.normal_(m.bias, std=1e-6)
+
+
 class AttnBlock(nn.Module):
     def __init__(self,
                  in_channels,
-                 seq_length,
+                 max_seq_len=5000,
                  heads=-1,
                  num_head_channels=-1,
                  dropout=0.,
                  attn_dropout=0.,
+                 bias=True,
                  *args,
                  **kwargs,
                  ):
@@ -24,7 +71,7 @@ class AttnBlock(nn.Module):
             assert in_channels % num_head_channels == 0
             self.heads = in_channels // num_head_channels
 
-        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, in_channels).normal_(std=0.02))
+        self.pos_embedding = nn.Parameter(torch.empty(1, max_seq_len, in_channels, requires_grad=True).normal_(std=0.02))
 
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
@@ -34,11 +81,11 @@ class AttnBlock(nn.Module):
         )
 
         self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout,
-                                                  batch_first=True, bias=False)
+                                                  batch_first=True, bias=bias)
 
         self.proj_out = nn.Sequential(
             nn.LayerNorm(in_channels),
-            nn.Linear(in_channels, in_channels, bias=False),
+            MLPBlock(in_channels, in_channels * 2, dropout=dropout, bias=bias)
         )
 
         self.ln = nn.LayerNorm(in_channels)
@@ -48,7 +95,7 @@ class AttnBlock(nn.Module):
         x = x.reshape(b, c, -1)
         x = x.permute(0, 2, 1)
 
-        x = x + self.pos_embedding
+        x = x + self.pos_embedding[:, : x.shpae[1], :]
 
         h = self.proj_in(self.dropout1(x))
         h, _ = self.mhattn_block(h, h, h)

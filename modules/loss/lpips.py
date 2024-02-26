@@ -44,23 +44,19 @@ class LPIPS(pl.LightningModule):
 
         self.dims = get_layer_dims(net_type)
 
-        seq_length = (image_size // 4) ** 2
 
         for i, dim in enumerate(self.dims):
             self.lins.append(
                 NetLinLayer(
                     dim,
-                    seq_length,
                     heads=num_heads,
                     num_head_channels=num_head_channels,
                     dropout=dropout,
                     attn_dropout=attn_dropout
                 )
             )
-            seq_length //= 4
 
         self.rankLoss = BCERankingLoss(
-            seq_length,
             heads=num_heads,
             num_head_channels=num_head_channels,
             dropout=dropout,
@@ -102,6 +98,12 @@ class LPIPS(pl.LightningModule):
             val += diffs[i]
 
         return val
+
+    def eval(self, *args, **kwargs):
+        super().eval(*args, **kwargs)
+        rankLoss = self.rankLoss
+        self.rankLoss = None
+        del rankLoss
 
     def to(self, device, *args, **kwargs):
         super().to(device=device, *args, **kwargs)
@@ -227,18 +229,14 @@ class NetLinLayer(nn.Module):
     ''' A single layer which does a multi heads self attention. '''
     def __init__(self,
                  chn_in,
-                 seq_length,
                  chn_out=1,
-                 heads=-1,
-                 num_head_channels=-1,
                  dropout=0.0,
-                 attn_dropout=0.0,
                  *args,
                  **kwargs
                  ):
         super().__init__(*args, **kwargs)
 
-        layers = [AttnBlock(chn_in, seq_length, heads, num_head_channels, dropout, attn_dropout), ]
+        layers = [nn.Dropout(dropout), ]
         layers += [nn.Conv2d(chn_in, chn_out, 1, stride=1, padding=0, bias=False), ]
         self.model = nn.Sequential(*layers)
 
@@ -249,29 +247,42 @@ class NetLinLayer(nn.Module):
 class Dist2LogitLayer(nn.Module):
     ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
     def __init__(self,
-                 seq_length,
                  chn_mid=32,
                  heads=-1,
                  num_head_channels=-1,
                  dropout=0.0,
-                 attn_dropout=0.0,):
-        super(Dist2LogitLayer, self).__init__()
+                 attn_dropout=0.0,
+                 bias=True,
+                 *args,
+                 **kwargs,
+                 ):
+        super(Dist2LogitLayer, self).__init__(*args, **kwargs)
 
-        layers = [nn.Conv2d(5, chn_mid, 1, stride=1, padding=0, bias=True),]
+        layers = [nn.Conv2d(5, chn_mid, 1, stride=1, padding=0, bias=bias),]
+        layers += [
+            AttnBlock(
+                chn_mid,
+                heads=heads,
+                num_head_channels=num_head_channels,
+                dropout=dropout,
+                attn_dropout=attn_dropout,
+                bias=bias
+            )
+        ]
         layers += [nn.GELU(), ]
-        layers += [nn.Conv2d(chn_mid, chn_mid, 1, stride=1, padding=0, bias=True),]
+        layers += [nn.Conv2d(chn_mid, chn_mid, 1, stride=1, padding=0, bias=bias),]
         layers += [nn.GELU(), ]
         layers += [
             AttnBlock(
                 chn_mid,
-                seq_length,
                 heads=heads,
                 num_head_channels=num_head_channels,
                 dropout=dropout,
-                attn_dropout=attn_dropout
+                attn_dropout=attn_dropout,
+                bias=bias
             )
         ]
-        layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=True),]
+        layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=bias),]
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)
 
@@ -281,7 +292,6 @@ class Dist2LogitLayer(nn.Module):
 
 class BCERankingLoss(nn.Module):
     def __init__(self,
-                 seq_length,
                  chn_mid=32,
                  heads=-1,
                  num_head_channels=-1,
@@ -293,7 +303,6 @@ class BCERankingLoss(nn.Module):
         super().__init__(*args, **kwargs)
 
         self.net = Dist2LogitLayer(
-                 seq_length,
                  chn_mid=chn_mid,
                  heads=heads,
                  num_head_channels=num_head_channels,
