@@ -25,6 +25,7 @@ module:
       target: modules.vae.middle_block.MiddleBlock
       params:
         in_channels: 1024
+        out_channels: 4  # same as z_channels
         num_attn_blocks: 2
         num_head_channels: 32
         dropout: 0.1
@@ -35,7 +36,7 @@ module:
     decoder_config:
       target: modules.vae.encoder.Encoder
       params:
-        in_channels: 4 # z_channels
+        in_channels: 4 # same as z_channels
         out_channels: 3
         embed_dim: 64
         hidden_dims: [ 128, 256, 512, 512 ]

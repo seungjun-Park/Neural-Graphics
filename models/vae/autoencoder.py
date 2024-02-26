@@ -31,7 +31,6 @@ class AutoencoderKL(pl.LightningModule):
                  ckpt_path=None,
                  use_fp16=False,
                  dim=2,
-
                  *args,
                  **kwargs,
                  ):

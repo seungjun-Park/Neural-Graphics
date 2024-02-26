@@ -10,6 +10,7 @@ from modules.utils import conv_nd, group_norm, activation_func
 class MiddleBlock(nn.Module):
     def __init__(self,
                  in_channels,
+                 out_channels,
                  num_attn_blocks=1,
                  dropout=0.,
                  attn_dropout=0.,
@@ -48,6 +49,19 @@ class MiddleBlock(nn.Module):
             )
 
         self.middle.append(nn.Sequential(*layer))
+
+        self.middle.append(
+            group_norm(in_channels),
+            activation_func(act),
+            conv_nd(
+                dim=dim,
+                in_channels=in_channels,
+                out_channels=out_channels * 2,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            )
+        )
 
     def forward(self, x):
         for module in self.middle:
