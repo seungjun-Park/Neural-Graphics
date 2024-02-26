@@ -12,11 +12,10 @@ from modules.utils import instantiate_from_config
 class TwoAFCDataset(Dataset):
     def __init__(self,
                  root,
-                 dataset_type='train',
-                 subdir_type='real',
+                 train=True,
+                 subdirs=['traditional'],
                  transform_configs=None,
                  ):
-        subdir_type = subdir_type.lower()
         dataset_type = dataset_type.lower()
 
         if transform_configs is not None:
@@ -33,19 +32,18 @@ class TwoAFCDataset(Dataset):
 
         self.subdirs = []
 
-        if dataset_type == 'train':
-            self.subdirs = ['traditional', 'cnn', 'mix']
-        elif dataset_type == 'val':
-            if subdir_type == 'distortion':
-                self.subdirs = ['traditional', 'cnn']
-            elif subdir_type == 'real':
-                self.subdirs = ['superres', 'deblur', 'color', 'frameinterp']
-            else:
-                NotImplementedError(f'{subdir_type} is not exist.')
-
+        if train:
+            root = os.path.join(root, 'train')
+            for subdir in subdirs:
+                assert subdir in ['traditional', 'cnn', 'mix'], f'{subdir} is not available.'
+            self.subdirs = subdirs
         else:
-            NotImplementedError(f'{dataset_type} is not exist.')
+            root = os.path.join(root, 'val')
+            for subdir in subdirs:
+                assert subdir in ['traditional', 'cnn', 'superres', 'deblur', 'color', 'frameinterp'], f'{subdir} is not available.'
+            self.subdirs = subdirs
 
+        self.root = os.path.normpath(root)
         self.file_paths = []
         for subdir in self.subdirs:
             file_path = glob.glob(f'{self.root}/{subdir}/ref/*.*')

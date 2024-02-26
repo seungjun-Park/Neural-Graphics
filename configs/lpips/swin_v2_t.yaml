@@ -2,13 +2,13 @@ module:
   target: modules.loss.lpips.LPIPS
   params:
     net_type: 'swin_v2_t'
-    dropout: 0.1
+    dropout: 0.0
     lr: 2e-5
     weight_decay: 0.0
 
     loss_config:
-      num_attn_blocks: 4
-      chn_mid: 64
+      num_attn_blocks: 8
+      chn_mid: 128
       heads: 8
       dropout: 0.0
       attn_dropout: 0.0
@@ -23,8 +23,8 @@ data:
       target: modules.datasets.twoafc.TwoAFCDataset
       params:
         root: '/local_datasets/twoafc'
-        dataset_type: 'train'
-        subdir_type: 'distortion'
+        train: False
+        subdirs: ['traditional', 'cnn', 'mix']
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
@@ -36,8 +36,8 @@ data:
       target: modules.datasets.twoafc.TwoAFCDataset
       params:
         root: '/local_datasets/twoafc'
-        dataset_type: 'val'
-        subdir_type: 'real'
+        train: False
+        subdir_type: ['traditional', 'cnn', 'superres', 'deblur', 'color', 'frameinterp']
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
