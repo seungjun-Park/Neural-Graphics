@@ -58,7 +58,7 @@ class AttnBlock(nn.Module):
         h = h + x
 
         z = self.proj_out(h)
-        z = z + self.short_cut(h)
+        z = z + h
         z = self.ln(z)
         z = z.permute(0, 2, 1)
         z = z.reshape(b, -1, *spatial)

@@ -275,8 +275,8 @@ class Dist2LogitLayer(nn.Module):
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)
 
-    def forward(self, d0, d1, eps=1e-6):
-        return self.model.forward(torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)), dim=1))
+    def forward(self, d0, d1, eps=0.1):
+        return self.model(torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)), dim=1))
 
 
 class BCERankingLoss(nn.Module):
