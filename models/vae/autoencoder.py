@@ -183,10 +183,9 @@ class AutoencoderKL(pl.LightningModule):
 
     def sample(self, posterior):
         sample_point = posterior.sample()
-        sample = self.post_quant_conv(sample_point)
+        sample_point = self.post_quant_conv(sample_point)
 
-        for module in self.decoder:
-            sample = module(sample)
+        sample = self.decoder(sample_point)
 
         return sample
 
@@ -204,6 +203,6 @@ class AutoencoderKL(pl.LightningModule):
         return [opt_ae, opt_disc], []
 
     def get_last_layer(self):
-        return self.decoder[-1][-1].weight
+        return self.decoder.get_last_layer()
 
 

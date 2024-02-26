@@ -84,3 +84,6 @@ class Decoder(nn.Module):
             x = module(x)
 
         return x
+
+    def get_last_layer(self):
+        return self.up[-1][-1].weight
