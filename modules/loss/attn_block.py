@@ -50,7 +50,7 @@ class AttnBlock(nn.Module):
 
         x = x + self.pos_embedding
 
-        h = self.proj_in(self.dropout1(x, self.dropout))
+        h = self.proj_in(self.dropout1(x))
         h, _ = self.mhattn_block(h, h, h)
         h = self.dropout2(h)
         h = h + x
