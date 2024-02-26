@@ -37,7 +37,7 @@ data:
       params:
         root: '/local_datasets/twoafc'
         train: False
-        subdir_type: ['traditional', 'cnn', 'superres', 'deblur', 'color', 'frameinterp']
+        subdirs: ['traditional', 'cnn', 'superres', 'deblur', 'color', 'frameinterp']
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
