@@ -158,7 +158,7 @@ class AutoencoderKL(pl.LightningModule):
         psnr = PeakSignalNoiseRatio()
         target = target.detach().cpu()
         pred = pred.detach().cpu()
-        psnr_score = psnr(target[0], pred[0])
+        psnr_score = psnr(target, pred)
         self.log(f'{prefix}/psnr', psnr_score, prog_bar=False, logger=True)
 
         return
@@ -169,7 +169,7 @@ class AutoencoderKL(pl.LightningModule):
         ssim = StructuralSimilarityIndexMeasure()
         target = target.detach().cpu()
         pred = pred.detach().cpu()
-        ssim_score = ssim(target[0], pred[0])
+        ssim_score = ssim(target, pred)
         self.log(f'{prefix}/ssim', ssim_score, prog_bar=False, logger=True)
 
         return
