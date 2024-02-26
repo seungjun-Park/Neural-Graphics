@@ -54,10 +54,6 @@ class LPIPSWithDiscriminator(nn.Module):
             p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
-        if self.ssim_weight > 0:
-            ssim_loss = 1.0 - self.ssim(reconstructions.contiguous(), inputs.contiguous())
-            rec_loss = rec_loss + ssim_loss * self.ssim_weight
-
         nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
         weighted_nll_loss = nll_loss
         if weights is not None:
