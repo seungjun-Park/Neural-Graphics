@@ -11,6 +11,7 @@ class LPIPS(pl.LightningModule):
     def __init__(self,
                  loss_config=None,
                  net_type='swin_v2_t',
+                 dropout=0.0,
                  log_interval=100,
                  lr=2e-5,
                  weight_decay=0.0,
