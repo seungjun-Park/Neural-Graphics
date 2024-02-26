@@ -56,7 +56,6 @@ class AttnBlock(nn.Module):
         x = x.permute(0, 2, 1)
 
         x = x + self.pos_embedding
-        x = F.dropout(x, self.dropout)
 
         h = self.proj_in(F.dropout(x, self.dropout))
         h, _ = self.mhattn_block(h, h, h)
