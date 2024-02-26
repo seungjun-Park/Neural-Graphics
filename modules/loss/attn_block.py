@@ -6,6 +6,7 @@ import torch.nn.functional as F
 class AttnBlock(nn.Module):
     def __init__(self,
                  in_channels,
+                 seq_length,
                  out_channels=None,
                  heads=-1,
                  num_head_channels=-1,
@@ -26,18 +27,20 @@ class AttnBlock(nn.Module):
             assert in_channels % num_head_channels == 0
             self.heads = in_channels // num_head_channels
 
+        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, in_channels).normal_(std=0.02))
+
+        self.dropout = dropout
+
         self.proj_in = nn.Sequential(
             nn.LayerNorm(in_channels),
-            nn.Linear(in_channels, in_channels),
-            nn.GELU(),
         )
-        self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout, batch_first=True)
-        self.dropout = nn.Dropout(dropout)
+
+        self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout,
+                                                  batch_first=True, bias=False)
 
         self.proj_out = nn.Sequential(
+            nn.Linear(in_channels, out_channels, bias=False),
             nn.LayerNorm(in_channels),
-            nn.Linear(in_channels, out_channels),
-            nn.GELU(),
         )
 
     def forward(self, x):
@@ -45,9 +48,12 @@ class AttnBlock(nn.Module):
         x = x.reshape(b, c, -1)
         x = x.permute(0, 2, 1)
 
-        h = self.proj_in(x)
+        x = x + self.pos_embedding
+        x = F.dropout(x, self.dropout)
+
+        h = self.proj_in(F.dropout(x, self.dropout))
         h, _ = self.mhattn_block(h, h, h)
-        h = self.dropout(h)
+        h = F.dropout(h, self.dropout)
         h = h + x
 
         z = self.proj_out(h)

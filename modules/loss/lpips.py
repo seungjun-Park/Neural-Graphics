@@ -10,6 +10,7 @@ from .attn_block import AttnBlock
 class LPIPS(pl.LightningModule):
     def __init__(self,
                  net_type='swin_v2_t',
+                 image_size=64,
                  num_heads=-1,
                  num_head_channels=-1,
                  dropout=0.0,
@@ -40,25 +41,31 @@ class LPIPS(pl.LightningModule):
 
         self.scaling_layer = ScalingLayer()
         self.lins = nn.ModuleList()
-        self.rankLoss = BCERankingLoss(
-            heads=num_heads,
-            num_head_channels=num_head_channels,
-            dropout=dropout,
-            attn_dropout=attn_dropout
-        )
 
         self.dims = get_layer_dims(net_type)
+
+        seq_length = (image_size // 4) ** 2
 
         for i, dim in enumerate(self.dims):
             self.lins.append(
                 NetLinLayer(
                     dim,
+                    seq_length,
                     heads=num_heads,
                     num_head_channels=num_head_channels,
                     dropout=dropout,
                     attn_dropout=attn_dropout
                 )
             )
+            seq_length //= 4
+
+        self.rankLoss = BCERankingLoss(
+            seq_length,
+            heads=num_heads,
+            num_head_channels=num_head_channels,
+            dropout=dropout,
+            attn_dropout=attn_dropout
+        )
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
@@ -88,7 +95,9 @@ class LPIPS(pl.LightningModule):
         for feat, lin in zip(self.layers, self.lins):
             in0, in1 = feat(in0), feat(in1)
             diff = torch.abs(normalize_tensor(in0) - normalize_tensor(in1)) ** 2
-            diffs.append(spatial_average(lin(diff), keepdim=True))
+            diff = lin(diff)
+            print(diff.shape)
+            diffs.append(spatial_average(diff, keepdim=True))
 
         val = diffs[0]
         for i in range(1, len(diffs)):
@@ -220,6 +229,7 @@ class NetLinLayer(nn.Module):
     ''' A single layer which does a multi heads self attention. '''
     def __init__(self,
                  chn_in,
+                 seq_length,
                  chn_out=1,
                  heads=-1,
                  num_head_channels=-1,
@@ -230,7 +240,7 @@ class NetLinLayer(nn.Module):
                  ):
         super().__init__(*args, **kwargs)
 
-        layers = AttnBlock(chn_in, chn_out, heads, num_head_channels, dropout, attn_dropout)
+        layers = AttnBlock(chn_in, seq_length, chn_out, heads, num_head_channels, dropout, attn_dropout)
         self.model = nn.Sequential(layers)
 
     def forward(self, x):
@@ -240,6 +250,7 @@ class NetLinLayer(nn.Module):
 class Dist2LogitLayer(nn.Module):
     ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
     def __init__(self,
+                 seq_length,
                  chn_mid=32,
                  heads=-1,
                  num_head_channels=-1,
@@ -254,6 +265,7 @@ class Dist2LogitLayer(nn.Module):
         layers += [
             AttnBlock(
                 chn_mid,
+                seq_length,
                 1,
                 heads=heads,
                 num_head_channels=num_head_channels,
@@ -271,6 +283,7 @@ class Dist2LogitLayer(nn.Module):
 
 class BCERankingLoss(nn.Module):
     def __init__(self,
+                 seq_length,
                  chn_mid=32,
                  heads=-1,
                  num_head_channels=-1,
@@ -282,6 +295,7 @@ class BCERankingLoss(nn.Module):
         super().__init__(*args, **kwargs)
 
         self.net = Dist2LogitLayer(
+                 seq_length,
                  chn_mid=chn_mid,
                  heads=heads,
                  num_head_channels=num_head_channels,
