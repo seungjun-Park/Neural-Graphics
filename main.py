@@ -63,7 +63,7 @@ def main():
     trainer_configs = config.trainer
     trainer = Trainer(logger=logger, callbacks=checkpoint_callbacks, **trainer_configs)
     trainer.fit(model=model, datamodule=datamodule)
-    trainer.test(model=model)
+    # trainer.test(model=model)
 
 
 if __name__ == '__main__':
