@@ -95,9 +95,7 @@ class LPIPS(pl.LightningModule):
         for feat, lin in zip(self.layers, self.lins):
             in0, in1 = feat(in0), feat(in1)
             diff = torch.abs(normalize_tensor(in0) - normalize_tensor(in1)) ** 2
-            diff = lin(diff)
-            print(diff.shape)
-            diffs.append(spatial_average(diff, keepdim=True))
+            diffs.append(spatial_average(lin(diff), keepdim=True))
 
         val = diffs[0]
         for i in range(1, len(diffs)):
