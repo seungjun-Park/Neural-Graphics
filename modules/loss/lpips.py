@@ -19,6 +19,7 @@ class LPIPS(pl.LightningModule):
                  lr=2e-5,
                  weight_decay=0.0,
                  ckpt_path=None,
+                 use_loss=True
                  *args,
                  **kwargs,
                  ):
@@ -27,6 +28,7 @@ class LPIPS(pl.LightningModule):
         self.log_interval = log_interval
         self.lr = lr
         self.weight_decay = weight_decay
+        self.use_loss = use_loss
 
         self.train_iter = 0
         self.train_acc_avg = 0
@@ -98,9 +100,10 @@ class LPIPS(pl.LightningModule):
 
     def eval(self, *args, **kwargs):
         super().eval(*args, **kwargs)
-        rankLoss = self.rankLoss
-        self.rankLoss = None
-        del rankLoss
+        if not self.use_loss:
+            rankLoss = self.rankLoss
+            self.rankLoss = None
+            del rankLoss
 
     def to(self, device, *args, **kwargs):
         super().to(device=device, *args, **kwargs)
