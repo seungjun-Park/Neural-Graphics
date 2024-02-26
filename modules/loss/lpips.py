@@ -92,13 +92,6 @@ class LPIPS(pl.LightningModule):
 
         return val
 
-    def eval(self, *args, **kwargs):
-        super().eval(*args, **kwargs)
-        if not self.use_loss:
-            rankLoss = self.rankLoss
-            self.rankLoss = None
-            del rankLoss
-
     def to(self, device, *args, **kwargs):
         super().to(device=device, *args, **kwargs)
         for module in self.layers:
