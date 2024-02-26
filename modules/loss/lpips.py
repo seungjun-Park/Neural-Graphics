@@ -25,7 +25,6 @@ class LPIPS(pl.LightningModule):
         self.log_interval = log_interval
         self.lr = lr
         self.weight_decay = weight_decay
-        self.use_loss = use_loss
 
         self.train_iter = 0
         self.train_acc_avg = 0
