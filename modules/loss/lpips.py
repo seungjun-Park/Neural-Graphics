@@ -79,8 +79,8 @@ class LPIPS(pl.LightningModule):
 
         return val
 
-    def to(self, device='cuda', *args, **kwargs):
-        super().to(device=None, *args, **kwargs)
+    def to(self, device, *args, **kwargs):
+        super().to(device=device, *args, **kwargs)
         for module in self.layers:
             module.to(device=device)
 
