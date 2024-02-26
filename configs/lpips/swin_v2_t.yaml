@@ -4,7 +4,7 @@ module:
     net_type: 'swin_v2_t'
     dropout: 0.1
     attn_dropout: 0.1
-    num_head_channels: 32
+    num_heads: 8
     log_interval: 100
     lr: 2e-5
     weight_decay: 0.0

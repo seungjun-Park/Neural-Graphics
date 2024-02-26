@@ -49,10 +49,7 @@ class LPIPS(pl.LightningModule):
             self.lins.append(
                 NetLinLayer(
                     dim,
-                    heads=num_heads,
-                    num_head_channels=num_head_channels,
                     dropout=dropout,
-                    attn_dropout=attn_dropout
                 )
             )
 
