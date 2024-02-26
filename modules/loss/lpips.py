@@ -9,17 +9,13 @@ from .attn_block import AttnBlock
 
 class LPIPS(pl.LightningModule):
     def __init__(self,
+                 loss_config=None,
                  net_type='swin_v2_t',
-                 image_size=64,
-                 num_heads=-1,
-                 num_head_channels=-1,
-                 dropout=0.0,
-                 attn_dropout=0.0,
                  log_interval=100,
                  lr=2e-5,
                  weight_decay=0.0,
                  ckpt_path=None,
-                 use_loss=True,
+                 ignore_keys=[]
                  *args,
                  **kwargs,
                  ):
@@ -55,15 +51,13 @@ class LPIPS(pl.LightningModule):
                 )
             )
 
-        self.rankLoss = BCERankingLoss(
-            heads=num_heads,
-            num_head_channels=num_head_channels,
-            dropout=dropout,
-            attn_dropout=attn_dropout
-        )
+        if loss_config is not None:
+            self.rankLoss = BCERankingLoss(**loss_config)
+        else:
+            self.rankLoss = None
 
         if ckpt_path is not None:
-            self.init_from_ckpt(ckpt_path)
+            self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -247,6 +241,7 @@ class NetLinLayer(nn.Module):
 class Dist2LogitLayer(nn.Module):
     ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
     def __init__(self,
+                 num_attn_blocks=4,
                  chn_mid=32,
                  heads=-1,
                  num_head_channels=-1,
@@ -259,29 +254,18 @@ class Dist2LogitLayer(nn.Module):
         super(Dist2LogitLayer, self).__init__(*args, **kwargs)
 
         layers = [nn.Conv2d(5, chn_mid, 1, stride=1, padding=0, bias=bias),]
-        layers += [
-            AttnBlock(
-                chn_mid,
-                heads=heads,
-                num_head_channels=num_head_channels,
-                dropout=dropout,
-                attn_dropout=attn_dropout,
-                bias=bias
-            )
-        ]
-        layers += [nn.GELU(), ]
-        layers += [nn.Conv2d(chn_mid, chn_mid, 1, stride=1, padding=0, bias=bias),]
-        layers += [nn.GELU(), ]
-        layers += [
-            AttnBlock(
-                chn_mid,
-                heads=heads,
-                num_head_channels=num_head_channels,
-                dropout=dropout,
-                attn_dropout=attn_dropout,
-                bias=bias
-            )
-        ]
+
+        for i in range(num_attn_blocks):
+            layers +=[
+                AttnBlock(
+                    chn_mid,
+                    heads=heads,
+                    num_head_channels=num_head_channels,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    bias=bias
+                )
+            ]
         layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=bias),]
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)

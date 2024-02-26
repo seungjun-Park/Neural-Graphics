@@ -9,6 +9,13 @@ module:
     lr: 2e-5
     weight_decay: 0.0
 
+    loss_config:
+      num_attn_blocks: 4
+      chn_mid: 64
+      heads: 8
+      dropout: 0.0
+      attn_dropout: 0.0
+
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
