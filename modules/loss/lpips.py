@@ -15,7 +15,7 @@ class LPIPS(pl.LightningModule):
                  lr=2e-5,
                  weight_decay=0.0,
                  ckpt_path=None,
-                 ignore_keys=[]
+                 ignore_keys=[],
                  *args,
                  **kwargs,
                  ):
