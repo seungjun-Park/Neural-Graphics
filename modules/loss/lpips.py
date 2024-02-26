@@ -196,7 +196,6 @@ class ScalingLayer(nn.Module):
         self.register_buffer('scale', torch.Tensor([.458, .448, .450])[None, :, None, None])
 
     def forward(self, inp):
-        inp = F.interpolate(inp, size=(224, 224), antialias=True, mode='bicubic', align_corners=True)
         return (inp - self.shift) / self.scale
 
 

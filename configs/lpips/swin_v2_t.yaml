@@ -11,7 +11,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 2
-    batch_size: 5
+    batch_size: 50
     wrap: True
     train:
       target: modules.datasets.twoafc.TwoAFCDataset
@@ -24,7 +24,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 224, 224 ]
+                size: [ 64, 64 ]
 
     validation:
       target: modules.datasets.twoafc.TwoAFCDataset
@@ -37,7 +37,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 224, 224 ]
+                size: [ 64, 64 ]
 
 
 logger:
