@@ -72,7 +72,7 @@ class AttnBlock(nn.Module):
             assert in_channels % num_head_channels == 0
             self.heads = in_channels // num_head_channels
 
-        self.pos_embedding = nn.Parameter(torch.empty(1, max_seq_len, in_channels, requires_grad=True).normal_(std=0.02))
+        self.pos_embedding = nn.Parameter(torch.empty(1, max_seq_len, in_channels).normal_(std=0.02), requires_grad=True)
 
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
