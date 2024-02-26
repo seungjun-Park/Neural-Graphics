@@ -238,8 +238,9 @@ class NetLinLayer(nn.Module):
                  ):
         super().__init__(*args, **kwargs)
 
-        layers = AttnBlock(chn_in, seq_length, chn_out, heads, num_head_channels, dropout, attn_dropout)
-        self.model = nn.Sequential(layers)
+        layers = [AttnBlock(chn_in, seq_length, heads, num_head_channels, dropout, attn_dropout), ]
+        layers += [nn.Conv2d(chn_in, chn_out, 1, stride=1, padding=0, bias=False), ]
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.model(x)
@@ -264,14 +265,13 @@ class Dist2LogitLayer(nn.Module):
             AttnBlock(
                 chn_mid,
                 seq_length,
-                1,
                 heads=heads,
                 num_head_channels=num_head_channels,
                 dropout=dropout,
                 attn_dropout=attn_dropout
             )
         ]
-        # layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=True),]
+        layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=True),]
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)
 
