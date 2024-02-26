@@ -51,15 +51,17 @@ class MiddleBlock(nn.Module):
         self.middle.append(nn.Sequential(*layer))
 
         self.middle.append(
-            group_norm(in_channels),
-            activation_func(act),
-            conv_nd(
-                dim=dim,
-                in_channels=in_channels,
-                out_channels=out_channels * 2,
-                kernel_size=3,
-                stride=1,
-                padding=1,
+            nn.Sequential(
+                group_norm(in_channels),
+                activation_func(act),
+                conv_nd(
+                    dim=dim,
+                    in_channels=in_channels,
+                    out_channels=out_channels * 2,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                )
             )
         )
 
