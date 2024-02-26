@@ -34,7 +34,7 @@ module:
         act: 'gelu'
 
     decoder_config:
-      target: modules.vae.encoder.Encoder
+      target: modules.vae.decoder.Decoder
       params:
         in_channels: 4 # same as z_channels
         out_channels: 3

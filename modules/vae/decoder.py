@@ -53,7 +53,7 @@ class Decoder(nn.Module):
         for i, out_ch in enumerate(hidden_dims):
             layer = nn.ModuleList()
 
-            for j in range(num_res_blocks + 1):
+            for j in range(num_res_blocks):
                 layer.append(ResidualBlock(in_channels=in_ch,
                                            out_channels=out_ch,
                                            dropout=dropout,
