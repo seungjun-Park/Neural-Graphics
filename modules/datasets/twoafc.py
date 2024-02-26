@@ -25,9 +25,6 @@ class TwoAFCDataset(Dataset):
         else:
             self.transform = None
 
-        root = os.path.join(root, dataset_type)
-        self.root = os.path.normpath(root)
-
         self.subdirs = []
 
         if train:
