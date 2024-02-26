@@ -16,8 +16,6 @@ class TwoAFCDataset(Dataset):
                  subdirs=['traditional'],
                  transform_configs=None,
                  ):
-        dataset_type = dataset_type.lower()
-
         if transform_configs is not None:
             transform_list = list()
             for transform_config in transform_configs['transforms']:
