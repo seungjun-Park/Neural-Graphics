@@ -3,53 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class MLP(torch.nn.Sequential):
-    def __init__(
-        self,
-        in_channels,
-        hidden_channels,
-        norm_layer=None,
-        activation_layer=torch.nn.ReLU,
-        inplace=False,
-        bias=True,
-        dropout=0.0,
-    ):
-        # The addition of `norm_layer` is inspired from the implementation of TorchMultimodal:
-        # https://github.com/facebookresearch/multimodal/blob/5dec8a/torchmultimodal/modules/layers/mlp.py
-        params = {} if inplace is None else {"inplace": inplace}
-
-        layers = []
-        in_dim = in_channels
-        for hidden_dim in hidden_channels[:-1]:
-            layers.append(torch.nn.Linear(in_dim, hidden_dim, bias=bias))
-            if norm_layer is not None:
-                layers.append(norm_layer(hidden_dim))
-            layers.append(activation_layer(**params))
-            layers.append(torch.nn.Dropout(dropout, **params))
-            in_dim = hidden_dim
-
-        layers.append(torch.nn.Linear(in_dim, hidden_channels[-1], bias=bias))
-        layers.append(torch.nn.Dropout(dropout, **params))
-
-        super().__init__(*layers)
-        _log_api_usage_once(self)
-
-
-class MLPBlock(MLP):
-    """Transformer MLP block."""
-
-    _version = 2
-
-    def __init__(self, in_dim, mlp_dim, dropout, *args, **kwargs):
-        super().__init__(in_dim, [mlp_dim, in_dim], *args, activation_layer=nn.GELU, inplace=None, dropout=dropout, **kwargs)
-
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                if m.bias is not None:
-                    nn.init.normal_(m.bias, std=1e-6)
-
-
 class AttnBlock(nn.Module):
     def __init__(self,
                  in_channels,
@@ -86,7 +39,7 @@ class AttnBlock(nn.Module):
 
         self.proj_out = nn.Sequential(
             nn.LayerNorm(in_channels),
-            MLPBlock(in_channels, in_channels * 2, dropout=dropout, bias=bias)
+            nn.Linear(in_channels, in_channels, bias=bias)
         )
 
         self.ln = nn.LayerNorm(in_channels)
