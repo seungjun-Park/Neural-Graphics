@@ -8,13 +8,20 @@ from modules.utils import activation_func, group_norm, conv_nd
 from typing import Any, Callable, List, Optional
 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
 class AttnBlock(nn.Module):
     def __init__(self,
                  in_channels,
+                 max_seq_len=5000,
                  heads=-1,
                  num_head_channels=-1,
                  dropout=0.,
                  attn_dropout=0.,
+                 bias=True,
                  *args,
                  **kwargs,
                  ):
@@ -28,37 +35,44 @@ class AttnBlock(nn.Module):
             assert in_channels % num_head_channels == 0
             self.heads = in_channels // num_head_channels
 
+        self.pos_embedding = nn.Parameter(torch.empty(1, max_seq_len, in_channels).normal_(std=0.02), requires_grad=True)
+
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
         self.proj_in = nn.Sequential(
             nn.LayerNorm(in_channels),
-            nn.Linear(in_channels, in_channels),
-            nn.GELU(),
         )
-        self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout, batch_first=True)
-        self.dropout = nn.Dropout(dropout)
+
+        self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout,
+                                                  batch_first=True, bias=bias)
 
         self.proj_out = nn.Sequential(
             nn.LayerNorm(in_channels),
-            nn.Linear(in_channels, in_channels),
-            nn.GELU(),
+            nn.Linear(in_channels, in_channels, bias=bias)
         )
+
+        self.ln = nn.LayerNorm(in_channels)
 
     def forward(self, x):
         b, c, *spatial = x.shape
         x = x.reshape(b, c, -1)
         x = x.permute(0, 2, 1)
 
-        h = self.proj_in(x)
+        x = x + self.pos_embedding[:, : x.shape[1], :]
+
+        h = self.proj_in(self.dropout1(x))
         h, _ = self.mhattn_block(h, h, h)
-        h = self.dropout(h)
+        h = self.dropout2(h)
         h = h + x
 
         z = self.proj_out(h)
         z = z + h
+        z = self.ln(z)
         z = z.permute(0, 2, 1)
-        z = z.reshape(b, c, *spatial)
+        z = z.reshape(b, -1, *spatial)
 
         return z
-
 
 class ShiftedWindowAttention(nn.Module):
     def __init__(self,
