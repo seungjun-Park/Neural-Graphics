@@ -23,7 +23,7 @@ data:
       target: modules.datasets.twoafc.TwoAFCDataset
       params:
         root: '/local_datasets/twoafc'
-        train: False
+        train: True
         subdirs: ['traditional', 'cnn', 'mix']
         transform_configs:
           transforms:
