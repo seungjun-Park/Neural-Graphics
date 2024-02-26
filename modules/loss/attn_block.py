@@ -49,7 +49,7 @@ class AttnBlock(nn.Module):
         x = x.reshape(b, c, -1)
         x = x.permute(0, 2, 1)
 
-        x = x + self.pos_embedding[:, : x.shpae[1], :]
+        x = x + self.pos_embedding[:, : x.shape[1], :]
 
         h = self.proj_in(self.dropout1(x))
         h, _ = self.mhattn_block(h, h, h)
