@@ -70,8 +70,14 @@ def freq_to_img(freq, dim=2):
 
 def freq_filter(freq, dim=2, bandwidth=[0, 1]):
     assert len(bandwidth) == 2
+    if len(freq.shape) == 4:
+        _, c, h, w = freq.shape
+    elif len(freq.shape) == 3:
+        c, h, w = freq.shape
 
-    _, c, h, w = freq.shape
+    else:
+        NotImplementedError(f'freq shape: {freq.shape} is not supported.')
+
     half_h, half_w = h // 2, w // 2
     eps_h = [int(half_h * bandwidth[0]), int(half_h * bandwidth[1])]
     eps_w = [int(half_w * bandwidth[0]), int(half_w * bandwidth[1])]
