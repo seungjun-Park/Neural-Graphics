@@ -6,13 +6,13 @@ import torch.nn.functional as F
 class MLP(torch.nn.Sequential):
     def __init__(
         self,
-        in_channels: int,
-        hidden_channels: List[int],
-        norm_layer: Optional[Callable[..., torch.nn.Module]] = None,
-        activation_layer: Optional[Callable[..., torch.nn.Module]] = torch.nn.ReLU,
-        inplace: Optional[bool] = None,
-        bias: bool = True,
-        dropout: float = 0.0,
+        in_channels,
+        hidden_channels,
+        norm_layer=None,
+        activation_layer=torch.nn.ReLU,
+        inplace=False,
+        bias=True,
+        dropout=0.0,
     ):
         # The addition of `norm_layer` is inspired from the implementation of TorchMultimodal:
         # https://github.com/facebookresearch/multimodal/blob/5dec8a/torchmultimodal/modules/layers/mlp.py
@@ -33,6 +33,7 @@ class MLP(torch.nn.Sequential):
 
         super().__init__(*layers)
         _log_api_usage_once(self)
+
 
 class MLPBlock(MLP):
     """Transformer MLP block."""
