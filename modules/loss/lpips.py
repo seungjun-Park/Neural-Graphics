@@ -276,6 +276,7 @@ class Dist2LogitLayer(nn.Module):
 
 class BCERankingLoss(nn.Module):
     def __init__(self,
+                 num_attn_blocks=4,
                  chn_mid=32,
                  heads=-1,
                  num_head_channels=-1,
@@ -287,6 +288,7 @@ class BCERankingLoss(nn.Module):
         super().__init__(*args, **kwargs)
 
         self.net = Dist2LogitLayer(
+                 num_attn_blocks=num_attn_blocks,
                  chn_mid=chn_mid,
                  heads=heads,
                  num_head_channels=num_head_channels,
