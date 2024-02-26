@@ -31,8 +31,6 @@ class Decoder(nn.Module):
 
         out_ch = hidden_dims[-1]
 
-        print(f'latent res: {self.current_res}')
-
         self.up = nn.ModuleList()
         self.up.append(
             conv_nd(
