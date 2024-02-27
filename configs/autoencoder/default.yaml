@@ -10,7 +10,7 @@ module:
       in_channels: 3
       embed_dim: 64
       hidden_dims: [128, 256, 512, 512]
-      image_size: [64, 64]
+      image_size: [512, 512]
       num_heads: -1
       num_head_channels: 32
       dropout: 0.0

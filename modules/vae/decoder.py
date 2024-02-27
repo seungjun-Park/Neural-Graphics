@@ -103,7 +103,7 @@ class Decoder(nn.Module):
         self.embed_dim = embed_dim
         self.hidden_dims = hidden_dims
 
-        assert len(image_size) == 0
+        assert len(image_size) == 2
         image_size = [image_size[0] // (2 ** len(hidden_dims)), image_size[1] // (2 ** len(hidden_dims))]
 
         in_ch = hidden_dims[-1]
