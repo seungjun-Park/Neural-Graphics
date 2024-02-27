@@ -9,26 +9,17 @@ class DownBlock(nn.Module):
     def __init__(self,
                  in_channels,
                  dim=2,
-                 use_conv=True
                  ):
         super().__init__()
 
-        self.use_conv = use_conv
-        if self.use_conv:
-            self.layer = conv_nd(dim=dim,
-                                 in_channels=in_channels,
-                                 out_channels=in_channels,
-                                 kernel_size=3,
-                                 stride=2,
-                                 padding=0)
-        else:
-            self.layer = max_pool_nd(dim=dim,
-                                     kernel_size=2,
-                                     stride=2)
+        self.max_pool = max_pool_nd(dim, kernel_size=2, stride=2)
+        self.avg_pool = avg_pool_nd(dim, kernel_size=2, stride=2)
+        self.proj_out = conv_nd(dim, in_channels * 2, in_channels, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x):
-        if self.use_conv:
-            pad = (0, 1, 0, 1)
-            x = F.pad(x, pad, mode='constant', value=0)
+        x_max = self.max_pool(x)
+        x_avg = self.avg_pool(x)
+        x_max_avg = torch.cat([x_max, x_avg], dim=1)
+        x = self.proj_out(x_max_avg)
 
-        return self.layer(x)
+        return x

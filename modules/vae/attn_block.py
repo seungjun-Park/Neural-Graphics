@@ -8,11 +8,6 @@ from modules.utils import activation_func, group_norm, conv_nd
 from typing import Any, Callable, List, Optional
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-
 class AttnBlock(nn.Module):
     def __init__(self,
                  in_channels,
@@ -21,7 +16,8 @@ class AttnBlock(nn.Module):
                  num_head_channels=-1,
                  dropout=0.,
                  attn_dropout=0.,
-                 bias=True,
+                 use_bias=True,
+                 act='gelu',
                  *args,
                  **kwargs,
                  ):
@@ -37,22 +33,24 @@ class AttnBlock(nn.Module):
 
         self.pos_embedding = nn.Parameter(torch.empty(1, max_seq_len, in_channels).normal_(std=0.02), requires_grad=True)
 
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
+        self.dropout = dropout
 
         self.proj_in = nn.Sequential(
             nn.LayerNorm(in_channels),
         )
 
         self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout,
-                                                  batch_first=True, bias=bias)
+                                                  batch_first=True, bias=use_bias)
 
         self.proj_out = nn.Sequential(
             nn.LayerNorm(in_channels),
-            nn.Linear(in_channels, in_channels, bias=bias)
+            nn.Linear(in_channels, in_channels, bias=use_bias)
         )
 
-        self.ln = nn.LayerNorm(in_channels)
+        self.ln = nn.Sequential(
+            nn.LayerNorm(in_channels),
+            activation_func(act),
+        )
 
     def forward(self, x):
         b, c, *spatial = x.shape
@@ -61,7 +59,7 @@ class AttnBlock(nn.Module):
 
         x = x + self.pos_embedding[:, : x.shape[1], :]
 
-        h = self.proj_in(self.dropout1(x))
+        h = self.proj_in(F.dropout(x, self.dropout))
         h, _ = self.mhattn_block(h, h, h)
         h = self.dropout2(h)
         h = h + x
@@ -74,10 +72,11 @@ class AttnBlock(nn.Module):
 
         return z
 
-class ShiftedWindowAttention(nn.Module):
+
+class WindowAttention(nn.Module):
     def __init__(self,
-                 in_channels,
-                 window_size,
+                 in_channels: int,
+                 window_size: int,
                  shift_size,
                  num_heads=-1,
                  num_head_channels=-1,

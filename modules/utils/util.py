@@ -3,6 +3,7 @@ import importlib
 import torch
 import torch.nn as nn
 import numpy as np
+import torch.fft
 from collections import abc
 from functools import partial
 
@@ -12,8 +13,7 @@ from queue import Queue
 
 from inspect import isfunction
 from PIL import Image, ImageDraw, ImageFont
-
-import torch.fft
+from typing import List, Union
 
 
 def log_txt_as_img(wh, xc, size=10):
@@ -250,3 +250,13 @@ def to_flattened_numpy(x):
 
 def from_flattened_numpy(x, shape):
     return torch.from_numpy(x.reshape(shape))
+
+
+def to_tuple(x: Union[int, List[int, int]]):
+    if isinstance(x, int):
+        x = (x, x)
+    if isinstance(x, List):
+        assert len(x) == 2
+        x = tuple(x)
+
+    return x

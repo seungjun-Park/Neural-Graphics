@@ -7,23 +7,18 @@ import pytorch_lightning as pl
 from typing import List, Dict
 
 from modules.utils import conv_nd, activation_func, group_norm, instantiate_from_config
-from modules.vae.down import DownBlock
-from modules.vae.up import UpBlock
-from modules.vae.res_block import ResidualBlock
-from modules.vae.attn_block import AttnBlock
-from modules.vae.distributions import DiagonalGaussianDistribution
+from modules.vae.encoder import Encoder
+from modules.vae.decoder import Decoder
+from modules.vae.middle_block import MiddleBlock
 from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 from torchmetrics.image.psnr import PeakSignalNoiseRatio
 
 
 class AutoencoderKL(pl.LightningModule):
     def __init__(self,
-                 encoder_config,
+                 enc_dec_config,
                  middle_block_config,
-                 decoder_config,
-                 z_channels,
-                 latent_dim,
-                 loss_config,
+                 loss_config=None,
                  lr=2e-5,
                  weight_decay=0.,
                  log_interval=100,
@@ -43,16 +38,14 @@ class AutoencoderKL(pl.LightningModule):
 
         self.dim = dim
 
-        self.loss = instantiate_from_config(loss_config)
+        self.encoder = Encoder(**enc_dec_config)
+        self.middle_block = MiddleBlock(**middle_block_config)
+        self.decoder = Decoder(**enc_dec_config)
 
-        self.encoder = instantiate_from_config(encoder_config)
-
-        self.middle_block = instantiate_from_config(middle_block_config)
-
-        self.quant_conv = conv_nd(dim=dim, in_channels=2 * z_channels, out_channels=2 * latent_dim, kernel_size=1)
-        self.post_quant_conv = conv_nd(dim=dim, in_channels=latent_dim, out_channels=z_channels, kernel_size=1)
-
-        self.decoder = instantiate_from_config(decoder_config)
+        if loss_config is not None:
+            self.loss = instantiate_from_config(loss_config)
+        else:
+            self.loss = None
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -70,13 +63,7 @@ class AutoencoderKL(pl.LightningModule):
 
     def forward(self, x):
         x = self.encoder(x)
-        z = self.middle_block(x)
-
-        z = self.quant_conv(z)
-        posterior = DiagonalGaussianDistribution(z)
-        z = posterior.reparameterization()
-        z = self.post_quant_conv(z)
-
+        z, posterior = self.middle_block(x)
         x = self.decoder(z)
 
         return x, posterior
@@ -174,18 +161,10 @@ class AutoencoderKL(pl.LightningModule):
         tb = self.logger.experiment
         tb.add_image(f'{split}', torch.clamp(img, 0, 1)[0], self.global_step, dataformats='CHW')
 
-    def minmax_normalize(self, x):
-        max_val = torch.max(x)
-        min_val = torch.min(x)
-
-        norm_x = (x - min_val) / (max_val - min_val)
-
-        return norm_x
-
     def sample(self, posterior):
         sample_point = posterior.sample()
-        sample_point = self.post_quant_conv(sample_point)
-
+        sample_point = self.middle_block.post_quant_conv(sample_point)
+        sample_point = self.middle_block.middle_out(sample_point)
         sample = self.decoder(sample_point)
 
         return sample
@@ -193,9 +172,7 @@ class AutoencoderKL(pl.LightningModule):
     def configure_optimizers(self):
         opt_ae = torch.optim.AdamW(list(self.encoder.parameters()) +
                                    list(self.middle_block.parameters()) +
-                                   list(self.decoder.parameters()) +
-                                   list(self.quant_conv.parameters()) +
-                                   list(self.post_quant_conv.parameters()),
+                                   list(self.decoder.parameters()),
                                    lr=self.lr, betas=(0.5, 0.9))
 
         opt_disc = torch.optim.AdamW(self.loss.discriminator.parameters(),
