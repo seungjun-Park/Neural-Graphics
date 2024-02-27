@@ -44,7 +44,7 @@ class DecoderBlock(nn.Module):
             num_head_channels=num_head_channels,
             dropout=dropuout,
             attn_dropout=attn_dropout,
-            bias=use_bias
+            use_bias=use_bias
         )
 
         self.conv = conv_nd(
