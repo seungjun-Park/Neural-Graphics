@@ -252,7 +252,7 @@ def from_flattened_numpy(x, shape):
     return torch.from_numpy(x.reshape(shape))
 
 
-def to_tuple(x: Union[int, List[int, int]]):
+def to_tuple(x: Union[int, List]):
     if isinstance(x, int):
         x = (x, x)
     if isinstance(x, List):

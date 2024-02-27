@@ -10,8 +10,8 @@ class PatchEmbedding(nn.Module):
     def __init__(self,
                  in_channels: int,
                  embed_dim: int,
-                 in_resolution: Union[int, List[int, int]],
-                 patch_size: Union[int, List[int, int]] = 4,
+                 in_resolution: Union[int, List],
+                 patch_size: Union[int, List] = 4,
                  num_groups: int = 32,
                  dim=2,
                  *args,
@@ -50,7 +50,7 @@ class PatchEmbedding(nn.Module):
 class PatchMerging(nn.Module):
     def __init__(self,
                  in_channels: int,
-                 in_resolution: Union[int, List[int, int]],
+                 in_resolution: Union[int, List],
                  *args,
                  **kwargs,
                  ):
