@@ -33,7 +33,7 @@ class DecoderBlock(nn.Module):
         self.num_heads = num_heads
         self.num_head_channels = num_head_channels
         self.dropout = dropuout
-        self.attn_dropuout = attn_dropout
+        self.attn_dropout = attn_dropout
         self.dim = dim
         self.num_group = num_group
 
@@ -42,7 +42,7 @@ class DecoderBlock(nn.Module):
             max_seq_len=max_seq_len,
             heads=num_heads,
             num_head_channels=num_head_channels,
-            dropuout=dropuout,
+            dropout=dropuout,
             attn_dropout=attn_dropout,
             bias=use_bias
         )

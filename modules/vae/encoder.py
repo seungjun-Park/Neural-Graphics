@@ -42,7 +42,7 @@ class EncoderBlock(nn.Module):
             max_seq_len=max_seq_len,
             heads=num_heads,
             num_head_channels=num_head_channels,
-            dropuout=dropuout,
+            dropout=dropuout,
             attn_dropout=attn_dropout,
             bias=use_bias
         )
