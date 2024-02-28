@@ -8,7 +8,7 @@ from typing import List, Tuple, Union
 from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import AttnBlock, FFTAttnBlock
-from modules.utils import activation_func, conv_nd, group_norm
+from modules.utils import activation_func, conv_nd, group_norm, to_tuple
 
 
 class DecoderBlock(nn.Module):
@@ -109,6 +109,8 @@ class Decoder(nn.Module):
                  in_channels: int,
                  hidden_dims: Union[List, Tuple],
                  embed_dim: int,
+                 in_resolution: Union[List, Tuple] = (64, 64),
+                 patch_size: Union[List, Tuple] = (4, 4),
                  num_heads: int = -1,
                  num_head_channels: int = -1,
                  dropout: float = 0.0,
@@ -127,10 +129,20 @@ class Decoder(nn.Module):
         self.embed_dim = embed_dim
         self.hidden_dims = hidden_dims
 
+        assert len(in_resolution) == 2 and len(patch_size) == 2
+
+        self.in_res = to_tuple(in_resolution)
+        self.patch_size = to_tuple(patch_size)
+        self.patch_res = (self.in_res[0] // self.patch_size[0], self.in_res[1] // self.patch_size[1])
+
+        assert self.patch_res[0] % (len(hidden_dims) ** 2) == 0 and self.patch_res[1] % (len(hidden_dims) ** 2) == 0
+
         in_ch = hidden_dims[-1]
-        hidden_dims.append(embed_dim)
         hidden_dims.reverse()
-        hidden_dims = hidden_dims[1: ]
+        hidden_dims = hidden_dims[1:]
+        hidden_dims.append(embed_dim)
+        for i in range(patch_size[0] // 2):
+            hidden_dims.append(embed_dim)
         self.attn_type = attn_type.lower()
 
         self.up = nn.ModuleList()
