@@ -148,7 +148,7 @@ class Decoder(nn.Module):
                     out_channels=out_ch,
                     num_heads=num_heads,
                     num_head_channels=num_head_channels,
-                    dropuout=dropout,
+                    dropout=dropout,
                     attn_dropout=attn_dropout,
                     use_bias=use_bias,
                     num_groups=num_groups,
