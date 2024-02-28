@@ -19,6 +19,7 @@ class MiddleBlock(nn.Module):
                  num_heads: int = -1,
                  num_head_channels: int = -1,
                  use_bias: bool = True,
+                 num_groups: int = 1,
                  act: str = 'relu',
                  dim: int = 2,
                  attn_type: str = 'vanilla',
@@ -68,7 +69,7 @@ class MiddleBlock(nn.Module):
                     stride=1,
                     padding=1,
                 ),
-                group_norm(in_channels),
+                group_norm(in_channels, num_groups=num_groups),
                 activation_func(act),
             )
         )
@@ -80,8 +81,6 @@ class MiddleBlock(nn.Module):
 
         self.middle_out.append(
             nn.Sequential(
-                group_norm(in_channels),
-                activation_func(act),
                 conv_nd(
                     dim=dim,
                     in_channels=z_channels,
@@ -90,6 +89,8 @@ class MiddleBlock(nn.Module):
                     stride=1,
                     padding=1,
                 ),
+                group_norm(in_channels, num_groups=num_groups),
+                activation_func(act),
             )
         )
 
