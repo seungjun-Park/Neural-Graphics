@@ -46,7 +46,7 @@ class AttnBlock(nn.Module):
         self.ln2 = nn.LayerNorm(in_channels)
 
     def forward(self, x) -> torch.Tensor:
-        assert len(x.shape) == 3  # x.shape == b, l, c
+        assert len(x.shape) == 3, f'{x.shape} is not matching b, l, c'  # x.shape == b, l, c
 
         h = self.ln(x)
         h, _ = self.self_attn(h, h, h, need_weights=False)
@@ -81,7 +81,7 @@ class FFTAttnBlock(nn.Module):
         self.ln2 = nn.LayerNorm(in_channels)
 
     def forward(self, x) -> torch.Tensor:
-        assert len(x.shape) == 3  # x.shape == b, l, c
+        assert len(x.shape) == 3, f'{x.shape} is not matching b, l, c'  # x.shape == b, l, c
 
         h = self.ln(x)
 
