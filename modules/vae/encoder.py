@@ -94,12 +94,8 @@ class EncoderBlock(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         b, c, *spatial = x.shape
-        x = x.reshape(b, c, -1)
-        x = x.permute(0, 2, 1)
-
+        x = x.reshape(b, -1, c)
         x = self.attn_block(x)
-
-        x = x.permute(0, 2, 1)
         x = x.reshape(b, c, *spatial)
 
         h = self.proj_out(x)

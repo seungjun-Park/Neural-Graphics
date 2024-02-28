@@ -122,14 +122,28 @@ class MiddleBlock(nn.Module):
 
     def forward(self, x):
         for module in self.middle_in:
-            x = module(x)
+            if isinstance(module, AttnBlock) or isinstance(module, FFTAttnBlock):
+                b, c, *spatial = x.shape
+                x = x.reshape(b, -1, c)
+                x = module(x)
+                x = x.reshape(b, c, *spatial)
+
+            else:
+                x = module(x)
 
         x = self.quant_conv(x)
         posterior = DiagonalGaussianDistribution(x)
-        z = posterior.reparameterization()
-        z = self.post_quant_conv(z)
+        x = posterior.reparameterization()
+        x = self.post_quant_conv(x)
 
         for module in self.middle_out:
-            x = module(z)
+            if isinstance(module, AttnBlock) or isinstance(module, FFTAttnBlock):
+                b, c, *spatial = x.shape
+                x = x.reshape(b, -1, c)
+                x = module(x)
+                x = x.reshape(b, c, *spatial)
+
+            else:
+                x = module(x)
 
         return x, posterior
