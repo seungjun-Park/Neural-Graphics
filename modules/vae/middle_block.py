@@ -137,3 +137,18 @@ class MiddleBlock(nn.Module):
                 x = module(x)
 
         return x, posterior
+
+    def sampling(self, x):
+        x = self.post_quant_conv(x)
+
+        for module in self.middle_out:
+            if isinstance(module, AttnBlock) or isinstance(module, FFTAttnBlock):
+                b, c, *spatial = x.shape
+                x = x.reshape(b, -1, c)
+                x = module(x)
+                x = x.reshape(b, c, *spatial)
+            else:
+                x = module(x)
+
+        return x
+
