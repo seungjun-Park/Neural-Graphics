@@ -151,7 +151,7 @@ class Encoder(nn.Module):
 
         self.down = nn.ModuleList()
 
-        self.pos_embed = nn.Parameter(torch.empty((1, self.patch_res[0] * self.patch_res[1], embed_dim)), requires_grad=True)
+        self.pos_embed = nn.Parameter(torch.empty((1, embed_dim, self.patch_res[0], self.patch_res[1], )), requires_grad=True)
 
         self.patch_embed = PatchEmbedding(
             in_channels,
