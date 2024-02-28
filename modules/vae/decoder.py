@@ -172,15 +172,13 @@ class Decoder(nn.Module):
 
         for i in range(patch_size[0] // 2):
             nn.Sequential(
-                group_norm(in_ch),
-                conv_nd(
-                    dim=dim,
+                ResidualBlock(
                     in_channels=in_ch,
-                    out_channels=in_ch,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
                 ),
+                UpBlock(in_ch, dim=dim, mode=mode)
             )
 
         self.up.append(
