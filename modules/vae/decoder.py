@@ -141,8 +141,7 @@ class Decoder(nn.Module):
         hidden_dims.reverse()
         hidden_dims = hidden_dims[1:]
         hidden_dims.append(embed_dim)
-        for i in range(patch_size[0] // 2):
-            hidden_dims.append(embed_dim)
+
         self.attn_type = attn_type.lower()
 
         self.up = nn.ModuleList()
@@ -171,10 +170,22 @@ class Decoder(nn.Module):
 
             in_ch = out_ch
 
+        for i in range(patch_size[0] // 2):
+            nn.Sequential(
+                group_norm(in_ch),
+                conv_nd(
+                    dim=dim,
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                ),
+            )
+
         self.up.append(
             nn.Sequential(
                 group_norm(in_ch),
-                activation_func(act),
                 conv_nd(
                     dim=dim,
                     in_channels=in_ch,
