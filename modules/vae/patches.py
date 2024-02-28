@@ -42,7 +42,7 @@ class PatchEmbedding(nn.Module):
     def forward(self, x):
         b, c, h, w = x.shape
         assert h == self.in_res[0] and w == self.in_res[1]
-        x = self.proj(x).flatten(2).transpose(1, 2) # b, patch_h * patch_w, embed_dim
+        x = self.proj(x)
         x = self.norm(x)
         x = x.flatten(2).transpose(1, 2) # b, patch_h * patch_w, embed_dim
 
