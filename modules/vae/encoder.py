@@ -112,7 +112,7 @@ class Encoder(nn.Module):
     def __init__(self,
                  in_channels: int,
                  hidden_dims: Union[List, Tuple],
-                 embed_dim: int = None,
+                 embed_dim: int,
                  in_resolution: Union[List, Tuple] = (64, 64),
                  patch_size: Union[List, Tuple] = (4, 4),
                  num_heads: int = -1,
@@ -123,6 +123,7 @@ class Encoder(nn.Module):
                  num_groups: int = 32,
                  act: str = 'relu',
                  dim: int = 2,
+                 attn_type: str = 'vanilla',
                  **ignorekwargs
                  ):
         super().__init__()
@@ -130,6 +131,7 @@ class Encoder(nn.Module):
         self.in_channels = in_channels
         self.embed_dim = embed_dim
         self.hidden_dims = hidden_dims
+        self.attn_type = attn_type.lower()
 
         assert len(in_resolution) == 2 and len(patch_size) == 2
 
@@ -177,6 +179,7 @@ class Encoder(nn.Module):
                     num_groups=num_groups,
                     dim=dim,
                     act=act,
+                    attn_type=self.attn_type
                 )
             )
 

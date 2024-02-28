@@ -112,7 +112,7 @@ class Decoder(nn.Module):
     def __init__(self,
                  in_channels: int,
                  hidden_dims: Union[List, Tuple],
-                 embed_dim: int = None,
+                 embed_dim: int,
                  num_heads: int = -1,
                  num_head_channels: int = -1,
                  dropout: float = 0.0,
@@ -121,7 +121,8 @@ class Decoder(nn.Module):
                  num_groups: int = 32,
                  act: str = 'relu',
                  dim: int = 2,
-                 mode='nearest',
+                 mode: str = 'nearest',
+                 attn_type: str = 'vanilla',
                  **ignorekwargs
                  ):
         super().__init__()
@@ -134,6 +135,7 @@ class Decoder(nn.Module):
         hidden_dims.append(embed_dim)
         hidden_dims.reverse()
         hidden_dims = hidden_dims[1: ]
+        self.attn_type = attn_type.lower()
 
         self.up = nn.ModuleList()
 
@@ -152,6 +154,7 @@ class Decoder(nn.Module):
                     num_groups=num_groups,
                     dim=dim,
                     act=act,
+                    attn_type=self.attn_type
                 )
             )
 

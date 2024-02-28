@@ -1,23 +1,42 @@
 module:
   target: models.vae.autoencoder.AutoencoderKL
   params:
-    in_channels: 3
-    out_channels: 3
-    hidden_dims: [128, 256, 512, 512]
-    latent_dim: 4
-    z_channels: 4
-    num_res_blocks: 2
-    num_head_channels: 32
     dim: 2
-    act: 'silu'
-    dropout: 0.1
-    use_attn: False
-    attn_type: 'fft'
     lr: 2e-5
     weight_decay: 0.
-    log_interval: 1000
-    eps: 1e-5
-    ckpt_path: 'checkpoints/autoencoder/fft_attn/autoencoder_best-v1.ckpt'
+    log_interval: 100
+
+    enc_dec_config:
+      in_channels: 3
+      hidden_dims: [128, 256, 512, 512]
+      embed_dim: 64
+      in_resolution: [512, 512]
+      patch_size: [4, 4]
+      num_heads: 8
+      num_head_channels: -1
+      dropout: 0.0
+      attn_dropout: 0.0
+      use_bias: True
+      num_groups: 32
+      act: 'gelu'
+      dim: 2
+      mode: 'nearest'
+      attn_type: 'fft'
+
+    middle_block_config:
+      in_channels: 512
+      z_channels: 4
+      latent_dim: 4
+      num_attn_blocks: 1
+      dropout: 0.0
+      attn_dropout: 0.0
+      num_heads: 8
+      num_head_channels: -1
+      use_bias: True
+      act: 'gelu'
+      dim: 2
+      attn_type: 'fft'
+
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
@@ -29,13 +48,14 @@ module:
         disc_in_channels: 3
         disc_factor: 1.0
         disc_weight: 1.0
-        perceptual_weight: 1.0
-        fd_weight: 1.0
-        freq_cos_sim_weight: 1.0
+        perceptual_weight: 2.0
         use_actnorm: False
         disc_conditional: False
         disc_loss: "hinge"
-        swin_type: 'swin-v2-s'
+
+        lpips_config:
+          ckpt_path: 'checkpoints/lpips/swin_v2_t/lpips.ckpt'
+          net_type: 'swin_v2_t'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -76,15 +96,6 @@ logger:
 
 
 checkpoints:
-  latest_checkpoint:
-    target: pytorch_lightning.callbacks.ModelCheckpoint
-    params:
-      dirpath: './checkpoints/autoencoder/fft_attn'
-      filename: 'autoencoder'
-      monitor: 'step'
-      mode: 'max'
-      save_top_k: 1
-
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
