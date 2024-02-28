@@ -37,8 +37,6 @@ class MiddleBlock(nn.Module):
 
         self.middle_in = nn.ModuleList()
 
-        layer = nn.ModuleList()
-
         for i in range(num_attn_blocks):
             if self.attn_type == 'vanilla':
                 attn = AttnBlock(
@@ -58,9 +56,7 @@ class MiddleBlock(nn.Module):
                     fft_type='fft',
                 )
 
-            layer.append(attn)
-
-        self.middle_in.append(nn.Sequential(*layer))
+            self.middle_in.append(attn)
 
         self.middle_in.append(
             nn.Sequential(
@@ -116,16 +112,17 @@ class MiddleBlock(nn.Module):
                     fft_type='ifft',
                 )
 
-            layer.append(attn)
-
-        self.middle_out.append(nn.Sequential(*layer))
+            self.middle_out.append(attn)
 
     def forward(self, x):
         for module in self.middle_in:
-            b, c, *spatial = x.shape
-            x = x.reshape(b, -1, c)
-            x = module(x)
-            x = x.reshape(b, c, *spatial)
+            if isinstance(module, AttnBlock) or isinstance(module, FFTAttnBlock):
+                b, c, *spatial = x.shape
+                x = x.reshape(b, -1, c)
+                x = module(x)
+                x = x.reshape(b, c, *spatial)
+            else:
+                x = module(x)
 
         x = self.quant_conv(x)
         posterior = DiagonalGaussianDistribution(x)
@@ -133,9 +130,12 @@ class MiddleBlock(nn.Module):
         x = self.post_quant_conv(x)
 
         for module in self.middle_out:
-            b, c, *spatial = x.shape
-            x = x.reshape(b, -1, c)
-            x = module(x)
-            x = x.reshape(b, c, *spatial)
+            if isinstance(module, AttnBlock) or isinstance(module, FFTAttnBlock):
+                b, c, *spatial = x.shape
+                x = x.reshape(b, -1, c)
+                x = module(x)
+                x = x.reshape(b, c, *spatial)
+            else:
+                x = module(x)
 
         return x, posterior
