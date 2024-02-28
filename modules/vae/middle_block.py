@@ -1,25 +1,27 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import List, Tuple, Union
 
-from modules.vae.attn_block import AttnBlock
+from modules.vae.attn_block import AttnBlock, FFTAttnBlock
 from modules.vae.distributions import DiagonalGaussianDistribution
 from modules.utils import conv_nd, group_norm, activation_func
 
 
 class MiddleBlock(nn.Module):
     def __init__(self,
-                 in_channels,
-                 z_channels,
-                 latent_dim,
-                 num_attn_blocks=1,
-                 dropout=0.,
-                 attn_dropout=0.,
-                 num_heads=-1,
-                 num_head_channels=-1,
-                 use_bias=True,
-                 act='relu',
-                 dim=2,
+                 in_channels: int,
+                 z_channels: int,
+                 latent_dim: int,
+                 num_attn_blocks: int = 1,
+                 dropout: int = 0.0,
+                 attn_dropout: int = 0.0,
+                 num_heads: int = -1,
+                 num_head_channels: int = -1,
+                 use_bias: bool = True,
+                 act: str = 'relu',
+                 dim: int = 2,
+                 attn_type: str = 'vanilla',
                  **ignorekwargs
                  ):
         super().__init__()
@@ -29,14 +31,17 @@ class MiddleBlock(nn.Module):
         self.num_head_channels = num_head_channels
         self.act = act
         self.dim = dim
+        self.attn_type = attn_type.lower()
+
+        assert self.attn_type in ['vanilla', 'fft', 'swin']
 
         self.middle_in = nn.ModuleList()
 
         layer = nn.ModuleList()
 
         for i in range(num_attn_blocks):
-            layer.append(
-                AttnBlock(
+            if self.attn_type == 'vanilla':
+                attn = AttnBlock(
                     in_channels,
                     heads=num_heads,
                     num_head_channels=num_head_channels,
@@ -45,7 +50,15 @@ class MiddleBlock(nn.Module):
                     use_bias=use_bias,
                     act=act,
                 )
-            )
+            elif self.attn_type == 'fft':
+                attn = FFTAttnBlock(
+                    in_channels,
+                    dropout=dropout,
+                    act=act,
+                    fft_type='fft',
+                )
+
+            layer.append(attn)
 
         self.middle_in.append(nn.Sequential(*layer))
 
@@ -85,8 +98,8 @@ class MiddleBlock(nn.Module):
         )
 
         for i in range(num_attn_blocks):
-            layer.append(
-                AttnBlock(
+            if self.attn_type == 'vanilla':
+                attn = AttnBlock(
                     in_channels,
                     heads=num_heads,
                     num_head_channels=num_head_channels,
@@ -95,7 +108,15 @@ class MiddleBlock(nn.Module):
                     use_bias=use_bias,
                     act=act,
                 )
-            )
+            elif self.attn_type == 'fft':
+                attn = FFTAttnBlock(
+                    in_channels,
+                    dropout=dropout,
+                    act=act,
+                    fft_type='ifft',
+                )
+
+            layer.append(attn)
 
         self.middle_out.append(nn.Sequential(*layer))
 

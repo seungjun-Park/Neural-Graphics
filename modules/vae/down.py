@@ -14,7 +14,7 @@ class DownBlock(nn.Module):
 
         self.max_pool = max_pool_nd(dim, kernel_size=2, stride=2)
         self.avg_pool = avg_pool_nd(dim, kernel_size=2, stride=2)
-        self.proj_out = conv_nd(dim, in_channels * 2, in_channels, kernel_size=1, stride=1, padding=0)
+        self.proj_out = conv_nd(dim, in_channels * 2, in_channels, kernel_size=3, stride=1, padding=1)
 
     def forward(self, x):
         x_max = self.max_pool(x)

@@ -3,26 +3,28 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import List, Tuple, Union
 
 from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
-from modules.vae.attn_block import AttnBlock
+from modules.vae.attn_block import AttnBlock, FFTAttnBlock
 from modules.utils import activation_func, conv_nd, group_norm
 
 
 class DecoderBlock(nn.Module):
     def __init__(self,
-                 in_channels,
-                 out_channels=None,
-                 max_seq_len=5000,
-                 num_heads=-1,
-                 num_head_channels=-1,
-                 dropuout=0.0,
-                 attn_dropout=0.0,
-                 use_bias=True,
-                 num_group=32,
-                 dim=2,
-                 act='gelu',
+                 in_channels: int,
+                 out_channels: int = None,
+                 embed_dim: int = None,
+                 num_heads: int = -1,
+                 num_head_channels: int = -1,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 use_bias: bool = True,
+                 num_groups: int = 32,
+                 dim: int = 2,
+                 act: str = 'gelu',
+                 attn_type: str = 'vanilla',
                  *args,
                  **kwargs,
                  ):
@@ -32,33 +34,53 @@ class DecoderBlock(nn.Module):
         self.out_channels = out_channels if out_channels is not None else in_channels
         self.num_heads = num_heads
         self.num_head_channels = num_head_channels
-        self.dropout = dropuout
+        self.dropout = dropout
         self.attn_dropout = attn_dropout
         self.dim = dim
-        self.num_group = num_group
+        self.attn_type = attn_type.lower()
 
-        self.attn_block = AttnBlock(
-            in_channels,
-            max_seq_len=max_seq_len,
-            heads=num_heads,
-            num_head_channels=num_head_channels,
-            dropout=dropuout,
-            attn_dropout=attn_dropout,
-            use_bias=use_bias
-        )
+        assert self.attn_type in ['vanilla', 'fft', 'swin']
 
-        self.conv = conv_nd(
+        if self.attn_type == 'vanilla':
+            self.attn_block = AttnBlock(
+                in_channels,
+                embed_dim=embed_dim,
+                heads=num_heads,
+                num_head_channels=num_head_channels,
+                dropout=dropout,
+                attn_dropout=attn_dropout,
+                use_bias=use_bias,
+                act=act,
+            )
+        elif self.attn_type == 'fft':
+            self.attn_block = FFTAttnBlock(
+                in_channels,
+                embed_dim=embed_dim,
+                dropout=dropout,
+                act=act,
+                fft_type='ifft',
+            )
+        elif self.attn_type == 'swin':
+            self.attn_block = AttnBlock(
+                in_channels,
+                heads=num_heads,
+                num_head_channels=num_head_channels,
+                dropout=dropout,
+                attn_dropout=attn_dropout,
+                use_bias=use_bias
+            )
+
+        self.gn = group_norm(self.out_channels, num_groups=num_groups)
+        self.act = activation_func(act)
+
+        self.proj_out = conv_nd(
             dim,
             in_channels=in_channels,
-            out_channels=out_channels,
+            out_channels=self.out_channels,
             kernel_size=3,
             stride=1,
-            padding=1,
-            bias=use_bias,
+            padding=1
         )
-
-        self.norm = group_norm(in_channels, num_groups=num_group)
-        self.act = activation_func(act)
 
         if self.in_channels != self.out_channels:
             self.shortcut = conv_nd(dim=dim,
@@ -67,34 +89,39 @@ class DecoderBlock(nn.Module):
                                     kernel_size=1,
                                     stride=1,
                                     padding=0)
-
         else:
             self.shortcut = nn.Identity()
 
-    def forward(self, x):
-        h = self.attn_block(x)
-        z = F.dropout(self.conv(h), self.dropout)
-        z = z + self.shortcut(h)
-        z = self.act(self.norm(z))
+    def forward(self, x) -> torch.Tensor:
+        b, c, *spatial = x.shape
+        x = x.reshape(b, c, -1)
+        x = x.permute(0, 2, 1)
 
-        return z
+        x = self.attn_block(x)
+
+        x = x.permute(0, 2, 1)
+        x = x.reshape(b, c, *spatial)
+
+        h = self.proj_out(x)
+        h = h + self.shortcut(x)
+        h = self.act(self.gn(h))
+        return h
 
 
 class Decoder(nn.Module):
     def __init__(self,
-                 in_channels,
-                 embed_dim,
-                 hidden_dims,
-                 image_size=[64, 64],
-                 num_heads=-1,
-                 num_head_channels=-1,
-                 dropout=0.,
-                 attn_dropout=0.0,
-                 use_bias=True,
-                 num_group=32,
+                 in_channels: int,
+                 hidden_dims: Union[List, Tuple],
+                 embed_dim: int = None,
+                 num_heads: int = -1,
+                 num_head_channels: int = -1,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 use_bias: bool = True,
+                 num_groups: int = 32,
+                 act: str = 'relu',
+                 dim: int = 2,
                  mode='nearest',
-                 act='relu',
-                 dim=2,
                  **ignorekwargs
                  ):
         super().__init__()
@@ -102,9 +129,6 @@ class Decoder(nn.Module):
         self.in_channels = in_channels
         self.embed_dim = embed_dim
         self.hidden_dims = hidden_dims
-
-        assert len(image_size) == 2
-        image_size = [image_size[0] // (2 ** len(hidden_dims)), image_size[1] // (2 ** len(hidden_dims))]
 
         in_ch = hidden_dims[-1]
         hidden_dims.append(embed_dim)
@@ -120,20 +144,18 @@ class Decoder(nn.Module):
                 DecoderBlock(
                     in_channels=in_ch,
                     out_channels=out_ch,
-                    max_seq_len=image_size[0] * image_size[1],
                     num_heads=num_heads,
                     num_head_channels=num_head_channels,
                     dropuout=dropout,
                     attn_dropout=attn_dropout,
                     use_bias=use_bias,
-                    num_group=num_group,
+                    num_groups=num_groups,
                     dim=dim,
                     act=act,
                 )
             )
 
             layer.append(UpBlock(out_ch, dim=dim, mode=mode))
-            image_size = [image_size[0] * 2, image_size[1] * 2]
             self.up.append(nn.Sequential(*layer))
 
             in_ch = out_ch

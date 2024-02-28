@@ -1,23 +1,24 @@
 import math
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modules.utils import activation_func, group_norm, conv_nd
 from typing import Any, Callable, List, Optional
+
+from modules.utils import activation_func, group_norm, conv_nd
+from modules.vae.mlp import MLP
 
 
 class AttnBlock(nn.Module):
     def __init__(self,
-                 in_channels,
-                 max_seq_len=5000,
-                 heads=-1,
-                 num_head_channels=-1,
-                 dropout=0.,
-                 attn_dropout=0.,
-                 use_bias=True,
-                 act='gelu',
+                 in_channels: int,
+                 embed_dim: int = None,
+                 heads: int = -1,
+                 num_head_channels: int = -1,
+                 dropout: float = 0.,
+                 attn_dropout: float = 0.,
+                 use_bias: bool = True,
+                 act: str = 'gelu',
                  *args,
                  **kwargs,
                  ):
@@ -31,46 +32,73 @@ class AttnBlock(nn.Module):
             assert in_channels % num_head_channels == 0
             self.heads = in_channels // num_head_channels
 
-        self.pos_embedding = nn.Parameter(torch.empty(1, max_seq_len, in_channels).normal_(std=0.02), requires_grad=True)
+        self.ln = nn.LayerNorm(in_channels)
+        self.qkv = nn.Linear(in_channels, in_channels * 3)
+        self.drop = nn.Dropout(dropout)
 
-        self.dropout = dropout
+        self.self_attn = nn.MultiheadAttention(in_channels,
+                                               num_heads=self.heads,
+                                               dropout=attn_dropout,
+                                               batch_first=True,
+                                               bias=use_bias)
 
-        self.proj_in = nn.Sequential(
-            nn.LayerNorm(in_channels),
-        )
+        self.mlp = MLP(in_channels, embed_dim, dropout=dropout, act=act)
+        self.ln2 = nn.LayerNorm(in_channels)
 
-        self.mhattn_block = nn.MultiheadAttention(in_channels, num_heads=self.heads, dropout=attn_dropout,
-                                                  batch_first=True, bias=use_bias)
+    def forward(self, x) -> torch.Tensor:
+        assert len(x.shape) == 3  # x.shape == b, l, c
 
-        self.proj_out = nn.Sequential(
-            nn.LayerNorm(in_channels),
-            nn.Linear(in_channels, in_channels, bias=use_bias)
-        )
-
-        self.ln = nn.Sequential(
-            nn.LayerNorm(in_channels),
-            activation_func(act),
-        )
-
-    def forward(self, x):
-        b, c, *spatial = x.shape
-        x = x.reshape(b, c, -1)
-        x = x.permute(0, 2, 1)
-
-        x = x + self.pos_embedding[:, : x.shape[1], :]
-
-        h = self.proj_in(F.dropout(x, self.dropout))
-        h, _ = self.mhattn_block(h, h, h)
-        h = self.dropout2(h)
+        h = self.ln(x)
+        h, _ = self.self_attn(h, h, h, need_weights=False)
+        h = self.drop(h)
         h = h + x
 
-        z = self.proj_out(h)
-        z = z + h
-        z = self.ln(z)
-        z = z.permute(0, 2, 1)
-        z = z.reshape(b, -1, *spatial)
+        z = self.ln(h)
+        z = self.mlp(z)
 
-        return z
+        return z + h
+
+
+class FFTAttnBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 embed_dim: int = None,
+                 dropout: float = 0.,
+                 act: str = 'gelu',
+                 fft_type: str = 'fft',
+                 *args,
+                 **kwargs,
+                 ):
+        super().__init__(*args, **kwargs)
+
+        self.ln = nn.LayerNorm(in_channels)
+        self.drop = nn.Dropout(dropout)
+
+        self.fft_type = fft_type.lower()
+        assert self.fft_type in ['fft', 'ifft']
+
+        self.mlp = MLP(in_channels, embed_dim, dropout=dropout, act=act)
+        self.ln2 = nn.LayerNorm(in_channels)
+
+    def forward(self, x) -> torch.Tensor:
+        assert len(x.shape) == 3  # x.shape == b, l, c
+
+        h = self.ln(x)
+
+        # self-attention with fft
+        if self.fft_type == 'fft':
+            h = torch.fft.fft(torch.fft.fft(h, dim=2), dim=1)  # c after l dimension.
+        else:
+            h = torch.fft.ifft(torch.fft.ifft(h, dim=1), dim=2)  # inverse order of fft attention.
+
+        h = torch.real(h)
+        h = self.drop(h)
+        h = h + x
+
+        z = self.ln(h)
+        z = self.mlp(z)
+
+        return z + h
 
 
 class WindowAttention(nn.Module):
