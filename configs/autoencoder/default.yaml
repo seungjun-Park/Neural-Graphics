@@ -8,18 +8,20 @@ module:
 
     enc_dec_config:
       in_channels: 3
-      embed_dim: 64
       hidden_dims: [128, 256, 512, 512]
-      image_size: [512, 512]
-      num_heads: -1
-      num_head_channels: 32
+      embed_dim: 64
+      in_resolution: [512, 512]
+      patch_size: [4, 4]
+      num_heads: 8
+      num_head_channels: -1
       dropout: 0.0
-      attn_dropout:  0.0
+      attn_dropout: 0.0
       use_bias: True
-      num_group: 32
-      mode: 'nearest'
+      num_groups: 32
       act: 'gelu'
       dim: 2
+      mode: 'nearest'
+      attn_type: 'vanilla'
 
     middle_block_config:
       in_channels: 512
@@ -28,11 +30,12 @@ module:
       num_attn_blocks: 1
       dropout: 0.0
       attn_dropout: 0.0
-      num_heads: -1
-      num_head_channels: 32
+      num_heads: 8
+      num_head_channels: -1
       use_bias: True
       act: 'gelu'
       dim: 2
+      attn_type: 'vanilla'
 
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
