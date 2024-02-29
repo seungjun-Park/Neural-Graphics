@@ -162,14 +162,13 @@ class FAutoencoderKL(pl.LightningModule):
 
     def sample(self, posterior):
         sample_point = posterior.sample()
-        sample_point = self.middle_block.sampling(sample_point)
         sample = self.decoder(sample_point)
+        sample = freq_to_img(sample)
 
         return sample
 
     def configure_optimizers(self):
         opt_ae = torch.optim.AdamW(list(self.encoder.parameters()) +
-                                   list(self.middle_block.parameters()) +
                                    list(self.decoder.parameters()),
                                    lr=self.lr, betas=(0.5, 0.9))
 
