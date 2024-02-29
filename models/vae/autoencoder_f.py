@@ -16,7 +16,6 @@ from modules.vae.decoder import FDecoder
 class FAutoencoderKL(pl.LightningModule):
     def __init__(self,
                  enc_dec_config,
-                 middle_block_config,
                  loss_config=None,
                  lr=2e-5,
                  weight_decay=0.,
