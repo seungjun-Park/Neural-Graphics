@@ -61,7 +61,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 256, 256 ]
+                size: [ 512, 512 ]
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
@@ -72,7 +72,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 256, 256 ]
+                size: [ 512, 512 ]
 
 
 logger:
