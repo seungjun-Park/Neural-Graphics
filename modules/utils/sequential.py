@@ -11,7 +11,7 @@ class ComplexSequential(nn.Sequential):
         super().__init__(*args, **kwargs)
 
     def forward(self, x: torch.Tensor):
-        assert torch.is_complex(x)
+        assert torch.is_complex(x), f'{torch.is_complex(x)}'
 
         x_real, x_imag = x.real, x.imag
         for module in self.modules():

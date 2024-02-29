@@ -92,7 +92,7 @@ class ComplexDiagonalGaussianDistribution(object):
                 real_kl = self._kl(self.mean.real, self.logvar.real, self.var.real)
                 imag_kl = self._kl(self.mean.imag, self.logvar.imag, self.var.imag)
                 return real_kl + imag_kl
-            
+
             else:
                 return 0.5 * torch.sum(
                     torch.pow(self.mean - other.mean, 2) / other.var
