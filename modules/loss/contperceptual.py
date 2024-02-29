@@ -65,7 +65,7 @@ class LPIPSWithDiscriminator(nn.Module):
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
 
         if z is not None:
-            independent_loss = torch.sum(torch.mul(z.real, z.imag), dim=[1, 2, 3])
+            independent_loss = torch.sum(torch.abs(torch.mul(z.real, z.imag)), dim=[1, 2, 3])
             independent_loss = torch.sum(independent_loss) / independent_loss.shape[0]
             kl_loss = kl_loss + independent_loss
 
@@ -101,6 +101,9 @@ class LPIPSWithDiscriminator(nn.Module):
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
                    }
+            if z is not None:
+                log.update({"{}/independent_loss".format(split): independent_loss.detach().mean()})
+
             return loss, log
 
         if optimizer_idx == 1:

@@ -12,7 +12,7 @@ class DownBlock(nn.Module):
                  ):
         super().__init__()
 
-        self.proj_out = conv_nd(dim, in_channels, in_channels, kernel_size=2, stride=2, padding=0)
+        self.proj_out = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=2, padding=0)
 
     def forward(self, x):
         pad = (0, 1, 0, 1)
