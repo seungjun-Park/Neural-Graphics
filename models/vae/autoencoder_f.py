@@ -65,7 +65,7 @@ class FAutoencoderKL(pl.LightningModule):
         freq = self.decoder(z)
         x = freq_to_img(freq)
 
-        return x, posterior
+        return x, posterior, z
 
     def on_train_start(self):
         self.loss.perceptual_loss.to(self.device)
@@ -73,7 +73,7 @@ class FAutoencoderKL(pl.LightningModule):
     def training_step(self, batch, batch_idx, *args, **kwargs):
         img, label = batch
 
-        recon_img, posterior = self(img)
+        recon_img, posterior, z = self(img)
 
         if self.global_step % self.log_interval == 0:
             prefix = 'train' if self.training else 'val'
@@ -86,7 +86,7 @@ class FAutoencoderKL(pl.LightningModule):
         # train encoder+decoder+logvar
         opt_ae.zero_grad()
         aeloss, log_dict_ae = self.loss(img, recon_img, posterior, 0, self.global_step,
-                                        last_layer=self.get_last_layer(), split="train")
+                                        last_layer=self.get_last_layer(), split="train", z=z)
         self.manual_backward(aeloss)
         opt_ae.step()
 
@@ -96,7 +96,7 @@ class FAutoencoderKL(pl.LightningModule):
         # train the discriminator
         opt_disc.zero_grad()
         discloss, log_dict_disc = self.loss(img, recon_img, posterior, 1, self.global_step,
-                                        last_layer=self.get_last_layer(), split="train")
+                                        last_layer=self.get_last_layer(), split="train", z=z)
         self.manual_backward(discloss)
         opt_disc.step()
 
@@ -112,7 +112,7 @@ class FAutoencoderKL(pl.LightningModule):
     def validation_step(self, batch, batch_idx, *args, **kwargs):
         img, label = batch
 
-        recon_img, posterior = self(img)
+        recon_img, posterior, z = self(img)
 
         prefix = 'train' if self.training else 'val'
         self.log_img(img, split=f'{prefix}/img')
@@ -120,10 +120,10 @@ class FAutoencoderKL(pl.LightningModule):
         self.log_img(self.sample(posterior), split=f'{prefix}/sample')
 
         aeloss, log_dict_ae = self.loss(img, recon_img, posterior, 0, self.global_step,
-                                        last_layer=self.get_last_layer(), split="val")
+                                        last_layer=self.get_last_layer(), split="val", z=z)
 
         discloss, log_dict_disc = self.loss(img, recon_img, posterior, 1, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val")
+                                            last_layer=self.get_last_layer(), split="val", z=z)
 
         self.log("val/total_loss", log_dict_ae["val/total_loss"])
         self.log_ssim(img, recon_img)

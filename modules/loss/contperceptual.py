@@ -47,7 +47,7 @@ class LPIPSWithDiscriminator(nn.Module):
 
     def forward(self, inputs, reconstructions, posterior, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train",
-                weights=None):
+                weights=None, z=None):
         rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
 
         if self.perceptual_weight > 0:
@@ -63,6 +63,11 @@ class LPIPSWithDiscriminator(nn.Module):
 
         kl_loss = posterior.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
+
+        if z is not None:
+            dot_loss = torch.sum(torch.dot(z.real, z.imag), dim=[1, 2, 3])
+            dot_loss = torch.sum(dot_loss) / dot_loss.shape[0]
+            kl_loss = kl_loss + dot_loss
 
         # now the GAN part
         if optimizer_idx == 0:
