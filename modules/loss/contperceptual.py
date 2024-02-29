@@ -65,9 +65,9 @@ class LPIPSWithDiscriminator(nn.Module):
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
 
         if z is not None:
-            dot_loss = torch.sum(torch.dot(z.real, z.imag), dim=[1, 2, 3])
-            dot_loss = torch.sum(dot_loss) / dot_loss.shape[0]
-            kl_loss = kl_loss + dot_loss
+            independent_loss = torch.sum(torch.mul(z.real, z.imag), dim=[1, 2, 3])
+            independent_loss = torch.sum(dot_loss) / dot_loss.shape[0]
+            kl_loss = kl_loss + independent_loss
 
         # now the GAN part
         if optimizer_idx == 0:
