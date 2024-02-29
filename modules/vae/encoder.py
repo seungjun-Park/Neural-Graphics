@@ -8,7 +8,9 @@ from modules.vae.down import DownBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import AttnBlock, FFTAttnBlock
 from modules.vae.patches import PatchEmbedding
+from modules.vae.distributions import DiagonalGaussianDistribution
 from modules.utils import activation_func, conv_nd, group_norm, to_tuple
+from modules.utils import ComplexSequential
 
 
 class EncoderBlock(nn.Module):
@@ -69,28 +71,6 @@ class EncoderBlock(nn.Module):
                 attn_dropout=attn_dropout,
                 use_bias=use_bias
             )
-
-        self.gn = group_norm(self.out_channels, num_groups=num_groups)
-        self.act = activation_func(act)
-
-        self.proj_out = conv_nd(
-            dim,
-            in_channels=in_channels,
-            out_channels=self.out_channels,
-            kernel_size=3,
-            stride=1,
-            padding=1
-        )
-
-        if self.in_channels != self.out_channels:
-            self.shortcut = conv_nd(dim=dim,
-                                    in_channels=in_channels,
-                                    out_channels=out_channels,
-                                    kernel_size=1,
-                                    stride=1,
-                                    padding=0)
-        else:
-            self.shortcut = nn.Identity()
 
     def forward(self, x) -> torch.Tensor:
         b, c, *spatial = x.shape
@@ -191,3 +171,149 @@ class Encoder(nn.Module):
             x = module(x)
 
         return x
+
+
+class FEncoder(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 hidden_dims: Union[List, Tuple],
+                 embed_dim: int,
+                 z_channels: int,
+                 latent_dim: int,
+                 num_res_blocks: int = 2,
+                 attn_res: Union[List, Tuple] = (),
+                 num_heads: int = -1,
+                 num_head_channels: int = -1,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 use_bias: bool = True,
+                 num_groups: int = 32,
+                 act: str = 'relu',
+                 dim: int = 2,
+                 attn_type: str = 'vanilla',
+                 **ignorekwargs
+                 ):
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.embed_dim = embed_dim
+        self.hidden_dims = hidden_dims
+        self.attn_type = attn_type.lower()
+        self.use_pos_embed = use_pos_emb
+        self.num_heads = num_heads,
+        self.num_head_channels = num_head_channels
+        self.attn_dropout = attn_dropout
+        self.use_bias = use_bias,
+        self.num_groups = num_groups
+        self.act = act
+        self.dim = dim
+
+        self.down = nn.ModuleList()
+        self.down.append(
+            ComplexSequential(
+                nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=embed_dim,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                )
+            )
+        )
+
+        in_ch = embed_dim
+
+        for i, out_ch in enumerate(hidden_dims):
+            layer = list()
+
+            for j in range(num_res_blocks):
+                layer.append(
+                    ResidualBlock(
+                        in_ch,
+                        out_channels=out_ch,
+                        dropout=dropout,
+                        act=act,
+                        dim=dim,
+                    )
+                )
+                in_ch = out_ch
+
+            if i in attn_res:
+                layer.append(
+                    AttnBlock(
+                        in_ch,
+                        embed_dim=embed_dim,
+                        heads=num_heads,
+                        num_head_channels=num_head_channels,
+                        dropout=dropout,
+                        attn_dropout=attn_dropout,
+                        use_bias=use_bias,
+                        act=act,
+                    )
+                )
+
+            layer.append(DownBlock(in_ch, dim=dim))
+
+            self.down.append(ComplexSequential(*layer))
+
+        self.down.append(
+            ComplexSequential(
+                ResidualBlock(
+                    in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                ),
+                AttnBlock(
+                    in_ch,
+                    embed_dim=embed_dim,
+                    heads=num_heads,
+                    num_head_channels=num_head_channels,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    use_bias=use_bias,
+                    act=act,
+                ),
+                ResidualBlock(
+                    in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                )
+            )
+        )
+
+        self.down.append(
+            ComplexSequential(
+                group_norm(in_ch, num_groups=num_groups),
+                conv_nd(
+                    dim,
+                    in_channels=in_ch,
+                    out_channels=z_channels * 2,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                )
+            )
+        )
+
+        self.down.append(
+            ComplexSequential(
+                conv_nd(
+                    dim,
+                    in_channels=2 * z_channels,
+                    out_channels=2 * latent_dim,
+                    kernel_size=1,
+                )
+            )
+        )
+
+    def forward(self, x) -> DiagonalGaussianDistribution:
+        for module in self.down:
+            x = module(x)
+
+        posterior = DiagonalGaussianDistribution(x)
+
+        return posterior

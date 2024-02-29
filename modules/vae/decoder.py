@@ -9,6 +9,7 @@ from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import AttnBlock, FFTAttnBlock
 from modules.utils import activation_func, conv_nd, group_norm, to_tuple
+from modules.utils import ComplexSequential
 
 
 class DecoderBlock(nn.Module):
@@ -194,6 +195,147 @@ class Decoder(nn.Module):
                     stride=1,
                     padding=1,
                 ),
+            )
+        )
+
+    def forward(self, x):
+        for module in self.up:
+            x = module(x)
+
+        return x
+
+    def get_last_layer(self):
+        return self.up[-1][-1].weight
+
+
+class FDecoder(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 hidden_dims: Union[List, Tuple],
+                 embed_dim: int,
+                 z_channels: int,
+                 latent_dim: int,
+                 num_res_blocks: int = 2,
+                 attn_res: Union[List, Tuple] = (),
+                 num_heads: int = -1,
+                 num_head_channels: int = -1,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 use_bias: bool = True,
+                 num_groups: int = 32,
+                 act: str = 'relu',
+                 dim: int = 2,
+                 mode: str = 'nearest',
+                 attn_type: str = 'vanilla',
+                 **ignorekwargs
+                 ):
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.embed_dim = embed_dim
+        self.hidden_dims = hidden_dims
+
+        in_ch = hidden_dims[-1]
+        hidden_dims.reverse()
+        hidden_dims = hidden_dims[1:]
+        hidden_dims.append(embed_dim)
+
+        self.attn_type = attn_type.lower()
+
+        self.up = nn.ModuleList()
+
+        self.up.append(
+            ComplexSequential(
+                conv_nd(
+                    dim,
+                    in_channels=latent_dim,
+                    out_channels=z_channels,
+                    kernel_size=1
+                ),
+                conv_nd(
+                    dim,
+                    in_channels=z_channels,
+                    out_channels=in_ch,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                )
+            )
+        )
+
+        self.up.append(
+            ComplexSequential(
+                ResidualBlock(
+                    in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                ),
+                AttnBlock(
+                    in_ch,
+                    embed_dim=embed_dim,
+                    heads=num_heads,
+                    num_head_channels=num_head_channels,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    use_bias=use_bias,
+                    act=act,
+                ),
+                ResidualBlock(
+                    in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                )
+            )
+        )
+
+        for i, out_ch in enumerate(hidden_dims):
+            layer = nn.ModuleList()
+
+            layer.append(UpBlock(out_ch, dim=dim, mode=mode))
+
+            for j in range(num_res_blocks):
+                layer.append(
+                    ResidualBlock(
+                        in_ch,
+                        out_channels=out_ch,
+                        dropout=dropout,
+                        act=act,
+                        dim=dim,
+                    )
+                )
+                in_ch = out_ch
+
+            if i in attn_res:
+                layer.append(
+                    AttnBlock(
+                        in_ch,
+                        embed_dim=embed_dim,
+                        heads=num_heads,
+                        num_head_channels=num_head_channels,
+                        dropout=dropout,
+                        attn_dropout=attn_dropout,
+                        use_bias=use_bias,
+                        act=act,
+                    )
+                )
+
+            self.up.append(ComplexSequential(*layer))
+
+        self.up.append(
+            ComplexSequential(
+                group_norm(in_ch, num_groups=num_groups),
+                conv_nd(
+                    dim,
+                    in_channels=in_ch,
+                    out_channels=out_ch,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                )
             )
         )
 

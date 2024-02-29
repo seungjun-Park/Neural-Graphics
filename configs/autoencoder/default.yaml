@@ -9,11 +9,11 @@ module:
     enc_dec_config:
       in_channels: 3
       hidden_dims: [128, 256, 512, 512]
-      embed_dim: 64
+      embed_dim: 128
       in_resolution: [512, 512]
       patch_size: [4, 4]
-      num_heads: 8
-      num_head_channels: -1
+      num_heads: -1
+      num_head_channels: 32
       dropout: 0.0
       attn_dropout: 0.0
       use_bias: True
@@ -25,13 +25,13 @@ module:
 
     middle_block_config:
       in_channels: 512
-      z_channels: 4
-      latent_dim: 4
+      z_channels: 16
+      latent_dim: 16
       num_attn_blocks: 1
       dropout: 0.0
       attn_dropout: 0.0
-      num_heads: 8
-      num_head_channels: -1
+      num_heads: -1
+      num_head_channels: 32
       use_bias: True
       act: 'gelu'
       dim: 2

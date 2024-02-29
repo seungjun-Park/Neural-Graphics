@@ -1,5 +1,5 @@
 module:
-  target: models.vae.autoencoder.AutoencoderKL
+  target: models.vae.autoencoder_f.FAutoencoderKL
   params:
     dim: 2
     lr: 2e-5
@@ -10,10 +10,12 @@ module:
       in_channels: 3
       hidden_dims: [128, 256, 512, 512]
       embed_dim: 64
-      in_resolution: [512, 512]
-      patch_size: [4, 4]
-      num_heads: 8
-      num_head_channels: -1
+      z_channels: 4
+      latent_dim: 4
+      num_res_blocks: 2
+      attn_res: []
+      num_heads: -1
+      num_head_channels: 32
       dropout: 0.0
       attn_dropout: 0.0
       use_bias: True
@@ -21,20 +23,6 @@ module:
       act: 'gelu'
       dim: 2
       mode: 'nearest'
-      attn_type: 'fft'
-
-    middle_block_config:
-      in_channels: 512
-      z_channels: 4
-      latent_dim: 4
-      num_attn_blocks: 1
-      dropout: 0.0
-      attn_dropout: 0.0
-      num_heads: 8
-      num_head_channels: -1
-      use_bias: True
-      act: 'gelu'
-      dim: 2
       attn_type: 'fft'
 
     loss_config:
@@ -92,15 +80,15 @@ logger:
   params:
     save_dir: './logs'
     name: 'autoencoder'
-    version: 'fft_attn'
+    version: 'freq'
 
 
 checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/autoencoder/fft_attn'
-      filename: 'autoencoder_best'
+      dirpath: './checkpoints/autoencoder/freq'
+      filename: 'autoencoder_f'
       monitor: 'val/rec_loss'
       mode: 'min'
       save_top_k: 1
