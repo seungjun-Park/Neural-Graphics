@@ -294,7 +294,7 @@ class FDecoder(nn.Module):
         for i, out_ch in enumerate(hidden_dims):
             layer = nn.ModuleList()
 
-            layer.append(UpBlock(out_ch, dim=dim, mode=mode))
+            layer.append(UpBlock(in_ch, dim=dim, mode=mode))
 
             for j in range(num_res_blocks):
                 layer.append(
@@ -330,7 +330,7 @@ class FDecoder(nn.Module):
                 conv_nd(
                     dim,
                     in_channels=in_ch,
-                    out_channels=out_ch,
+                    out_channels=in_channels,
                     kernel_size=3,
                     stride=1,
                     padding=1,

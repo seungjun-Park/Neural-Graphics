@@ -14,8 +14,8 @@ class ComplexSequential(nn.Sequential):
         assert torch.is_complex(x), f'{torch.is_complex(x)}, {x.dtype}'
 
         x_real, x_imag = x.real, x.imag
-        for name, module in self.named_modules():
-            x_real = module(x_real)
-            x_imag = module(x_imag)
+        for m in self:
+            x_real = m(x_real)
+            x_imag = m(x_imag)
 
         return torch.complex(x_real, x_imag)

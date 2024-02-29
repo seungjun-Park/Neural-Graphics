@@ -68,10 +68,11 @@ class ComplexDiagonalGaussianDistribution(object):
                  eps=25):
         self.parameters = parameters
         self.mean, self.logvar = torch.chunk(parameters, 2, dim=1)
-        self.logvar = torch.clamp(self.logvar, -eps, eps)
+        # self.logvar = torch.clamp(self.logvar, -eps, eps)
         self.deterministic = deterministic
         self.std = torch.exp(0.5 * self.logvar)
         self.var = torch.exp(self.logvar)
+        self.log2 = torch.log(torch.full(self.mean.shape, 2)).to(device=self.parameters.device)
         if self.deterministic:
             self.var = self.std = torch.zeros_like(self.mean).to(device=self.parameters.device)
 
@@ -100,4 +101,4 @@ class ComplexDiagonalGaussianDistribution(object):
                     dim=[1, 2, 3])
 
     def _kl(self, mean, logvar, var):
-        return 0.5 * torch.sum(2 * (torch.pow(mean, 2) + var) - 1.0 - logvar - torch.log(2), dim=[1, 2, 3])
+        return 0.5 * torch.sum(2 * (torch.pow(mean, 2) + var) - 1.0 - logvar - self.log2, dim=[1, 2, 3])

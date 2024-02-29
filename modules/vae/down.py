@@ -17,6 +17,6 @@ class DownBlock(nn.Module):
     def forward(self, x):
         pad = (0, 1, 0, 1)
         x = F.pad(x, pad, mode='constant', value=0)
-        x = self.proj_out(x_max_avg)
+        x = self.proj_out(x)
 
         return x

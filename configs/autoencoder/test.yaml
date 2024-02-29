@@ -54,7 +54,7 @@ data:
     train:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
-        root: '/local_datasets/genshin_impact'
+        root: './datasets/genshin_impact'
         train: True
         transform_configs:
           transforms:
@@ -65,7 +65,7 @@ data:
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
-        root: '/local_datasets/genshin_impact'
+        root: './datasets/genshin_impact'
         train: False
         transform_configs:
           transforms:
@@ -80,14 +80,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'autoencoder'
-    version: 'freq'
+    version: 'test'
 
 
 checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/autoencoder/freq'
+      dirpath: './checkpoints/autoencoder/test'
       filename: 'autoencoder_f'
       monitor: 'val/rec_loss'
       mode: 'min'
