@@ -7,7 +7,7 @@ from typing import Tuple, List, Union
 from modules.vae.down import DownBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import AttnBlock, FFTAttnBlock
-from modules.vae.distributions import DiagonalGaussianDistribution
+from modules.vae.distributions import DiagonalGaussianDistribution, ComplexDiagonalGaussianDistribution
 from modules.utils import activation_func, conv_nd, group_norm, to_tuple, ComplexSequential
 
 
@@ -312,6 +312,6 @@ class FEncoder(nn.Module):
             print(x.dtype)
             x = module(x)
 
-        posterior = DiagonalGaussianDistribution(x)
+        posterior = ComplexDiagonalGaussianDistribution(x)
 
         return posterior
