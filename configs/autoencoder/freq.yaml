@@ -30,13 +30,13 @@ module:
       params:
         disc_start: 50001
         logvar_init: 0.0
-        kl_weight: 1e-5
+        kl_weight: 0
         pixelloss_weight: 1.0
         disc_num_layers: 3
         disc_in_channels: 3
         disc_factor: 1.0
         disc_weight: 1.0
-        perceptual_weight: 2.0
+        perceptual_weight: 1.0
         use_actnorm: False
         disc_conditional: False
         disc_loss: "hinge"
