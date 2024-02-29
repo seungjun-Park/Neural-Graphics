@@ -197,7 +197,6 @@ class FEncoder(nn.Module):
         self.embed_dim = embed_dim
         self.hidden_dims = hidden_dims
         self.attn_type = attn_type.lower()
-        self.use_pos_embed = use_pos_emb
         self.num_heads = num_heads,
         self.num_head_channels = num_head_channels
         self.attn_dropout = attn_dropout
