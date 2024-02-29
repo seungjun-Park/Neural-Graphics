@@ -2,7 +2,9 @@ import torch
 import torch.fft as fft
 
 
-def img_to_freq(img, dim=2):
+def img_to_freq(img, dim=2, norm='backward'):
+    norm = norm.lower()
+    assert norm in ['forward', 'backward', 'ortho']
     if len(img.shape) == 4:
         _, c, _, _ = img.shape
     elif len(img.shape) == 3:
@@ -20,14 +22,14 @@ def img_to_freq(img, dim=2):
     # for color image
     if c == 3:
         img_r, img_g, img_b = torch.chunk(img, 3, dim=1)
-        freq_r = fft.fftshift(fft.fftn(img_r, dim=dim, norm='ortho'))
-        freq_g = fft.fftshift(fft.fftn(img_g, dim=dim, norm='ortho'))
-        freq_b = fft.fftshift(fft.fftn(img_b, dim=dim, norm='ortho'))
+        freq_r = fft.fftshift(fft.fftn(img_r, dim=dim, norm=norm))
+        freq_g = fft.fftshift(fft.fftn(img_g, dim=dim, norm=norm))
+        freq_b = fft.fftshift(fft.fftn(img_b, dim=dim, norm=norm))
         freq = torch.cat([freq_r, freq_g, freq_b], dim=1)
 
     # for grayscale image
     elif c == 1:
-        freq = fft.fftshift(fft.fftn(img, dim=dim))
+        freq = fft.fftshift(fft.fftn(img, dim=dim, norm=norm))
 
     else:
         NotImplementedError(f'color channel == {c} is not supported.')
@@ -35,7 +37,9 @@ def img_to_freq(img, dim=2):
     return freq
 
 
-def freq_to_img(freq, dim=2):
+def freq_to_img(freq, dim=2, norm='backward'):
+    norm = norm.lower()
+    assert norm in ['forward', 'backward', 'ortho']
     if len(freq.shape) == 4:
         _, c, _, _ = freq.shape
     elif len(freq.shape) == 3:
@@ -53,14 +57,14 @@ def freq_to_img(freq, dim=2):
     # for color image
     if c == 3:
         freq_r, freq_g, freq_b = torch.chunk(freq, 3, dim=1)
-        img_r = fft.ifftn(fft.ifftshift(freq_r), dim=dim, norm='ortho')
-        img_g = fft.ifftn(fft.ifftshift(freq_g), dim=dim, norm='ortho')
-        img_b = fft.ifftn(fft.ifftshift(freq_b), dim=dim, norm='ortho')
+        img_r = fft.ifftn(fft.ifftshift(freq_r), dim=dim, norm=norm)
+        img_g = fft.ifftn(fft.ifftshift(freq_g), dim=dim, norm=norm)
+        img_b = fft.ifftn(fft.ifftshift(freq_b), dim=dim, norm=norm)
         img = torch.cat([img_r, img_g, img_b], dim=1).abs()
 
     # for grayscale image
     elif c == 1:
-        img = fft.ifftn(fft.ifftshift(freq), dim=dim, norm='ortho').abs()
+        img = fft.ifftn(fft.ifftshift(freq), dim=dim, norm=norm).abs()
 
     else:
         NotImplementedError(f'color channel == {c} is not supported.')
