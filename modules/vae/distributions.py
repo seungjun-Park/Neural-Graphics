@@ -72,7 +72,6 @@ class ComplexDiagonalGaussianDistribution(object):
         self.deterministic = deterministic
         self.std = torch.exp(0.5 * self.logvar)
         self.var = torch.exp(self.logvar)
-        self.log2 = torch.log(torch.full(self.mean.shape, 2)).to(device=self.parameters.device)
         if self.deterministic:
             self.var = self.std = torch.zeros_like(self.mean).to(device=self.parameters.device)
 
@@ -82,8 +81,10 @@ class ComplexDiagonalGaussianDistribution(object):
         return x
 
     def reparameterization(self):
-        x = self.mean + self.std * torch.randn(self.mean.shape, dtype=self.mean.dtype).to(device=self.parameters.device)
-        return x
+        eps = torch.randn(self.mean.shape).to(device=self.parameters.device)
+        x_real = self.mean.real + self.std.real * eps
+        x_imag = self.mean.imag + self.std.imag * eps
+        return torch.complex(x_real, x_imag)
 
     def kl(self, other=None):
         if self.deterministic:
@@ -101,4 +102,4 @@ class ComplexDiagonalGaussianDistribution(object):
                     dim=[1, 2, 3])
 
     def _kl(self, mean, logvar, var):
-        return 0.5 * torch.sum(2 * (torch.pow(mean, 2) + var) - 1.0 - logvar - self.log2, dim=[1, 2, 3])
+        return 0.5 * torch.sum(2 * (torch.pow(mean, 2) + var) - 1.0 - logvar - 0.693, dim=[1, 2, 3])
