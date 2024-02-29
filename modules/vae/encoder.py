@@ -7,10 +7,8 @@ from typing import Tuple, List, Union
 from modules.vae.down import DownBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import AttnBlock, FFTAttnBlock
-from modules.vae.patches import PatchEmbedding
 from modules.vae.distributions import DiagonalGaussianDistribution
-from modules.utils import activation_func, conv_nd, group_norm, to_tuple
-from modules.utils import ComplexSequential
+from modules.utils import activation_func, conv_nd, group_norm, to_tuple, ComplexSequential
 
 
 class EncoderBlock(nn.Module):

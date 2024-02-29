@@ -8,8 +8,7 @@ from typing import List, Tuple, Union
 from modules.vae.up import UpBlock
 from modules.vae.res_block import ResidualBlock
 from modules.vae.attn_block import AttnBlock, FFTAttnBlock
-from modules.utils import activation_func, conv_nd, group_norm, to_tuple
-from modules.utils import ComplexSequential
+from modules.utils import activation_func, conv_nd, group_norm, to_tuple, ComplexSequential
 
 
 class DecoderBlock(nn.Module):
