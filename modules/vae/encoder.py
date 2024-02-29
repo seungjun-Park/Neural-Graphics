@@ -309,6 +309,7 @@ class FEncoder(nn.Module):
 
     def forward(self, x) -> DiagonalGaussianDistribution:
         for module in self.down:
+            print(x.dtype)
             x = module(x)
 
         posterior = DiagonalGaussianDistribution(x)
