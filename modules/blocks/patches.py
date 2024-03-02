@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from typing import List, Union, Any, Tuple
-from modules.utils import group_norm, conv_nd, to_tuple
+from typing import List, Union, Tuple
+from utils import group_norm, conv_nd, to_tuple
 
 
 class PatchEmbedding(nn.Module):

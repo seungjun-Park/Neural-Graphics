@@ -1,12 +1,8 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import Any, Callable, List, Optional
-
-from modules.utils import activation_func, group_norm, conv_nd
-from modules.vae.mlp import MLP
+from modules.blocks.mlp import MLP
 
 
 class AttnBlock(nn.Module):

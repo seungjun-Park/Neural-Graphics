@@ -1,5 +1,5 @@
 import torch
-from modules.utils.frequency_util import img_to_freq, freq_to_img
+from utils.frequency_util import img_to_freq
 
 
 # Frequency Distance loss
@@ -11,10 +11,6 @@ def FD(target, pred, dim=2, type='l1'):
     fd = (target_freq - pred_freq).abs()
     if type.lower() == 'l2':
         fd = torch.square(fd)
-    fd = torch.mean(fd, dim=[1, 2, 3])
-
-    # mean of batch
-    fd = torch.sum(fd) / fd.shape[0]
 
     return fd
 

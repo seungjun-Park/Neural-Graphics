@@ -1,14 +1,14 @@
 import torch
 
 import torch.nn as nn
-import torch.nn.functional as F
 from typing import Tuple, List, Union
 
-from modules.vae.down import DownBlock
-from modules.vae.res_block import ResidualBlock
-from modules.vae.attn_block import AttnBlock, FFTAttnBlock
-from modules.vae.distributions import DiagonalGaussianDistribution, ComplexDiagonalGaussianDistribution
-from modules.utils import activation_func, conv_nd, group_norm, to_tuple, ComplexSequential
+from modules.complex import ComplexConv2d, ComplexBatchNorm, ComplexGroupNorm, ComplexLayerNorm, CReLU
+from modules.blocks.down import DownBlock, ComplexDownBlock
+from modules.blocks.res_block import ResidualBlock, ComplexResidualBlock
+from modules.blocks.attn_block import AttnBlock, FFTAttnBlock
+from modules.blocks.distributions import ComplexDiagonalGaussianDistribution, DiagonalGaussianDistribution
+from utils import conv_nd, group_norm, to_tuple, ComplexSequential
 
 
 class EncoderBlock(nn.Module):
@@ -127,14 +127,6 @@ class Encoder(nn.Module):
 
         self.pos_embed = nn.Parameter(torch.empty((1, embed_dim, self.patch_res[0], self.patch_res[1], )), requires_grad=True)
 
-        self.patch_embed = PatchEmbedding(
-            in_channels,
-            embed_dim,
-            in_resolution=self.in_res,
-            patch_size=self.patch_size,
-            num_groups=num_groups,
-            dim=dim
-        )
 
         in_ch = embed_dim
 
@@ -171,7 +163,7 @@ class Encoder(nn.Module):
         return x
 
 
-class FEncoder(nn.Module):
+class ComplexEncoder(nn.Module):
     def __init__(self,
                  in_channels: int,
                  hidden_dims: Union[List, Tuple],
@@ -207,14 +199,12 @@ class FEncoder(nn.Module):
 
         self.down = nn.ModuleList()
         self.down.append(
-            ComplexSequential(
-                nn.Conv2d(
-                    in_channels=in_channels,
-                    out_channels=embed_dim,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                )
+            ComplexConv2d(
+                in_channels=in_channels,
+                out_channels=embed_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
             )
         )
 
@@ -225,7 +215,7 @@ class FEncoder(nn.Module):
 
             for j in range(num_res_blocks):
                 layer.append(
-                    ResidualBlock(
+                    ComplexResidualBlock(
                         in_ch,
                         out_channels=out_ch,
                         dropout=dropout,
@@ -235,71 +225,35 @@ class FEncoder(nn.Module):
                 )
                 in_ch = out_ch
 
-            if i in attn_res:
-                layer.append(
-                    AttnBlock(
-                        in_ch,
-                        embed_dim=embed_dim,
-                        heads=num_heads,
-                        num_head_channels=num_head_channels,
-                        dropout=dropout,
-                        attn_dropout=attn_dropout,
-                        use_bias=use_bias,
-                        act=act,
-                    )
-                )
+            layer.append(ComplexDownBlock(in_ch, dim=dim))
 
-            layer.append(DownBlock(in_ch, dim=dim))
-
-            self.down.append(ComplexSequential(*layer))
+            self.down.append(nn.Sequential(*layer))
 
         self.down.append(
-            ComplexSequential(
-                ResidualBlock(
+            nn.Sequential(
+                ComplexResidualBlock(
                     in_ch,
                     out_channels=in_ch,
                     dropout=dropout,
                     act=act,
                     dim=dim,
                 ),
-                AttnBlock(
-                    in_ch,
-                    embed_dim=embed_dim,
-                    heads=num_heads,
-                    num_head_channels=num_head_channels,
-                    dropout=dropout,
-                    attn_dropout=attn_dropout,
-                    use_bias=use_bias,
-                    act=act,
-                ),
-                ResidualBlock(
+                ComplexResidualBlock(
                     in_ch,
                     out_channels=in_ch,
                     dropout=dropout,
                     act=act,
                     dim=dim,
-                )
-            )
-        )
-
-        self.down.append(
-            ComplexSequential(
-                group_norm(in_ch, num_groups=num_groups),
-                conv_nd(
-                    dim,
+                ),
+                ComplexGroupNorm(in_ch),
+                ComplexConv2d(
                     in_channels=in_ch,
                     out_channels=z_channels * 2,
                     kernel_size=3,
                     stride=1,
                     padding=1,
-                )
-            )
-        )
-
-        self.down.append(
-            ComplexSequential(
-                conv_nd(
-                    dim,
+                ),
+                ComplexConv2d(
                     in_channels=2 * z_channels,
                     out_channels=2 * latent_dim,
                     kernel_size=1,

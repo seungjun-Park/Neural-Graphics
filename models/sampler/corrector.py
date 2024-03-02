@@ -2,7 +2,7 @@ import abc
 import torch
 
 from .utils import Sampler
-from modules.scheduler.scheduler import SDESchedular, VPSDESchedular
+from modules.scheduler import SDESchedular, VPSDESchedular
 
 class Corrector(Sampler):
     def __init__(self, snr=0.16, n_steps=1, **kwargs):

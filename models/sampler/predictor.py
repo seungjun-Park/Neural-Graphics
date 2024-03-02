@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from .utils import Sampler
-from modules.scheduler.scheduler import SDESchedular, VPSDESchedular, VESDESchedular
+from modules.scheduler import SDESchedular, VPSDESchedular, VESDESchedular
 
 
 class Predictor(Sampler):

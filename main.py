@@ -1,19 +1,10 @@
 import argparse
-import math
-import os
-import time
-
-import numpy as np
-import torch
-import torchvision
 
 from omegaconf import OmegaConf
 from pytorch_lightning.trainer import Trainer
 
-from modules.utils import instantiate_from_config
-from torchmetrics.image.fid import FrechetInceptionDistance
-from torchmetrics.image.psnr import PeakSignalNoiseRatio
-from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
+from utils import instantiate_from_config
+
 
 def get_parser(**parser_kwargs):
     parser = argparse.ArgumentParser(**parser_kwargs)

@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 
 from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight
 from modules.loss.lpips import LPIPS
+from utils import FD
 
 
 class LPIPSWithDiscriminator(nn.Module):
@@ -48,7 +48,8 @@ class LPIPSWithDiscriminator(nn.Module):
     def forward(self, inputs, reconstructions, posterior, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train",
                 weights=None, z=None):
-        rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
+        # rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
+        rec_loss = FD(inputs.contiguous(), reconstructions.contiguous())
 
         if self.perceptual_weight > 0:
             p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
@@ -62,12 +63,11 @@ class LPIPSWithDiscriminator(nn.Module):
         nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
 
         kl_loss = posterior.kl()
-        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
-
         if z is not None:
             independent_loss = torch.sum(torch.abs(torch.mul(z.real, z.imag)), dim=[1, 2, 3])
-            independent_loss = torch.sum(independent_loss) / independent_loss.shape[0]
             kl_loss = kl_loss + independent_loss
+
+        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
 
         # now the GAN part
         if optimizer_idx == 0:

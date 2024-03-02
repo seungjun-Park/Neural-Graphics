@@ -68,7 +68,9 @@ class ComplexDiagonalGaussianDistribution(object):
                  eps=25):
         self.parameters = parameters
         self.mean, self.logvar = torch.chunk(parameters, 2, dim=1)
-        # self.logvar = torch.clamp(self.logvar, -eps, eps)
+        # log_var_real = torch.clamp(self.logvar.real, -eps, eps)
+        # log_var_imag = torch.clamp(self.logvar.imag, -eps, eps)
+        # self.logvar = torch.complex(log_var_real, log_var_imag)
         self.deterministic = deterministic
         self.std = torch.exp(0.5 * self.logvar)
         self.var = torch.exp(self.logvar)
@@ -76,14 +78,13 @@ class ComplexDiagonalGaussianDistribution(object):
             self.var = self.std = torch.zeros_like(self.mean).to(device=self.parameters.device)
 
     def sample(self):
-        x = self.mean + self.std * torch.randn(self.mean.shape, dtype=self.mean.dtype).to(device=self.parameters.device)
-        x = torch.randn_like(x, dtype=self.mean.dtype)
-        return x
+        x_real = torch.randn(self.mean.shape).to(device=self.mean.device)
+        x_imag = torch.randn(self.mean.shape).to(device=self.mean.device)
+        return torch.complex(x_real, x_imag)
 
     def reparameterization(self):
-        eps = torch.randn(self.mean.shape).to(device=self.parameters.device)
-        x_real = self.mean.real + self.std.real * eps
-        x_imag = self.mean.imag + self.std.imag * eps
+        x_real = self.mean.real + self.std.real * torch.randn(self.mean.shape).to(device=self.parameters.device)
+        x_imag = self.mean.imag + self.std.imag * torch.randn(self.mean.shape).to(device=self.parameters.device)
         return torch.complex(x_real, x_imag)
 
     def kl(self, other=None):
@@ -102,4 +103,4 @@ class ComplexDiagonalGaussianDistribution(object):
                     dim=[1, 2, 3])
 
     def _kl(self, mean, logvar, var):
-        return 0.5 * torch.sum(2 * (torch.pow(mean, 2) + var) - 1.0 - logvar - 0.693, dim=[1, 2, 3])
+        return 0.5 * torch.sum(2 * (torch.pow(mean, 2) + var) - 1.0 - logvar - math.log(2), dim=[1, 2, 3])

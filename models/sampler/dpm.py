@@ -1,7 +1,6 @@
 import torch
 from tqdm import tqdm
 from .utils import Sampler
-from modules.scheduler.scheduler import VPScheduler
 
 
 class DDPMSampler(Sampler):

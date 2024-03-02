@@ -1,7 +1,7 @@
 import torch
 from scipy import integrate
 
-from modules.scheduler.scheduler import SDESchedular
+from modules.scheduler import SDESchedular
 from .predictor import ReverseDioffusionPredictor
 from utils import from_flattened_numpy, to_flattened_numpy
 from .utils import Sampler

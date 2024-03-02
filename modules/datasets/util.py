@@ -1,10 +1,9 @@
 import numpy as np
 import torch
-import torch.nn.functional as F
 import pytorch_lightning as pl
 from torch.utils.data import Dataset, DataLoader, IterableDataset
 
-from modules.utils import partial, instantiate_from_config
+from utils import partial, instantiate_from_config
 
 def worker_init_fn(_):
     worker_info = torch.utils.data.get_worker_info()

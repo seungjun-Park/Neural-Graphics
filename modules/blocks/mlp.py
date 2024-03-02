@@ -1,8 +1,6 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from modules.utils import activation_func
+from utils import activation_func
 
 
 class MLP(nn.Module):

@@ -4,9 +4,9 @@ import glob
 import os
 
 import cv2
-from torch.utils.data import Dataset, IterableDataset
+from torch.utils.data import Dataset
 from torchvision import transforms
-from modules.utils import instantiate_from_config
+from utils import instantiate_from_config
 
 
 class TwoAFCDataset(Dataset):

@@ -1,8 +1,7 @@
 from torchvision.datasets.mnist import MNIST, FashionMNIST
 
 from torchvision import transforms
-from modules.utils import instantiate_from_config
-from datasets import load_dataset
+from utils import instantiate_from_config
 
 
 class CustomMNIST(MNIST):

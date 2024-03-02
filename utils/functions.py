@@ -64,7 +64,7 @@ def group_norm(num_channels, num_groups=32, eps=1e-5, affine=True):
     return nn.GroupNorm(num_groups=num_groups, num_channels=num_channels, eps=eps, affine=affine)
 
 
-def activation_func(name='relu', *args, **kwargs):
+def get_act(name='relu', *args, **kwargs):
     name = name.lower()
 
     if name == 'relu':
