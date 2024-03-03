@@ -1,8 +1,8 @@
 module:
-  target: models.vae.autoencoder_f.FAutoencoderKL
+  target: models.vae.autoencoder.ComplexAutoencoderKL
   params:
     dim: 2
-    lr: 2e-5
+    lr: 1e-4
     weight_decay: 0.
     log_interval: 1000
 
@@ -30,7 +30,7 @@ module:
       params:
         disc_start: 50001
         logvar_init: 0.0
-        kl_weight: 1e-7
+        kl_weight: 0
         pixelloss_weight: 1.0
         disc_num_layers: 3
         disc_in_channels: 3
@@ -80,15 +80,15 @@ logger:
   params:
     save_dir: './logs'
     name: 'autoencoder'
-    version: 'freq'
+    version: 'complex'
 
 
 checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/autoencoder/freq'
-      filename: 'autoencoder_f'
+      dirpath: './checkpoints/autoencoder/complex'
+      filename: 'autoencoder'
       monitor: 'val/rec_loss'
       mode: 'min'
       save_top_k: 1

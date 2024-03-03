@@ -1,7 +1,7 @@
 import torch.nn as nn
 
-from modules.utils import activation_func, conv_nd, group_norm
-from modules.complex import ComplexConv2d, ComplexBatchNorm, CReLU, ComplexGroupNorm, ComplexDropout
+from utils import get_act, conv_nd, group_norm
+from modules.complex import ComplexConv2d, ComplexBatchNorm, CSiLU, ComplexGroupNorm, ComplexDropout
 
 
 class ResidualBlock(nn.Module):
@@ -21,10 +21,10 @@ class ResidualBlock(nn.Module):
 
         layer = [
             group_norm(in_channels),
-            activation_func(act),
+            get_act(act),
             conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1),
             group_norm(out_channels),
-            activation_func(act),
+            get_act(act),
             nn.Dropout(dropout),
             conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
         ]
@@ -66,10 +66,10 @@ class ComplexResidualBlock(nn.Module):
 
         layer = [
             ComplexGroupNorm(in_channels),
-            CReLU(),
+            CSiLU(),
             ComplexConv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1),
-            ComplexGroupNorm(in_channels),
-            CReLU(),
+            ComplexGroupNorm(out_channels),
+            CSiLU(),
             ComplexDropout(dropout),
             ComplexConv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1),
         ]

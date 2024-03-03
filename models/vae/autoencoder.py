@@ -226,7 +226,9 @@ class ComplexAutoencoderKL(pl.LightningModule):
         posterior = self.encoder(freq)
         z = posterior.reparameterization()
         freq = self.decoder(z)
+        # print(torch.any(torch.isnan(freq)))
         x = freq_to_img(freq)
+        # print(torch.any(torch.isnan(freq)))
 
         return x, posterior, z
 
@@ -325,8 +327,8 @@ class ComplexAutoencoderKL(pl.LightningModule):
 
     def sample(self, posterior):
         sample_point = posterior.sample()
-        sample = self.decoder(sample_point)
-        sample = freq_to_img(sample, norm='ortho')
+        sample = self.decoder(sample_point).abs()
+        # sample = freq_to_img(sample)
 
         return sample
 

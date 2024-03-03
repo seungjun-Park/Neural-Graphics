@@ -1,4 +1,5 @@
 from .norm import *
 from .conv import *
 from .activation import *
-from .dropout import *
+from .drop import *
+from .linear import *

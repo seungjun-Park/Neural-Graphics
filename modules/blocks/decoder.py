@@ -316,4 +316,4 @@ class ComplexDecoder(nn.Module):
         return x
 
     def get_last_layer(self):
-        return self.up[-1][-1].weight
+        return self.up[-1][-1].conv.weight

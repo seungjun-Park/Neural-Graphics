@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from .utils import get_pretrained_model, export_layers, normalize_tensor, spatial_average, get_layer_dims
-from .attn_block import AttnBlock
+from modules.blocks import AttnBlock
 
 
 class LPIPS(pl.LightningModule):
@@ -41,7 +41,6 @@ class LPIPS(pl.LightningModule):
         self.lins = nn.ModuleList()
 
         self.dims = get_layer_dims(net_type)
-
 
         for i, dim in enumerate(self.dims):
             self.lins.append(

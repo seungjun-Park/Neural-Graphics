@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -41,7 +42,9 @@ class ComplexUpBlock(nn.Module):
                                  padding=1)
 
     def forward(self, x):
-        x = F.interpolate(x, scale_factor=2.0, mode=self.mode)
-        x = self.conv(x)
+        assert torch.is_complex(x)
+        x_real = F.interpolate(x.real, scale_factor=2.0, mode=self.mode)
+        x_imag = F.interpolate(x.imag, scale_factor=2.0, mode=self.mode)
+        x = self.conv(torch.complex(x_real, x_imag))
 
         return x

@@ -1,10 +1,10 @@
 module:
-  target: models.vae.autoencoder_f.FAutoencoderKL
+  target: models.vae.autoencoder.ComplexAutoencoderKL
   params:
     dim: 2
-    lr: 2e-5
+    lr: 1e-4
     weight_decay: 0.
-    log_interval: 1000
+    log_interval: 100
 
     enc_dec_config:
       in_channels: 3
@@ -30,13 +30,13 @@ module:
       params:
         disc_start: 50001
         logvar_init: 0.0
-        kl_weight: 1e-5
+        kl_weight: 0
         pixelloss_weight: 1.0
         disc_num_layers: 3
         disc_in_channels: 3
         disc_factor: 1.0
         disc_weight: 1.0
-        perceptual_weight: 2.0
+        perceptual_weight: 1.0
         use_actnorm: False
         disc_conditional: False
         disc_loss: "hinge"
@@ -49,7 +49,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 2
-    batch_size: 1
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
@@ -61,7 +61,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 256, 256 ]
+                size: [ 64, 64 ]
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
@@ -72,7 +72,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 256, 256 ]
+                size: [ 64, 64 ]
 
 
 logger:

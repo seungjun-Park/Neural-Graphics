@@ -65,7 +65,7 @@ class ComplexLayerNorm(nn.Module):
                  normalized_shape: Union[int, List[int], Tuple[int], torch.Size],
                  eps: float = 1e-5,
                  elementwise_affine: bool = True,
-                 dtype=torch.complex64
+                 dtype=torch.complex64,
                  *args,
                  **kwargs,
                  ):
