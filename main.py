@@ -52,7 +52,7 @@ def main():
     checkpoint_callbacks = [instantiate_from_config(config.checkpoints[cfg]) for cfg in config.checkpoints]
 
     trainer_configs = config.trainer
-    trainer = Trainer(logger=logger, callbacks=checkpoint_callbacks, enable_progress_bar=True, **trainer_configs)
+    trainer = Trainer(logger=logger, callbacks=checkpoint_callbacks, enable_progress_bar=False, **trainer_configs)
     trainer.fit(model=model, datamodule=datamodule)
     # trainer.test(model=model)
 
