@@ -91,7 +91,7 @@ class ComplexLayerNorm(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.dtype == self.dtype
 
-        assert self.normalized_shape == x.shape[-len(self.normalized_shape)]
+        assert self.normalized_shape == x.shape[-len(self.normalized_shape): ]
 
         dims = [-(i + 1) for i in range(len(self.normalized_shape))]
 

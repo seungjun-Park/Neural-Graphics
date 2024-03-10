@@ -222,15 +222,18 @@ class ComplexAutoencoderKL(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, x):
-        freq = img_to_freq(x)
-        posterior = self.encoder(freq)
+        outputs = dict()
+        outputs['x'] = x
+        freq = img_to_freq(x, norm='ortho')
+        amp, phase = freq.abs(), freq.angle()
+        posterior = self.encoder(x)
+        outputs['posterior'] = posterior
         z = posterior.reparameterization()
-        freq = self.decoder(z)
-        # print(torch.any(torch.isnan(freq)))
-        x = freq_to_img(freq)
-        # print(torch.any(torch.isnan(freq)))
+        outputs['z'] = z
+        recon_x = self.decoder(z)
+        outputs['recon_x'] = recon_x
 
-        return x, posterior, z
+        return outputs
 
     def on_train_start(self):
         self.loss.perceptual_loss.to(self.device)
@@ -238,19 +241,16 @@ class ComplexAutoencoderKL(pl.LightningModule):
     def training_step(self, batch, batch_idx, *args, **kwargs):
         img, label = batch
 
-        recon_img, posterior, z = self(img)
+        outputs = self(img)
 
         if self.global_step % self.log_interval == 0:
-            prefix = 'train' if self.training else 'val'
-            self.log_img(img, split=f'{prefix}/img')
-            self.log_img(recon_img, split=f'{prefix}/recon')
-            self.log_img(self.sample(posterior), split=f'{prefix}/sample')
+            self.log_img(outputs)
 
         opt_ae, opt_disc = self.optimizers()
 
         # train encoder+decoder+logvar
         opt_ae.zero_grad()
-        aeloss, log_dict_ae = self.loss(img, recon_img, posterior, 0, self.global_step,
+        aeloss, log_dict_ae = self.loss(outputs, 0, self.global_step,
                                         last_layer=self.get_last_layer(), split="train")
         self.manual_backward(aeloss)
         opt_ae.step()
@@ -260,16 +260,14 @@ class ComplexAutoencoderKL(pl.LightningModule):
 
         # train the discriminator
         opt_disc.zero_grad()
-        discloss, log_dict_disc = self.loss(img, recon_img, posterior, 1, self.global_step,
-                                        last_layer=self.get_last_layer(), split="train")
+        discloss, log_dict_disc = self.loss(outputs, 1, self.global_step,
+                                            last_layer=self.get_last_layer(), split="train")
         self.manual_backward(discloss)
         opt_disc.step()
 
         self.log("discloss", discloss, prog_bar=True, logger=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True)
 
-        self.log_ssim(img, recon_img)
-        self.log_psnr(img, recon_img)
 
     def on_validation_start(self):
         self.loss.perceptual_loss.to(self.device)
@@ -277,24 +275,21 @@ class ComplexAutoencoderKL(pl.LightningModule):
     def validation_step(self, batch, batch_idx, *args, **kwargs):
         img, label = batch
 
-        recon_img, posterior, z = self(img)
+        outputs = self(img)
 
-        prefix = 'train' if self.training else 'val'
-        self.log_img(img, split=f'{prefix}/img')
-        self.log_img(recon_img, split=f'{prefix}/recon')
-        self.log_img(self.sample(posterior), split=f'{prefix}/sample')
+        self.log_img(outputs)
 
-        aeloss, log_dict_ae = self.loss(img, recon_img, posterior, 0, self.global_step,
-                                        last_layer=self.get_last_layer(), split="val")
+        aeloss, log_dict_ae = self.loss(outputs, 0, self.global_step,
+                                        last_layer=self.get_last_layer(), split="train")
 
-        discloss, log_dict_disc = self.loss(img, recon_img, posterior, 1, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val")
+        self.log("aeloss", aeloss, prog_bar=True, logger=True)
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True)
 
-        self.log("val/total_loss", log_dict_ae["val/total_loss"])
-        self.log_ssim(img, recon_img)
-        self.log_psnr(img, recon_img)
-        self.log_dict(log_dict_ae)
-        self.log_dict(log_dict_disc)
+        discloss, log_dict_disc = self.loss(outputs, 1, self.global_step,
+                                            last_layer=self.get_last_layer(), split="train")
+
+        self.log("discloss", discloss, prog_bar=True, logger=True)
+        self.log_dict(log_dict_disc, prog_bar=False, logger=True)
 
         return self.log_dict
 
@@ -321,14 +316,16 @@ class ComplexAutoencoderKL(pl.LightningModule):
         return
 
     @torch.no_grad()
-    def log_img(self, img, split=''):
+    def log_img(self, outputs):
+        prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{split}', torch.clamp(img, 0, 1)[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/x', torch.clamp(outputs['x'], 0, 1)[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/recon_x', torch.clamp(outputs['recon_x'], 0, 1)[0], self.global_step, dataformats='CHW')
 
     def sample(self, posterior):
         sample_point = posterior.sample()
-        sample = self.decoder(sample_point).abs()
-        # sample = freq_to_img(sample)
+        sample = self.decoder(sample_point)
+        sample = freq_to_img(sample)
 
         return sample
 

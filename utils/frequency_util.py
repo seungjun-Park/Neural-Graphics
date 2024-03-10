@@ -2,7 +2,7 @@ import torch
 import torch.fft as fft
 
 
-def img_to_freq(img, dim=2, norm='backward', shift=False):
+def img_to_freq(img, dim=2, norm='backward', shift=True):
     norm = norm.lower()
     assert norm in ['forward', 'backward', 'ortho']
     if len(img.shape) == 4:
@@ -43,7 +43,7 @@ def img_to_freq(img, dim=2, norm='backward', shift=False):
     return freq
 
 
-def freq_to_img(freq, dim=2, norm='backward', shift=False):
+def freq_to_img(freq, dim=2, norm='backward', shift=True):
     norm = norm.lower()
     assert norm in ['forward', 'backward', 'ortho']
     if len(freq.shape) == 4:

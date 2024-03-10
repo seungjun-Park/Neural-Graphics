@@ -2,35 +2,39 @@ module:
   target: models.vae.autoencoder.ComplexAutoencoderKL
   params:
     dim: 2
-    lr: 1e-4
+    lr: 2e-5
     weight_decay: 0.
     log_interval: 100
 
     enc_dec_config:
       in_channels: 3
-      hidden_dims: [128, 256, 512, 512]
+      out_channels: 3
+      in_resolution: 64
       embed_dim: 64
-      z_channels: 4
-      latent_dim: 4
-      num_res_blocks: 2
-      attn_res: []
+      hidden_dims: [128, 256, 512, 512]
+      latent_dim: 8
+      num_blocks: 2
+      patch_size: 4
+      window_size: 7
+      mlp_ratio: 4
+      qkv_bias: True
       num_heads: -1
       num_head_channels: 32
+      drop_path: 0.1
       dropout: 0.0
       attn_dropout: 0.0
-      use_bias: True
+      proj_bias: True
       num_groups: 32
-      act: 'gelu'
-      dim: 2
-      mode: 'nearest'
-      attn_type: 'fft'
+      act: 'silu'
+      use_pos_enc: True
+      dtype: 'complex64'
 
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
-        disc_start: 50001
+        disc_start: 100001
         logvar_init: 0.0
-        kl_weight: 0
+        kl_weight: 1e-5
         pixelloss_weight: 1.0
         disc_num_layers: 3
         disc_in_channels: 3
@@ -49,7 +53,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 2
-    batch_size: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
@@ -61,7 +65,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 64, 64 ]
+                size: [ 256, 256 ]
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
@@ -72,7 +76,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 64, 64 ]
+                size: [ 256, 256 ]
 
 
 logger:
@@ -88,7 +92,7 @@ checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
       dirpath: './checkpoints/autoencoder/test'
-      filename: 'autoencoder_f'
+      filename: 'autoencoder'
       monitor: 'val/rec_loss'
       mode: 'min'
       save_top_k: 1

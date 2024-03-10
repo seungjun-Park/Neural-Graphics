@@ -4,14 +4,15 @@ from utils.frequency_util import img_to_freq
 
 # Frequency Distance loss
 def FD(target, pred, dim=2, type='l1'):
-    target_freq = img_to_freq(target, dim=dim)
-    pred_freq = img_to_freq(pred, dim=dim)
+    target_freq = img_to_freq(target, dim=dim, norm='ortho')
+    pred_freq = img_to_freq(pred, dim=dim, norm='ortho')
 
     # general form of frequency distance
     fd = (target_freq - pred_freq).abs()
-    if type.lower() == 'l2':
-        fd = torch.square(fd)
-
+    fd = torch.square(fd)
+    fd = torch.mean(fd, dim=[-2, -1])
+    fd = torch.sum(fd, dim=[-1])
+    fd = torch.sum(fd) / fd.shape[0]
     return fd
 
 

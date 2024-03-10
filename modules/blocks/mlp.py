@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from utils import get_act
-from modules.complex import ComplexLinear, CReLU, ComplexDropout
+from modules.complex import ComplexLinear, CReLU, ComplexDropout, CGELU, CSiLU
 
 
 class MLP(nn.Module):
@@ -23,7 +23,7 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(self.in_channels, self.embed_dim)
         self.fc2 = nn.Linear(self.embed_dim, self.in_channels)
 
-        self.act = activation_func(act)
+        self.act = get_act(act)
         self.drop = nn.Dropout(dropout)
 
     def forward(self, x):
@@ -55,12 +55,11 @@ class ComplexMLP(nn.Module):
         self.dtype = dtype
         self.in_channels = in_channels
         self.embed_dim = embed_dim if embed_dim is not None else in_channels
-        self.dropout = dropout
 
         self.fc1 = ComplexLinear(self.in_channels, self.embed_dim, bias=bias, device=device, dtype=dtype)
         self.fc2 = ComplexLinear(self.embed_dim, self.in_channels, bias=bias, device=device, dtype=dtype)
 
-        self.act = get_act(act)
+        self.act = CSiLU()
         self.drop = ComplexDropout(dropout)
 
     def forward(self, x):

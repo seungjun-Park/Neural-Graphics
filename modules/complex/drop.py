@@ -19,9 +19,10 @@ class ComplexDropout(nn.Module):
             return x
 
         keep_prob = 1 - self.p
-        shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
-        keep = x.new_empty(shape).bernoulli_(keep_prob) > 0
-        return torch.where(keep, x / keep_prob, 0)
+        keep = torch.empty(x.shape, device=x.device).bernoulli_(keep_prob)
+        if keep_prob > 0:
+            keep = keep / keep_prob
+        return x * keep
 
 
 class ComplexDropPath(nn.Module):
@@ -38,8 +39,7 @@ class ComplexDropPath(nn.Module):
             return x
 
         keep_prob = 1 - self.p
-        shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
-        random_tensor = x.new_empty(shape).bernoulli_(keep_prob)
+        random_tensor = torch.empty(x.shape).bernoulli_(keep_prob).to(device=x.device)
         if keep_prob > 0.0 and self.scale_by_keep:
             random_tensor.div_(keep_prob)
         return x * random_tensor

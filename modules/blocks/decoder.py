@@ -1,12 +1,16 @@
+import math
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from typing import List, Tuple, Union
 
-from modules.complex import ComplexConv2d, ComplexGroupNorm
+from modules.complex import ComplexConv2d, ComplexGroupNorm, ComplexLayerNorm, ComplexLinear
+from modules.blocks.patches import ComplexPatchExpanding
 from modules.blocks.up import UpBlock, ComplexUpBlock
 from modules.blocks.res_block import ResidualBlock, ComplexResidualBlock
-from modules.blocks.attn_block import AttnBlock, FFTAttnBlock
-from utils import get_act, conv_nd, group_norm, to_tuple, ComplexSequential
+from modules.blocks.attn_block import AttnBlock, FFTAttnBlock, ComplexShiftedWindowAttnBlock
+from utils import get_act, conv_nd, group_norm, to_2tuple, ComplexSequential
 
 
 class DecoderBlock(nn.Module):
@@ -208,112 +212,122 @@ class Decoder(nn.Module):
 class ComplexDecoder(nn.Module):
     def __init__(self,
                  in_channels: int,
-                 hidden_dims: Union[List, Tuple],
+                 out_channels: int,
                  embed_dim: int,
-                 z_channels: int,
+                 hidden_dims: Union[List[int], Tuple[int]],
                  latent_dim: int,
-                 num_res_blocks: int = 2,
-                 attn_res: Union[List, Tuple] = (),
+                 num_blocks: int = 2,
+                 patch_size: Union[int, List[int], Tuple[int]] = 4,
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 mlp_ratio: float = 4.,
+                 qkv_bias: bool = True,
+                 qk_scale: float = None,
                  num_heads: int = -1,
                  num_head_channels: int = -1,
+                 drop_path: float = 0.1,
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
-                 use_bias: bool = True,
+                 proj_bias: bool = True,
                  num_groups: int = 32,
                  act: str = 'relu',
-                 dim: int = 2,
-                 mode: str = 'nearest',
-                 attn_type: str = 'vanilla',
+                 use_pos_enc: bool = False,
+                 dtype: str = 'complex64',
                  **ignorekwargs
                  ):
         super().__init__()
 
+        dtype = dtype.lower()
+        assert dtype in ['complex32', 'complex64', 'complex128']
+        if dtype == 'complex32':
+            self.dtype = torch.complex32
+        elif dtype == 'complex64':
+            self.dtype = torch.complex64
+        else:
+            self.dtype = torch.complex128
+
         self.in_channels = in_channels
+        self.out_channels = out_channels
         self.embed_dim = embed_dim
-        self.hidden_dims = hidden_dims
+        self.num_heads = num_heads,
+        self.num_head_channels = num_head_channels
+        self.attn_dropout = attn_dropout
+        self.num_groups = num_groups
+        self.act = act
+        self.mlp_ratio = mlp_ratio
+        self.use_pos_enc = use_pos_enc
+
+        self.layers = nn.ModuleList()
 
         in_ch = hidden_dims[-1]
         hidden_dims.reverse()
-        hidden_dims = hidden_dims[1:]
-        hidden_dims.append(embed_dim)
+        hidden_dims = hidden_dims[1: ]
+        hidden_dims.append(hidden_dims[-1])
 
-        self.attn_type = attn_type.lower()
-
-        self.up = nn.ModuleList()
-
-        self.up.append(
+        self.layers.append(
             nn.Sequential(
-                ComplexConv2d(
-                    in_channels=latent_dim,
-                    out_channels=z_channels,
-                    kernel_size=1
-                ),
-                ComplexConv2d(
-                    in_channels=z_channels,
-                    out_channels=in_ch,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                )
+                nn.Conv2d(latent_dim, latent_dim, 1, stride=1),
+                nn.Conv2d(latent_dim, in_ch, kernel_size=3, stride=1, padding=1),
             )
         )
 
-        self.up.append(
+        self.layers.append(
             nn.Sequential(
-                ComplexResidualBlock(
-                    in_ch,
+                ResidualBlock(
+                    in_channels=in_ch,
                     out_channels=in_ch,
                     dropout=dropout,
-                    act=act,
-                    dim=dim,
+                    act=act
                 ),
-                ComplexResidualBlock(
+                AttnBlock(
                     in_ch,
+                    embed_dim=embed_dim,
+                    heads=num_heads,
+                    num_head_channels=num_head_channels,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    act=act,
+                ),
+                ResidualBlock(
+                    in_channels=in_ch,
                     out_channels=in_ch,
                     dropout=dropout,
-                    act=act,
-                    dim=dim,
-                )
+                    act=act
+                ),
             )
         )
 
         for i, out_ch in enumerate(hidden_dims):
-            layer = nn.ModuleList()
+            layer = []
 
-            layer.append(ComplexUpBlock(in_ch, dim=dim, mode=mode))
+            if i != 0:
+                layer.append(UpBlock(in_ch))
 
-            for j in range(num_res_blocks + 1):
+            for j in range(num_blocks + 1):
                 layer.append(
-                    ComplexResidualBlock(
-                        in_ch,
+                    ResidualBlock(
+                        in_channels=in_ch,
                         out_channels=out_ch,
                         dropout=dropout,
-                        act=act,
-                        dim=dim,
+                        act=act
                     )
                 )
+
                 in_ch = out_ch
 
-            self.up.append(nn.Sequential(*layer))
+            self.layers.append(nn.Sequential(*layer))
 
-        self.up.append(
-            nn.Sequential(
-                ComplexGroupNorm(in_ch),
-                ComplexConv2d(
-                    in_channels=in_ch,
-                    out_channels=in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                )
-            )
+        self.out = nn.Sequential(
+            group_norm(in_ch),
+            nn.Conv2d(in_ch, out_channels, kernel_size=3, stride=1, padding=1)
         )
 
     def forward(self, x):
-        for module in self.up:
+        for module in self.layers:
             x = module(x)
+
+        x = self.out(x)
 
         return x
 
     def get_last_layer(self):
-        return self.up[-1][-1].conv.weight
+        return self.out[-1].weight

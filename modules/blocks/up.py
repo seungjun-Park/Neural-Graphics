@@ -34,12 +34,11 @@ class ComplexUpBlock(nn.Module):
                  mode='nearest'):
         super().__init__()
         self.mode = mode
-        self.conv = ComplexConv2d(
-                                 in_channels=in_channels,
-                                 out_channels=in_channels,
-                                 kernel_size=3,
-                                 stride=1,
-                                 padding=1)
+        self.conv = ComplexConv2d(in_channels=in_channels,
+                                  out_channels=in_channels,
+                                  kernel_size=3,
+                                  stride=1,
+                                  padding=1)
 
     def forward(self, x):
         assert torch.is_complex(x)

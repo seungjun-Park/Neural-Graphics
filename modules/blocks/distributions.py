@@ -67,10 +67,10 @@ class ComplexDiagonalGaussianDistribution(object):
                  deterministic=False,
                  eps=25):
         self.parameters = parameters
-        self.mean, self.logvar = torch.chunk(parameters, 2, dim=1)
-        # log_var_real = torch.clamp(self.logvar.real, -eps, eps)
-        # log_var_imag = torch.clamp(self.logvar.imag, -eps, eps)
-        # self.logvar = torch.complex(log_var_real, log_var_imag)
+        self.mean, self.logvar = torch.chunk(parameters, 2, dim=-1)
+        log_var_real = torch.clamp(self.logvar.real, -eps, eps)
+        log_var_imag = torch.clamp(self.logvar.imag, -eps, eps)
+        self.logvar = torch.complex(log_var_real, log_var_imag)
         self.deterministic = deterministic
         self.std = torch.exp(0.5 * self.logvar)
         self.var = torch.exp(self.logvar)
@@ -92,15 +92,9 @@ class ComplexDiagonalGaussianDistribution(object):
             return torch.Tensor([0.])
         else:
             if other is None:
-                real_kl = self._kl(self.mean.real, self.logvar.real, self.var.real)
-                imag_kl = self._kl(self.mean.imag, self.logvar.imag, self.var.imag)
+                real_kl = self._kl(self.mean.real, self.var.real, self.logvar.real)
+                imag_kl = self._kl(self.mean.imag, self.var.imag, self.logvar.imag)
                 return real_kl + imag_kl
 
-            else:
-                return 0.5 * torch.sum(
-                    torch.pow(self.mean - other.mean, 2) / other.var
-                    + self.var / other.var - 1.0 - self.logvar + other.logvar,
-                    dim=[1, 2, 3])
-
-    def _kl(self, mean, logvar, var):
-        return 0.5 * torch.sum(2 * (torch.pow(mean, 2) + var) - 1.0 - logvar - math.log(2), dim=[1, 2, 3])
+    def _kl(self, mean, var, logvar):
+        return 0.5 * torch.sum((torch.pow(mean, 2) + var) - 1.0 - logvar, dim=[1, 2, 3])
