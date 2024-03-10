@@ -1,5 +1,5 @@
 module:
-  target: models.vae.autoencoder.AutoencoderKL
+  target: models.vae.autoencoder.ComplexAutoencoderKL
   params:
     dim: 2
     lr: 2e-5
@@ -8,47 +8,39 @@ module:
 
     enc_dec_config:
       in_channels: 3
+      out_channels: 3
+      in_resolution: 64
+      embed_dim: 64
       hidden_dims: [128, 256, 512, 512]
-      embed_dim: 128
-      in_resolution: [512, 512]
-      patch_size: [4, 4]
+      latent_dim: 4
+      num_blocks: 2
+      patch_size: 4
+      window_size: 7
+      mlp_ratio: 4
+      qkv_bias: True
       num_heads: -1
       num_head_channels: 32
+      drop_path: 0.1
       dropout: 0.0
       attn_dropout: 0.0
-      use_bias: True
+      proj_bias: True
       num_groups: 32
-      act: 'gelu'
-      dim: 2
-      mode: 'nearest'
-      attn_type: 'vanilla'
-
-    middle_block_config:
-      in_channels: 512
-      z_channels: 16
-      latent_dim: 16
-      num_attn_blocks: 1
-      dropout: 0.0
-      attn_dropout: 0.0
-      num_heads: -1
-      num_head_channels: 32
-      use_bias: True
-      act: 'gelu'
-      dim: 2
-      attn_type: 'vanilla'
+      act: 'silu'
+      use_pos_enc: True
+      dtype: 'complex64'
 
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
-        disc_start: 50001
+        disc_start: 100001
         logvar_init: 0.0
-        kl_weight: 1e-5
+        kl_weight: 1e-6
         pixelloss_weight: 1.0
         disc_num_layers: 3
         disc_in_channels: 3
         disc_factor: 1.0
         disc_weight: 1.0
-        perceptual_weight: 2.0
+        perceptual_weight: 1.0
         use_actnorm: False
         disc_conditional: False
         disc_loss: "hinge"
@@ -61,7 +53,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 2
-    batch_size: 1
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
@@ -73,7 +65,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 512, 512 ]
+                size: [ 256, 256 ]
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
@@ -84,7 +76,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 512, 512 ]
+                size: [ 256, 256 ]
 
 
 logger:
