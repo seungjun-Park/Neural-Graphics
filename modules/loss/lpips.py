@@ -48,6 +48,7 @@ class LPIPS(pl.LightningModule):
             self.attns.append(
                 AttentionLayer(
                     dim,
+                    out_channels=1,
                     dropout=dropout,
                     attn_dropout=attn_dropout,
                     bias=bias
@@ -237,15 +238,18 @@ class NetLinLayer(nn.Module):
 
 class AttentionLayer(nn.Module):
     def __init__(self,
-                 embed_dim: int,
+                 in_channels: int,
+                 out_channels: int = None,
                  dropout: float = 0,
                  attn_dropout: float = 0,
                  bias: bool = True
                  ):
         super().__init__()
 
-        self.attn = nn.MultiheadAttention(embed_dim, 1, dropout=attn_dropout, bias=bias, batch_first=True)
-        self.proj = nn.Linear(embed_dim, 1, bias=bias)
+        out_channels = out_channels if out_channels is not None else in_channels
+
+        self.attn = nn.MultiheadAttention(in_channels, 1, dropout=attn_dropout, bias=bias, batch_first=True)
+        self.proj = nn.Linear(in_channels, out_channels, bias=bias)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
