@@ -82,7 +82,7 @@ class LPIPS(pl.LightningModule):
 
         for feat, lin in zip(self.layers, self.lins):
             in0, in1 = feat(in0), feat(in1)
-            diff = torch.abs(normalize_tensor(in0) - normalize_tensor(in1)) ** 2
+            diff = (normalize_tensor(in0) - normalize_tensor(in1)) ** 2
             diffs.append(spatial_average(lin(diff), keepdim=True))
 
         val = diffs[0]
@@ -216,7 +216,7 @@ class NetLinLayer(nn.Module):
     def __init__(self,
                  chn_in,
                  chn_out=1,
-                 dropout=0.0,
+                 dropout=0.5,
                  *args,
                  **kwargs
                  ):
@@ -233,32 +233,18 @@ class NetLinLayer(nn.Module):
 class Dist2LogitLayer(nn.Module):
     ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
     def __init__(self,
-                 num_attn_blocks=4,
                  chn_mid=32,
-                 heads=-1,
-                 num_head_channels=-1,
-                 dropout=0.0,
-                 attn_dropout=0.0,
                  bias=True,
                  *args,
                  **kwargs,
                  ):
         super(Dist2LogitLayer, self).__init__(*args, **kwargs)
 
-        layers = [nn.Conv2d(5, chn_mid, 1, stride=1, padding=0, bias=bias),]
-
-        for i in range(num_attn_blocks):
-            layers +=[
-                AttnBlock(
-                    chn_mid,
-                    heads=heads,
-                    num_head_channels=num_head_channels,
-                    dropout=dropout,
-                    attn_dropout=attn_dropout,
-                    bias=bias
-                )
-            ]
-        layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=bias),]
+        layers = [nn.Conv2d(5, chn_mid, 1, stride=1, padding=0, bias=True),]
+        layers += [nn.LeakyReLU(0.2, True), ]
+        layers += [nn.Conv2d(chn_mid, chn_mid, 1, stride=1, padding=0, bias=True), ]
+        layers += [nn.LeakyReLU(0.2, True), ]
+        layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=True), ]
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)
 
@@ -268,25 +254,13 @@ class Dist2LogitLayer(nn.Module):
 
 class BCERankingLoss(nn.Module):
     def __init__(self,
-                 num_attn_blocks=4,
                  chn_mid=32,
-                 heads=-1,
-                 num_head_channels=-1,
-                 dropout=0.0,
-                 attn_dropout=0.0,
                  *args,
                  **kwargs,
                  ):
         super().__init__(*args, **kwargs)
 
-        self.net = Dist2LogitLayer(
-                 num_attn_blocks=num_attn_blocks,
-                 chn_mid=chn_mid,
-                 heads=heads,
-                 num_head_channels=num_head_channels,
-                 dropout=dropout,
-                 attn_dropout=attn_dropout,
-        )
+        self.net = Dist2LogitLayer(chn_mid=chn_mid)
         self.loss = nn.BCELoss()
 
     def forward(self, d0, d1, judge):
