@@ -103,44 +103,73 @@ class AutoencoderKL(pl.LightningModule):
 
             if i != len(hidden_dims):
                 down.append(DownBlock(in_ch, dim=dim))
-                down.append(
-                    AttnBlock(
-                        in_ch,
-                        mlp_ratio=mlp_ratio,
-                        heads=num_heads,
-                        num_head_channels=num_head_channels,
-                        dropout=dropout,
-                        attn_dropout=attn_dropout,
-                        bias=bias,
-                        act=act,
-                        use_conv=use_conv,
-                        dim=dim,
-                        groups=groups,
-                    )
-                )
+                # down.append(
+                #     AttnBlock(
+                #         in_ch,
+                #         mlp_ratio=mlp_ratio,
+                #         heads=num_heads,
+                #         num_head_channels=num_head_channels,
+                #         dropout=dropout,
+                #         attn_dropout=attn_dropout,
+                #         bias=bias,
+                #         act=act,
+                #         use_conv=use_conv,
+                #         dim=dim,
+                #         groups=groups,
+                #     )
+                # )
 
                 up.append(UpBlock(in_ch, dim=dim, mode=mode))
-                up.append(
-                    AttnBlock(
-                        in_ch,
-                        mlp_ratio=mlp_ratio,
-                        heads=num_heads,
-                        num_head_channels=num_head_channels,
-                        dropout=dropout,
-                        attn_dropout=attn_dropout,
-                        bias=bias,
-                        act=act,
-                        use_conv=use_conv,
-                        dim=dim,
-                        groups=groups,
-                    )
-                )
+                # up.append(
+                #     AttnBlock(
+                #         in_ch,
+                #         mlp_ratio=mlp_ratio,
+                #         heads=num_heads,
+                #         num_head_channels=num_head_channels,
+                #         dropout=dropout,
+                #         attn_dropout=attn_dropout,
+                #         bias=bias,
+                #         act=act,
+                #         use_conv=use_conv,
+                #         dim=dim,
+                #         groups=groups,
+                #     )
+                # )
 
             self.encoder.append(nn.Sequential(*down))
             self.decoder.append(nn.Sequential(*(up[::-1])))
 
         self.encoder.append(
             nn.Sequential(
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                    groups=groups,
+                ),
+                AttnBlock(
+                    in_ch,
+                    mlp_ratio=mlp_ratio,
+                    heads=num_heads,
+                    num_head_channels=num_head_channels,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    bias=bias,
+                    act=act,
+                    use_conv=use_conv,
+                    dim=dim,
+                    groups=groups,
+                ),
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                    groups=groups,
+                ),
                 group_norm(in_ch, groups),
                 nn.Conv2d(in_ch, latent_dim * 2, kernel_size=3, stride=1, padding=1)
             )
@@ -148,7 +177,36 @@ class AutoencoderKL(pl.LightningModule):
 
         self.decoder.append(
             nn.Sequential(
-                nn.Conv2d(latent_dim, in_ch, kernel_size=3, stride=1, padding=1)
+                nn.Conv2d(latent_dim, in_ch, kernel_size=3, stride=1, padding=1),
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                    groups=groups,
+                ),
+                AttnBlock(
+                    in_ch,
+                    mlp_ratio=mlp_ratio,
+                    heads=num_heads,
+                    num_head_channels=num_head_channels,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    bias=bias,
+                    act=act,
+                    use_conv=use_conv,
+                    dim=dim,
+                    groups=groups,
+                ),
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    dim=dim,
+                    groups=groups,
+                ),
             )
         )
 

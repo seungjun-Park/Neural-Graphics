@@ -15,7 +15,7 @@ module:
     attn_dropout: 0.1
     bias: True
     groups: 32
-    act: 'silu'
+    act: 'gelu'
     dim: 2
     use_conv: True
     mode: 'nearest'
@@ -23,7 +23,7 @@ module:
     loss_config:
       target: modules.loss.contperceptual.LPIPSWithDiscriminator
       params:
-        disc_start: 25001
+        disc_start: 50001
         logvar_init: 0.0
         kl_weight: 1e-6
         pixelloss_weight: 1.0
@@ -44,7 +44,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 2
-    batch_size: 4
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
@@ -56,8 +56,8 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 128, 128 ]
-                antialias: True
+                size: [ 256, 256 ]
+
     validation:
       target: modules.datasets.genshin_impact.GenshinImpactDataset
       params:
@@ -68,8 +68,8 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 128, 128 ]
-                antialias: True
+                size: [ 256, 256 ]
+
 
 
 logger:
