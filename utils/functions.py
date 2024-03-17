@@ -60,8 +60,40 @@ def batch_norm_nd(dim=2, *args, **kwargs):
         NotImplementedError("The dims should have a value between 1 and 3.")
 
 
+def instance_norm_nd(dim=2, *args, **kwargs):
+    if dim == 1:
+        return nn.InstanceNorm1d(*args, **kwargs)
+
+    elif dim == 2:
+        return nn.InstanceNorm2d(*args, **kwargs)
+
+    elif dim == 3:
+        return nn.InstanceNorm3d(*args, **kwargs)
+
+    else:
+        NotImplementedError("The dims should have a value between 1 and 3.")
+
+
 def group_norm(num_channels, num_groups=32, eps=1e-5, affine=True):
     return nn.GroupNorm(num_groups=num_groups, num_channels=num_channels, eps=eps, affine=affine)
+
+
+def norm(norm_type='group', groups=32, *args, **kwargs):
+    norm_type = norm_type.lower()
+    if norm_type == 'group':
+        return group_norm(num_groups=groups, *args, **kwargs)
+
+    elif norm_type == 'layer':
+        return nn.LayerNorm(*args, **kwargs)
+
+    elif norm_type == 'instance':
+        return instance_norm_nd(*args, **kwargs)
+
+    elif norm_type == 'batch':
+        return batch_norm_nd(*args, **kwargs)
+
+    else:
+        NotImplementedError(f"The norm_type: {norm_type} is not supported.")
 
 
 def get_act(name='relu', *args, **kwargs):

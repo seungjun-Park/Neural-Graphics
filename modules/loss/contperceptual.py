@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 
-from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight
-from modules.loss.lpips import LPIPS
+from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight, LPIPS
+# from modules.loss.lpips import LPIPS
 from utils import FD
 
 
@@ -16,7 +16,8 @@ class LPIPSWithDiscriminator(nn.Module):
         assert disc_loss in ["hinge", "vanilla"]
         self.kl_weight = kl_weight
         self.pixel_weight = pixelloss_weight
-        self.perceptual_loss = LPIPS(**lpips_config).eval()
+        # self.perceptual_loss = LPIPS(**lpips_config).eval()
+        self.perceptual_loss = LPIPS.eval()
         self.perceptual_weight = perceptual_weight
 
         # output log variance
@@ -31,6 +32,10 @@ class LPIPSWithDiscriminator(nn.Module):
         self.disc_factor = disc_factor
         self.discriminator_weight = disc_weight
         self.disc_conditional = disc_conditional
+
+    def to(self, device=None, *args, **kwargs):
+        super().to(device=device, *args, **kwargs)
+        self.perceptual_loss.to(device, *args, **kwargs)
 
     def calculate_adaptive_weight(self, nll_loss, g_loss, last_layer=None):
         if last_layer is not None:
@@ -49,8 +54,8 @@ class LPIPSWithDiscriminator(nn.Module):
                 global_step, last_layer=None, cond=None, split="train",
                 weights=None, z=None):
         rec_loss = torch.abs(outputs['x'].contiguous() - outputs['recon_x'].contiguous())
-        fd_loss = FD(outputs['x'].contiguous(), outputs['recon_x'].contiguous())
-        rec_loss = rec_loss + fd_loss
+        # fd_loss = FD(outputs['x'].contiguous(), outputs['recon_x'].contiguous())
+        rec_loss = rec_loss # + fd_loss
 
         if self.perceptual_weight > 0:
             p_loss = self.perceptual_loss(outputs['x'].contiguous(), outputs['recon_x'].contiguous())

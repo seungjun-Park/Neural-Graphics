@@ -29,39 +29,21 @@ class ComplexLinear(nn.Module):
         self.out_features = out_features
         self.device = device
         self.dtype = dtype
-        self.bias = bias
 
-        self.weight_amp = nn.Parameter(torch.empty((out_features, in_features), device=device, dtype=self.weight_dtype))
-        self.weight_phase = nn.Parameter(torch.empty((out_features, in_features), device=device, dtype=self.weight_dtype))
+        self.weight = nn.Parameter(torch.ones((out_features * 2, in_features * 2), device=device, dtype=self.weight_dtype))
 
         if bias:
-            self.bias_amp = nn.Parameter(torch.empty(out_features, device=device, dtype=self.weight_dtype))
-            self.bias_phase = nn.Parameter(torch.empty(out_features, device=device, dtype=self.weight_dtype))
+            self.bias = nn.Parameter(torch.zeros(out_features * 2, device=device, dtype=self.weight_dtype))
+
         else:
-            self.bias_amp = None
-            self.bias_phase = None
-
-        self.reset_parameters()
-
-    def reset_parameters(self) -> None:
-        # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
-        # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
-        # https://github.com/pytorch/pytorch/issues/57109
-        nn.init.kaiming_uniform_(self.weight_amp, a=math.sqrt(5))
-        nn.init.kaiming_uniform_(self.weight_phase, a=math.sqrt(5))
-        if self.bias:
-            fan_in_amp, _ = nn.init._calculate_fan_in_and_fan_out(self.weight_amp)
-            fan_in_phase, _ = nn.init._calculate_fan_in_and_fan_out(self.weight_phase)
-            bound_amp = 1 / math.sqrt(fan_in_amp) if fan_in_amp > 0 else 0
-            bound_phase = 1 / math.sqrt(fan_in_phase) if fan_in_phase > 0 else 0
-            nn.init.uniform_(self.bias_amp, -bound_amp, bound_amp)
-            nn.init.uniform_(self.bias_phase, -bound_phase, bound_phase)
+            self.bias = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        amp, phase = x.abs(), x.angle()
-        amp = F.linear(amp, self.weight_amp, bias=self.bias_amp)
-        phase = F.linear(phase, self.weight_phase, bias=self.bias_phase)
-
-        x = amp * torch.exp(phase * 1j)
+        assert torch.is_complex(x)
+        x_r, x_i = x.real, x.imag
+        x = torch.cat([x_r, x_i], dim=-1)
+        x = F.linear(x, self.weight, self.bias)
+        x_r, x_i = torch.chunk(x, 2, dim=-1)
+        x = torch.complex(x_r, x_i)
 
         return x
