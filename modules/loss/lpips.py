@@ -262,34 +262,58 @@ class AttentionLayer(nn.Module):
 class Dist2LogitLayer(nn.Module):
     ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
     def __init__(self,
-                 chn_mid=32,
-                 bias=True,
+                 embed_dim: int = 32,
+                 num_block: int = 2,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 bias: bool = True,
                  *args,
                  **kwargs,
                  ):
         super(Dist2LogitLayer, self).__init__(*args, **kwargs)
 
-        layers = [nn.Conv2d(5, chn_mid, 1, stride=1, padding=0, bias=True),]
-        layers += [nn.LeakyReLU(0.2, True), ]
-        layers += [nn.Conv2d(chn_mid, chn_mid, 1, stride=1, padding=0, bias=True), ]
-        layers += [nn.LeakyReLU(0.2, True), ]
-        layers += [nn.Conv2d(chn_mid, 1, 1, stride=1, padding=0, bias=True), ]
-        layers += [nn.Sigmoid(), ]
-        self.model = nn.Sequential(*layers)
+        layers = [nn.Conv2d(2, embed_dim, 1, bias=bias)]
+        for i in range(num_block):
+            layers += [
+                AttentionLayer(
+                    embed_dim,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    bias=bias
+                )
+            ]
+
+        layers += [nn.Conv2d(embed_dim, 2, 1, bias=bias)]
+        layers += [nn.Softmax(dim=1)]
+
+        self.layers = nn.Sequential(*layers)
 
     def forward(self, d0, d1, eps=1e-5):
-        return self.model(torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)), dim=1))
+        inp = torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)), dim=1)
+        inp = self.layers(inp)
+
+        return inp
 
 
 class BCERankingLoss(nn.Module):
     def __init__(self,
-                 chn_mid=32,
+                 embed_dim=32,
+                 num_block: int = 2,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 bias: bool = True,
                  *args,
                  **kwargs,
                  ):
         super().__init__(*args, **kwargs)
 
-        self.net = Dist2LogitLayer(chn_mid=chn_mid)
+        self.net = Dist2LogitLayer(
+            embed_dim=embed_dim,
+            num_block=num_block,
+            dropout=dropout,
+            attn_dropout=attn_dropout,
+            bias=bias,
+        )
         self.loss = nn.BCELoss()
 
     def forward(self, d0, d1, judge):
