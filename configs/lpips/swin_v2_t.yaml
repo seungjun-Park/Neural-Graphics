@@ -10,8 +10,8 @@ module:
       num_attn_blocks: 4
       chn_mid: 64
       heads: 8
-      dropout: 0.5
-      attn_dropout: 0.5
+      dropout: 0.0
+      attn_dropout: 0.0
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -66,5 +66,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 10
+  max_epochs: 20
   # gradient_clip_val: 0
