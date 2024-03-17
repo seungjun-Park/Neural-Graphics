@@ -272,7 +272,7 @@ class Dist2LogitLayer(nn.Module):
                  ):
         super(Dist2LogitLayer, self).__init__(*args, **kwargs)
 
-        layers = [nn.Conv2d(2, embed_dim, 1, bias=bias)]
+        layers = [nn.Conv2d(5, embed_dim, 1, bias=bias)]
         for i in range(num_block):
             layers += [
                 AttentionLayer(
@@ -283,7 +283,7 @@ class Dist2LogitLayer(nn.Module):
                 )
             ]
 
-        layers += [nn.Conv2d(embed_dim, 2, 1, bias=bias)]
+        layers += [nn.Conv2d(embed_dim, 1, 1, bias=bias)]
         layers += [nn.Softmax(dim=1)]
 
         self.layers = nn.Sequential(*layers)
