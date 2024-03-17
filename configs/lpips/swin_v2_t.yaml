@@ -2,16 +2,16 @@ module:
   target: modules.loss.lpips.LPIPS
   params:
     net_type: 'swin_v2_t'
-    dropout: 0.0
+    dropout: 0.5
     lr: 2e-5
     weight_decay: 0.0
 
     loss_config:
-      num_attn_blocks: 8
-      chn_mid: 128
+      num_attn_blocks: 4
+      chn_mid: 64
       heads: 8
-      dropout: 0.0
-      attn_dropout: 0.0
+      dropout: 0.5
+      attn_dropout: 0.5
 
 data:
   target: modules.datasets.util.DataModuleFromConfig

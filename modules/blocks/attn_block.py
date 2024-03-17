@@ -188,8 +188,8 @@ class WindowAttention(nn.Module):
         self.register_buffer("relative_position_index", relative_position_index)
 
         if use_conv:
-            self.qkv = conv_nd(2, in_channels, in_channels * 3, kernel_size=1, stride=1, bias=qkv_bias)
-            self.proj = conv_nd(2, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
+            self.qkv = nn.Conv1d(in_channels, in_channels * 3, kernel_size=1, stride=1, bias=qkv_bias)
+            self.proj = nn.Conv1d(in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
         else:
             self.qkv = nn.Linear(in_channels, in_channels * 3, bias=qkv_bias)
             self.proj = nn.Linear(in_channels, in_channels, bias=proj_bias)
@@ -199,8 +199,8 @@ class WindowAttention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x, mask=None):
-        B_, N, C = x.shape
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        B_, C, N = x.shape
+        qkv = self.qkv(x).reshape(B_, self.num_heads, C // self.num_heads, N, 3).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         q = q * self.scale

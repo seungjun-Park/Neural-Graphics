@@ -11,7 +11,7 @@ class LPIPS(pl.LightningModule):
     def __init__(self,
                  loss_config=None,
                  net_type='swin_v2_t',
-                 dropout=0.0,
+                 dropout=0.5,
                  log_interval=100,
                  lr=2e-5,
                  weight_decay=0.0,
@@ -73,7 +73,7 @@ class LPIPS(pl.LightningModule):
     def compute_accuracy(self, d0, d1, judge):
         d1_lt_d0 = (d1 < d0).detach().flatten()
         judge_per = judge.detach().flatten()
-        acc_r = torch.mean(d1_lt_d0 * judge_per + ~d1_lt_d0 * (1 - judge_per))
+        acc_r = torch.mean((d1 < d0).flatten() * judge_per + (d1 > d0).flatten() * (1 - judge_per) + (d1 == d0).flatten() * 0.5)
         return acc_r
 
     def forward(self, in0, in1):
