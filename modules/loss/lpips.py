@@ -115,7 +115,7 @@ class LPIPS(pl.LightningModule):
         self.train_acc_avg += acc_r
         self.train_iter += 1
 
-        loss = torch.mean(self.rankLoss(d0, d1, in_judge))
+        loss = torch.mean(self.loss(d0, d1, in_judge))
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True)
@@ -145,7 +145,7 @@ class LPIPS(pl.LightningModule):
         self.val_acc_avg += acc_r
         self.val_iter += 1
 
-        loss = torch.mean(self.rankLoss(d0, d1, in_judge))
+        loss = torch.mean(self.loss(d0, d1, in_judge))
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=True, logger=True)
@@ -175,7 +175,7 @@ class LPIPS(pl.LightningModule):
         self.test_acc_avg += acc_r
         self.test_iter += 1
 
-        loss = torch.mean(self.rankLoss(d0, d1, in_judge * 2. - 1.))
+        loss = torch.mean(self.loss(d0, d1, in_judge * 2. - 1.))
 
         self.log(f'{prefix}/loss', loss.detach().mean(), prog_bar=True, logger=True)
         self.log(f'{prefix}/acc_r', acc_r, prog_bar=False, logger=True)
