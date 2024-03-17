@@ -3,7 +3,7 @@ module:
   params:
     net_type: 'swin_v2_t'
     dropout: 0.5
-    lr: 2e-5
+    lr: 1e-4
     weight_decay: 0.0
 
     loss_config:
@@ -63,4 +63,4 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   max_epochs: 20
-  # gradient_clip_val: 0
+  gradient_clip_val: 0

@@ -74,7 +74,7 @@ class LPIPS(pl.LightningModule):
         d0 = d0.cpu().detach().flatten()
         d1 = d1.cpu().detach().flatten()
         judge_per = judge.cpu().detach().flatten()
-        acc_r = torch.mean((d1 < d0) * judge_per + (d1 > d0) * (1 - judge_per) + (d1 == d0) * 0.5)
+        acc_r = torch.mean((d1 < d0) * judge_per + (d1 > d0) * (1 - judge_per)) #+ (d1 == d0) * 0.5)
         return acc_r
 
     def forward(self, in0, in1):
@@ -188,11 +188,11 @@ class LPIPS(pl.LightningModule):
         self.test_acc_avg = 0
 
     def configure_optimizers(self):
-        opt = torch.optim.AdamW(
+        opt = torch.optim.Adam(
             list(self.lins.parameters()) +
             list(self.rankLoss.net.parameters()),
             lr=self.lr,
-            betas=(0.5, 0.9),
+            betas=(0.5, 0.999),
             weight_decay=self.weight_decay
         )
 
