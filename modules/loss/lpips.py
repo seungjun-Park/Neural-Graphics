@@ -71,9 +71,10 @@ class LPIPS(pl.LightningModule):
 
     @torch.no_grad()
     def compute_accuracy(self, d0, d1, judge):
-        d1_lt_d0 = (d1 < d0).detach().flatten()
-        judge_per = judge.detach().flatten()
-        acc_r = torch.mean((d1 < d0).flatten() * judge_per + (d1 > d0).flatten() * (1 - judge_per) + (d1 == d0).flatten() * 0.5)
+        d0 = d0.cpu().detach().flatten()
+        d1 = d1.cpu().detach().flatten()
+        judge_per = judge.cpu().detach().flatten()
+        acc_r = torch.mean((d1 < d0) * judge_per + (d1 > d0) * (1 - judge_per) + (d1 == d0) * 0.5)
         return acc_r
 
     def forward(self, in0, in1):
