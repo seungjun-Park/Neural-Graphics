@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 
-from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight, LPIPS
-# from modules.loss.lpips import LPIPS
+from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight
+from modules.loss.lpips import LPIPS
 from utils import FD
 
 
@@ -16,8 +16,8 @@ class LPIPSWithDiscriminator(nn.Module):
         assert disc_loss in ["hinge", "vanilla"]
         self.kl_weight = kl_weight
         self.pixel_weight = pixelloss_weight
-        # self.perceptual_loss = LPIPS(**lpips_config).eval()
-        self.perceptual_loss = LPIPS.eval()
+        self.perceptual_loss = LPIPS(**lpips_config).eval()
+        # self.perceptual_loss = LPIPS.eval()
         self.perceptual_weight = perceptual_weight
 
         # output log variance
