@@ -85,11 +85,10 @@ class LPIPS(pl.LightningModule):
         in0, in1 = self.scaling_layer(in0), self.scaling_layer(in1)
         diffs = []
 
-        for feat, attns in zip(self.layers, self.attns):
+        for feat, attn in zip(self.layers, self.attns):
             in0, in1 = feat(in0), feat(in1)
             diff = torch.abs(in0 - in1)
-            print(diff.shape)
-            diffs.append(spatial_average(attns(diff), keepdim=True))
+            diffs.append(spatial_average(attn(diff), keepdim=True))
 
         val = diffs[0]
         for i in range(1, len(diffs)):
@@ -250,12 +249,12 @@ class AttentionLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        b, c, *_ = x.shape
+        b, c, *spatial = x.shape
         x = x.reshape(b, c, -1).permute(0, 2, 1)
         x, _ = self.attn(x, x, x, need_weights=False)
         x = self.dropout(x)
         x = self.proj(x)
-        x = x.permute(0, 2, 1).reshape(b, -1, *_)
+        x = x.permute(0, 2, 1).reshape(b, -1, *spatial)
 
         return x
 
