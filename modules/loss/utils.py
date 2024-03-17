@@ -185,7 +185,7 @@ def normalize_tensor(in_feat,eps=1e-10):
 
 
 def spatial_average(in_tens, keepdim=True):
-    return in_tens.mean([2,3],keepdim=keepdim)
+    return in_tens.mean([-2, -1], keepdim=keepdim)
 
 
 class Permute(nn.Module):

@@ -10,12 +10,14 @@ from modules.blocks import AttnBlock
 class LPIPS(pl.LightningModule):
     def __init__(self,
                  loss_config=None,
-                 net_type='swin_v2_t',
-                 dropout=0.5,
-                 log_interval=100,
-                 lr=2e-5,
-                 weight_decay=0.0,
-                 ckpt_path=None,
+                 net_type: str = 'swin_v2_t',
+                 dropout: float = 0.5,
+                 attn_dropout: float = 0.0,
+                 bias: bool = True,
+                 log_interval: int = 100,
+                 lr: float = 2e-5,
+                 weight_decay: float = 0.0,
+                 ckpt_path: str = None,
                  ignore_keys=[],
                  *args,
                  **kwargs,
@@ -38,22 +40,24 @@ class LPIPS(pl.LightningModule):
         self.layers = export_layers(net, net_type)
 
         self.scaling_layer = ScalingLayer()
-        self.lins = nn.ModuleList()
+        self.attns = nn.ModuleList()
 
         self.dims = get_layer_dims(net_type)
 
         for i, dim in enumerate(self.dims):
-            self.lins.append(
-                NetLinLayer(
+            self.attns.append(
+                AttentionLayer(
                     dim,
                     dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    bias=bias
                 )
             )
 
         if loss_config is not None:
-            self.rankLoss = BCERankingLoss(**loss_config)
+            self.loss = BCERankingLoss(**loss_config)
         else:
-            self.rankLoss = None
+            self.loss = None
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
@@ -81,10 +85,10 @@ class LPIPS(pl.LightningModule):
         in0, in1 = self.scaling_layer(in0), self.scaling_layer(in1)
         diffs = []
 
-        for feat, lin in zip(self.layers, self.lins):
+        for feat, attns in zip(self.layers, self.attns):
             in0, in1 = feat(in0), feat(in1)
-            diff = (normalize_tensor(in0) - normalize_tensor(in1)) ** 2
-            diffs.append(spatial_average(lin(diff), keepdim=True))
+            diff = torch.abs(in0 - in1)
+            diffs.append(spatial_average(attns(diff), keepdim=True))
 
         val = diffs[0]
         for i in range(1, len(diffs)):
@@ -189,8 +193,8 @@ class LPIPS(pl.LightningModule):
 
     def configure_optimizers(self):
         opt = torch.optim.Adam(
-            list(self.lins.parameters()) +
-            list(self.rankLoss.net.parameters()),
+            list(self.attns.parameters()) +
+            list(self.loss.net.parameters()),
             lr=self.lr,
             betas=(0.5, 0.999),
             weight_decay=self.weight_decay
@@ -231,6 +235,30 @@ class NetLinLayer(nn.Module):
         return self.model(x)
 
 
+class AttentionLayer(nn.Module):
+    def __init__(self,
+                 embed_dim: int,
+                 dropout: float = 0,
+                 attn_dropout: float = 0,
+                 bias: bool = True
+                 ):
+        super().__init__()
+
+        self.attn = nn.MultiheadAttention(embed_dim, 1, dropout=attn_dropout, bias=bias, batch_first=True)
+        self.proj = nn.Linear(embed_dim, 1, bias=bias)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        b, c, *_ = x.shape
+        x = x.reshape(b, c, -1).permute(0, 2, 1)
+        x, _ = self.attn(x, x, x, need_weights=False)
+        x = self.dropout(x)
+        x = self.proj(x)
+        x = x.permute(0, 2, 1).reshape(b, -1, *_)
+
+        return x
+
+
 class Dist2LogitLayer(nn.Module):
     ''' takes 2 distances, puts through fc layers, spits out value between [0,1] (if use_sigmoid is True) '''
     def __init__(self,
@@ -249,7 +277,7 @@ class Dist2LogitLayer(nn.Module):
         layers += [nn.Sigmoid(), ]
         self.model = nn.Sequential(*layers)
 
-    def forward(self, d0, d1, eps=0.1):
+    def forward(self, d0, d1, eps=1e-5):
         return self.model(torch.cat((d0, d1, d0-d1, d0/(d1+eps), d1/(d0+eps)), dim=1))
 
 
