@@ -122,7 +122,8 @@ class AttnBlock(nn.Module):
     def forward(self, x) -> torch.Tensor:
         # In general, the shape of x is b, c, *_. denote that len(*_) == dim.
         b, c, *_ = x.shape
-        h = x.reshape(b, c, -1)
+        x = x.reshape(b, c, -1)
+        h = x
 
         h = self.norm1(h)
         h = self.attn(h, h, h)
