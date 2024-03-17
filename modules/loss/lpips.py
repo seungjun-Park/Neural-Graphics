@@ -88,6 +88,7 @@ class LPIPS(pl.LightningModule):
         for feat, attns in zip(self.layers, self.attns):
             in0, in1 = feat(in0), feat(in1)
             diff = torch.abs(in0 - in1)
+            print(diff.shape)
             diffs.append(spatial_average(attns(diff), keepdim=True))
 
         val = diffs[0]
