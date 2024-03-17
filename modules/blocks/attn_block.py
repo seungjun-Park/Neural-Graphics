@@ -20,20 +20,17 @@ class MultiHeadAttention(nn.Module):
                  dropout: float = 0.1,
                  bias: bool = True,
                  use_conv: bool = True,
-                 dim: int = 2,
                  ):
         super().__init__()
 
         self.d_k = in_channels // heads
         self.heads = heads
-        assert dim in [1, 2, 3]
-        self.dim = dim
         self.use_conv = use_conv
 
         if use_conv:
-            self.q = conv_nd(dim, in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, bias=bias)
-            self.k = conv_nd(dim, in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, bias=bias)
-            self.v = conv_nd(dim, in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, bias=True)
+            self.q = nn.Conv1d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, bias=bias)
+            self.k = nn.Conv1d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, bias=bias)
+            self.v = nn.Conv1d(in_channels=in_channels, out_channels=in_channels, kernel_size=1, stride=1, bias=True)
         else:
             self.q = nn.Linear(in_features=in_channels, out_features=in_channels, bias=bias)
             self.k = nn.Linear(in_features=in_channels, out_features=in_channels, bias=bias)
@@ -44,13 +41,12 @@ class MultiHeadAttention(nn.Module):
         self.scale = 1 / math.sqrt(self.d_k)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        # x.shape == b, c, *_
-        b, c, *_ = q.shape
+        b, c, l = q.shape
 
         if self.use_conv:
-            q = self.q(q).reshape(b * self.heads, self.d_k, -1)
-            k = self.k(k).reshape(b * self.heads, self.d_k, -1)
-            v = self.v(v).reshape(b * self.heads, self.d_k, -1)
+            q = self.q(q).reshape(b * self.heads, self.d_k, l)
+            k = self.k(k).reshape(b * self.heads, self.d_k, l)
+            v = self.v(v).reshape(b * self.heads, self.d_k, l)
 
             scores = torch.einsum('bct,bcs->bts', q, k)
             scores *= self.scale
@@ -58,16 +54,16 @@ class MultiHeadAttention(nn.Module):
             scores = self.dropout(scores)
 
             scores = torch.einsum('bts,bcs->bct', scores, v)
-            scores = scores.reshape(b, -1, *_)
+            scores = scores.reshape(b, -1, l)
 
         else:
-            q = q.reshape(b, c, -1).permute(0, 2, 1).contiguous()
-            k = k.reshape(b, c, -1).permute(0, 2, 1).contiguous()
-            v = v.reshape(b, c, -1).permute(0, 2, 1).contiguous()
+            q = q.permute(0, 2, 1).contiguous()
+            k = k.permute(0, 2, 1).contiguous()
+            v = v.permute(0, 2, 1).contiguous()
 
-            q = self.q(q).reshape(b, -1, self.heads, self.d_k)
-            k = self.k(k).reshape(b, -1, self.heads, self.d_k)
-            v = self.v(v).reshape(b, -1, self.heads, self.d_k)
+            q = self.q(q).reshape(b, l, self.heads, self.d_k)
+            k = self.k(k).reshape(b, l, self.heads, self.d_k)
+            v = self.v(v).reshape(b, l, self.heads, self.d_k)
 
             scores = torch.einsum('bihd,bjhd -> bijh', q, k)
             scores *= self.scale
@@ -76,14 +72,9 @@ class MultiHeadAttention(nn.Module):
             scores = self.dropout(scores)
 
             scores = torch.einsum("bijh,bjhd->bihd", scores, v)
-            scores = rearrange(scores, 'b i h d -> b (h d) i').reshape(b, -1, *_)
+            scores = scores.reshape(b, l, -1).permute(0, 2, 1)  # b, l, c -> b, c, l
 
         return scores
-
-
-MultiHeadAttention1d = partial(MultiHeadAttention, dim=1)
-MultiHeadAttention2d = partial(MultiHeadAttention, dim=2)
-MultiHeadAttention3d = partial(MultiHeadAttention, dim=3)
 
 
 class AttnBlock(nn.Module):
@@ -121,29 +112,26 @@ class AttnBlock(nn.Module):
                                        heads=self.heads,
                                        dropout=attn_dropout,
                                        bias=bias,
-                                       use_conv=use_conv,
-                                       dim=dim)
+                                       use_conv=use_conv)
 
-        self.mlp = MLP(in_channels, int(in_channels * mlp_ratio), dropout=dropout, act=act, use_conv=use_conv, dim=dim)
+        self.mlp = MLP(in_channels, int(in_channels * mlp_ratio), dropout=dropout, act=act, use_conv=use_conv)
 
         self.norm1 = group_norm(in_channels, groups)
         self.norm2 = group_norm(in_channels, groups)
 
-    def forward(self, x, cond=None) -> torch.Tensor:
+    def forward(self, x) -> torch.Tensor:
         # In general, the shape of x is b, c, *_. denote that len(*_) == dim.
         b, c, *_ = x.shape
-        h = x
-        if cond is None:
-            cond = h
+        h = x.reshape(b, c, -1)
 
-        h = self.attn(h, cond, cond)
+        h = self.norm1(h)
+        h = self.attn(h, h, h)
         h = self.drop(h)
         h = h + x
-        h = self.norm1(h)
 
-        z = self.mlp(h)
+        z = self.norm2(h)
+        z = self.mlp(z)
         z = z + h
-        z = self.norm2(z)
 
         z = z.reshape(b, -1, *_)
 

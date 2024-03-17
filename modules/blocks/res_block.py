@@ -41,18 +41,16 @@ class ResidualBlock(nn.Module):
             self.shortcut = nn.Identity()
 
     def forward(self, x):
-        h = self.conv1(x)
+        h = self.norm1(x)
         h = self.act(h)
-        h = h + self.shortcut(x)
-        h = self.norm1(h)
+        h = self.conv1(h)
 
-        z = self.conv2(h)
-        z = self.act(z)
-        z = self.dropout(z)
-        z = z + h
-        z = self.norm2(z)
+        h = self.norm2(h)
+        h = self.act(h)
+        h = self.dropout(h)
+        h = self.conv2(h)
 
-        return z
+        return h + self.shortcut(x)
 
 
 class ComplexResidualBlock(nn.Module):
