@@ -9,6 +9,7 @@ from functools import partial
 import math
 import warnings
 from itertools import repeat
+from typing import Union, List, Tuple
 
 import multiprocessing as mp
 from threading import Thread
@@ -256,7 +257,7 @@ def from_flattened_numpy(x, shape):
 
 
 def _ntuple(n):
-    def parse(x):
+    def parse(x) -> Tuple:
         if isinstance(x, abc.Iterable) and not isinstance(x, str):
             return tuple(x)
         return tuple(repeat(x, n))

@@ -8,7 +8,7 @@ from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
 from torchmetrics.image.psnr import PeakSignalNoiseRatio
 
 from modules.blocks.down import DownBlock, ComplexDownBlock
-from modules.blocks.res_block import ResidualBlock, ComplexResidualBlock
+from modules.blocks.res_block import ResidualBlock
 from modules.blocks.attn_block import AttnBlock, ComplexShiftedWindowAttnBlock
 from modules.blocks.up import UpBlock
 from modules.blocks.distributions import ComplexDiagonalGaussianDistribution, DiagonalGaussianDistribution
