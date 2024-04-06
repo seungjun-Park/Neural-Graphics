@@ -42,6 +42,7 @@ class Discriminator(nn.Module):
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> torch.Tensor:
         """Standard forward."""
 
-        x = torch.cat([x, cond], dim=1)
+        if cond is not None:
+            x = torch.cat([x, cond], dim=1)
 
         return self.net(x)
