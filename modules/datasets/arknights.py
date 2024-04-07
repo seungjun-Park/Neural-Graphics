@@ -1,5 +1,6 @@
 import glob
 import os
+import json
 
 import cv2
 from torch.utils.data import Dataset
@@ -40,37 +41,30 @@ class ArknightsDataset(Dataset):
         else:
             root = os.path.join(root, 'test')
 
-        file_names = glob.glob(f'{root}/**/*.*', recursive=True)
-        self.img_formats = set()
-        self.str_formats = set()
-        for i, file in enumerate(file_names):
-            name, format = file.rsplit('.', 1)
-
-            if format in IMG_FORMATS:
-                self.img_formats.add(format)
-            elif format in STR_FORMATS:
-                self.str_formats.add(format)
-            else:
-                pass
-
-            file_names[i] = name
-
-        self.file_names = list(set(file_names))
+        self.edge_names = glob.glob(f'{root}/*/edges/*.*', recursive=True)
+        self.img_names = glob.glob(f'{root}/*/images/*.*', recursive=True)
+        self.tag_names = glob.glob(f'{root}/*/tags/*.*', recursive=True)
 
     def __getitem__(self, index):
-        file_name = self.file_names[index]
+        edge_name = self.edge_names[index]
+        img_name = self.img_names[index]
+        tag_name = self.tag_names[index]
 
-        img = cv2.imread(f'{file_name}.jpg', cv2.IMREAD_COLOR)
+        img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        edge = cv2.imread(f'f{edge_name}', cv2.IMREAD_GRAYSCALE)
+
+        with open(f'{tag_name}', 'r') as f:
+            tag = json.load(f)
+
         if self.transform is not None:
             img = self.transform(img)
 
-        txt_file = open(f'{file_name}.txt', 'r')
-        label = txt_file.readlines()
         if self.target_transform is not None:
-            label = self.target_transform(label)
+            tag = self.target_transform(tag)
 
-        return img, label
+        return img, edge, tag
 
     def __len__(self):
-        return len(self.file_names)
+        return len(self.img_names)

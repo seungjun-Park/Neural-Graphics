@@ -7,8 +7,8 @@ class Discriminator(nn.Module):
     def __init__(self,
                  in_channels: int = 3,
                  embed_dim: int = 64,
-                 num_layers=3,
-                 bias=False,
+                 num_layers: int = 3,
+                 bias: bool = False,
                  ):
         super().__init__()
         norm_layer = nn.BatchNorm2d

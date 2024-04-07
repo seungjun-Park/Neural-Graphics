@@ -157,6 +157,20 @@ class EdgeNet(pl.LightningModule):
             padding=1,
         )
 
+        if ckpt_path is not None:
+            self.init_from_ckpt(path=ckpt_path)
+
+    def init_from_ckpt(self, path, ignore_keys=list()):
+        sd = torch.load(path, map_location="cpu")["state_dict"]
+        keys = list(sd.keys())
+        for k in keys:
+            for ik in ignore_keys:
+                if k.startswith(ik):
+                    print("Deleting key {} from state_dict.".format(k))
+                    del sd[k]
+        self.load_state_dict(sd, strict=False)
+        print(f"Restored from {path}")
+
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> torch.Tensor:
         hs = []
         for module in self.down:
@@ -182,9 +196,9 @@ class EdgeNet(pl.LightningModule):
 
         rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
 
-        if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
-            rec_loss = rec_loss + self.perceptual_weight * p_loss
+        # if self.perceptual_weight > 0:
+        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
+        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
@@ -221,11 +235,104 @@ class EdgeNet(pl.LightningModule):
         self.manual_backward(d_loss)
         opt_disc.step()
 
-    def validation_step(self, *args: Any, **kwargs: Any) -> Optional[Any]:
-        return
+    def validation_step(self, batch, batch_idx) -> Optional[Any]:
+        img, gt, cond = batch
+        edge_map = self(img)
 
-    def test_step(self, *args: Any, **kwargs: Any) -> Optional[Any]:
-        return
+        if (self.global_step // 2) % self.log_interval == 0:
+            self.log_img(img, gt, edge_map)
+
+        rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
+
+        # if self.perceptual_weight > 0:
+        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
+        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
+
+        rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+
+        # generator update
+        g_loss = -torch.mean(self.discriminator(edge_map.contiguous(), img))
+
+        if self.disc_factor > 0.0:
+            try:
+                d_weight = self.calculate_adaptive_weight(rec_loss, g_loss)
+            except RuntimeError:
+                assert not self.training
+                d_weight = torch.tensor(0.0)
+        else:
+            d_weight = torch.tensor(0.0)
+
+        disc_factor = self.adopt_weight(self.disc_factor, self.global_step // 2, threshold=self.disc_iter_start)
+
+        loss = d_weight * disc_factor * g_loss + rec_loss
+
+        opt_unet, opt_disc = self.optimizers()
+
+        # train encoder+decoder+logvar
+        opt_unet.zero_grad()
+        self.manual_backward(loss)
+        opt_unet.step()
+
+        # second pass for discriminator update
+        logits_real = self.discriminator(gt.contiguous().detach(), img)
+        logits_fake = self.discriminator(edge_map.contiguous().detach(), img)
+
+        d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+
+        opt_disc.zero_grad()
+        self.manual_backward(d_loss)
+        opt_disc.step()
+
+        return self.log_dict
+
+    def test_step(self, batch, batch_idx) -> Optional[Any]:
+        img, gt, cond = batch
+        edge_map = self(img)
+
+        if (self.global_step // 2) % self.log_interval == 0:
+            self.log_img(img, gt, edge_map)
+
+        rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
+
+        # if self.perceptual_weight > 0:
+        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
+        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
+
+        rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+
+        # generator update
+        g_loss = -torch.mean(self.discriminator(edge_map.contiguous(), img))
+
+        if self.disc_factor > 0.0:
+            try:
+                d_weight = self.calculate_adaptive_weight(rec_loss, g_loss)
+            except RuntimeError:
+                assert not self.training
+                d_weight = torch.tensor(0.0)
+        else:
+            d_weight = torch.tensor(0.0)
+
+        disc_factor = self.adopt_weight(self.disc_factor, self.global_step // 2, threshold=self.disc_iter_start)
+
+        loss = d_weight * disc_factor * g_loss + rec_loss
+
+        opt_unet, opt_disc = self.optimizers()
+
+        # train encoder+decoder+logvar
+        opt_unet.zero_grad()
+        self.manual_backward(loss)
+        opt_unet.step()
+
+        # second pass for discriminator update
+        logits_real = self.discriminator(gt.contiguous().detach(), img)
+        logits_fake = self.discriminator(edge_map.contiguous().detach(), img)
+
+        d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+
+        opt_disc.zero_grad()
+        self.manual_backward(d_loss)
+        opt_disc.step()
+        return self.log_dict
 
     def adopt_weight(self, weight, global_step, threshold=0, value=0.):
         if global_step < threshold:

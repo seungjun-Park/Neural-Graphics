@@ -1,0 +1,70 @@
+module:
+  target: models.enet.enet.EdgeNet
+  params:
+    in_channels: 3
+    in_res: 128
+    disc_config:
+      target: models.gan.discriminator.Discriminator
+      params:
+        in_channels: 4
+        embed_dim: 64
+        num_layers: 3
+        bias: False
+    out_channels: 1
+    hidden_dims: [32, 64, 128, 256]
+    embed_dim: 16
+    num_blocks: 1
+    fourier_mask_res: [3]
+    dropout: 0.1
+    bias: True
+    groups: 32
+    act: 'silu'
+    use_conv: True
+    mode: 'nearest'
+    lr: 2e-5
+    weight_decay: 0.
+    disc_weight: 0.
+    disc_factor: 1.
+    disc_iter_start: 50001
+    disc_loss: 'hinge'
+    log_interval: 20
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 2
+    batch_size: 1
+    wrap: True
+    train:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: './datasets/arknights'
+        train: True
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 128, 128 ]
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'edgenet'
+    version: 'test'
+
+
+checkpoints:
+  best_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/edgenet/test'
+      filename: 'edgenet'
+      monitor: 'val/loss'
+      mode: 'min'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 5
