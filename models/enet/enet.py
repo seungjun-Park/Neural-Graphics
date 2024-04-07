@@ -262,8 +262,7 @@ class EdgeNet(pl.LightningModule):
         img, gt, cond = batch
         edge_map = self(img)
 
-        if (self.global_step // 2) % self.log_interval == 0:
-            self.log_img(img, gt, edge_map)
+        self.log_img(img, gt, edge_map)
 
         rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
 

@@ -13,20 +13,20 @@ module:
     out_channels: 1
     hidden_dims: [32, 64, 128, 256]
     embed_dim: 16
-    num_blocks: 1
+    num_blocks: 2
     # fourier_mask_res: [3]
     num_head_channels: 32
     mlp_ratio: 4
-    dropout: 0.1
-    attn_dropout: 0.1
+    dropout: 0.0
+    attn_dropout: 0.0
     bias: True
-    groups: 16
+    groups: 8
     act: 'gelu'
     use_conv: True
     mode: 'nearest'
     lr: 2e-5
     weight_decay: 0.
-    disc_weight: 1.
+    disc_weight: 1
     disc_factor: 1.
     disc_iter_start: 20001
     disc_loss: 'hinge'
@@ -49,6 +49,17 @@ data:
             - target: torchvision.transforms.transforms.Resize
               params:
                 size: [ 512, 512 ]
+    validation:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: '/local_datasets/arknights'
+        train: False
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 512, 512 ]
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
@@ -64,7 +75,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/edgenet/test'
       filename: 'edgenet'
-      monitor: 'train/loss'
+      monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
