@@ -61,7 +61,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/edgenet/test'
       filename: 'edgenet'
-      monitor: 'val/loss'
+      monitor: 'train/loss'
       mode: 'min'
       save_top_k: 1
 

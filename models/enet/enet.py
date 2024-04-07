@@ -186,6 +186,8 @@ class EdgeNet(pl.LightningModule):
         return x
 
     def training_step(self, batch, batch_idx):
+        loss_dict = dict()
+        prefix = 'train'
         img, gt, cond = batch
         edge_map = self(img)
 
@@ -199,9 +201,11 @@ class EdgeNet(pl.LightningModule):
         #     rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+        loss_dict[f'{prefix}/rec_loss'] = rec_loss
 
         # generator update
         g_loss = -torch.mean(self.disc(edge_map.contiguous(), img))
+        loss_dict[f'{prefix}/g_loss'] = g_loss
 
         if self.disc_factor > 0.0:
             try:
@@ -215,6 +219,7 @@ class EdgeNet(pl.LightningModule):
         disc_factor = self.adopt_weight(self.disc_factor, self.global_step // 2, threshold=self.disc_iter_start)
 
         loss = d_weight * disc_factor * g_loss + rec_loss
+        loss_dict[f'{prefix}/loss'] = loss
 
         opt_unet, opt_disc = self.optimizers()
 
@@ -226,14 +231,21 @@ class EdgeNet(pl.LightningModule):
         # second pass for discriminator update
         logits_real = self.disc(gt.contiguous().detach(), img)
         logits_fake = self.disc(edge_map.contiguous().detach(), img)
+        loss_dict[f'{prefix}/logits_real'] = logits_real
+        loss_dict[f'{prefix}/logits_fake'] = logits_fake
 
         d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+        loss_dict[f'{prefix}/d_loss'] = d_loss
 
         opt_disc.zero_grad()
         self.manual_backward(d_loss)
         opt_disc.step()
+
+        self.log_dict(loss_dict, logger=True)
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
+        loss_dict = dict()
+        prefix = 'train'
         img, gt, cond = batch
         edge_map = self(img)
 
@@ -247,9 +259,11 @@ class EdgeNet(pl.LightningModule):
         #     rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+        loss_dict[f'{prefix}/rec_loss'] = rec_loss
 
         # generator update
         g_loss = -torch.mean(self.disc(edge_map.contiguous(), img))
+        loss_dict[f'{prefix}/g_loss'] = g_loss
 
         if self.disc_factor > 0.0:
             try:
@@ -263,27 +277,24 @@ class EdgeNet(pl.LightningModule):
         disc_factor = self.adopt_weight(self.disc_factor, self.global_step // 2, threshold=self.disc_iter_start)
 
         loss = d_weight * disc_factor * g_loss + rec_loss
+        loss_dict[f'{prefix}/loss'] = loss
 
-        opt_unet, opt_disc = self.optimizers()
-
-        # train encoder+decoder+logvar
-        opt_unet.zero_grad()
-        self.manual_backward(loss)
-        opt_unet.step()
-
-        # second pass for discriminator update
+        # discriminator update
         logits_real = self.disc(gt.contiguous().detach(), img)
         logits_fake = self.disc(edge_map.contiguous().detach(), img)
+        loss_dict[f'{prefix}/logits_real'] = logits_real
+        loss_dict[f'{prefix}/logits_fake'] = logits_fake
 
         d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+        loss_dict[f'{prefix}/d_loss'] = d_loss
 
-        opt_disc.zero_grad()
-        self.manual_backward(d_loss)
-        opt_disc.step()
+        self.log_dict(loss_dict, logger=True)
 
         return self.log_dict
 
     def test_step(self, batch, batch_idx) -> Optional[Any]:
+        loss_dict = dict()
+        prefix = 'train'
         img, gt, cond = batch
         edge_map = self(img)
 
@@ -297,9 +308,11 @@ class EdgeNet(pl.LightningModule):
         #     rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+        loss_dict[f'{prefix}/rec_loss'] = rec_loss
 
         # generator update
-        g_loss = -torch.mean(self.discriminator(edge_map.contiguous(), img))
+        g_loss = -torch.mean(self.disc(edge_map.contiguous(), img))
+        loss_dict[f'{prefix}/g_loss'] = g_loss
 
         if self.disc_factor > 0.0:
             try:
@@ -313,23 +326,19 @@ class EdgeNet(pl.LightningModule):
         disc_factor = self.adopt_weight(self.disc_factor, self.global_step // 2, threshold=self.disc_iter_start)
 
         loss = d_weight * disc_factor * g_loss + rec_loss
+        loss_dict[f'{prefix}/loss'] = loss
 
-        opt_unet, opt_disc = self.optimizers()
-
-        # train encoder+decoder+logvar
-        opt_unet.zero_grad()
-        self.manual_backward(loss)
-        opt_unet.step()
-
-        # second pass for discriminator update
+        # discriminator update
         logits_real = self.disc(gt.contiguous().detach(), img)
         logits_fake = self.disc(edge_map.contiguous().detach(), img)
+        loss_dict[f'{prefix}/logits_real'] = logits_real
+        loss_dict[f'{prefix}/logits_fake'] = logits_fake
 
         d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+        loss_dict[f'{prefix}/d_loss'] = d_loss
 
-        opt_disc.zero_grad()
-        self.manual_backward(d_loss)
-        opt_disc.step()
+        self.log_dict(loss_dict, logger=True)
+
         return self.log_dict
 
     def log_img(self, img, gt, edge):
