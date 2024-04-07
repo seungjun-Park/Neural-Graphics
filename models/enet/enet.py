@@ -339,6 +339,7 @@ class EdgeNet(pl.LightningModule):
 
         return self.log_dict
 
+    @torch.no_grad()
     def log_img(self, img, gt, edge):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment

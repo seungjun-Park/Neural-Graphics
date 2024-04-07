@@ -40,7 +40,7 @@ class ArknightsDataset(Dataset):
         if train:
             root = os.path.join(root, 'train')
         else:
-            root = os.path.join(root, 'test')
+            root = os.path.join(root, 'val')
 
         self.edge_names = glob.glob(f'{root}/*/edges/*.*')
         self.img_names = glob.glob(f'{root}/*/images/*.*')
