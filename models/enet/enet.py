@@ -55,9 +55,9 @@ class EdgeNet(pl.LightningModule):
         self.hidden_dims = hidden_dims
         self.embed_dim = embed_dim
 
-        self.embed = nn.Conv2d(in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
-
         self.down = nn.ModuleList()
+        self.down.append(nn.Conv2d(in_channels, embed_dim, kernel_size=3, stride=1, padding=1))
+
         self.middle = nn.ModuleList()
         self.up = nn.ModuleList()
 
@@ -92,30 +92,28 @@ class EdgeNet(pl.LightningModule):
                 skip_dims.append(in_ch)
                 self.down.append(*down)
 
-            self.down.append(DownBlock(in_ch, use_conv))
+            self.down.append(DownBlock(in_ch))
             current_res = current_res // 2
             skip_dims.append(in_ch)
 
-        self.middle.append(
-            nn.Sequential(
-                ResidualBlock(
-                    in_channels=in_ch,
-                    out_channels=in_ch,
-                    dropout=dropout,
-                    act=act,
-                    groups=groups,
-                ),
-                LearnableFourierMask(
-                    in_channels,
-                    in_res=current_res
-                ),
-                ResidualBlock(
-                    in_channels=in_ch,
-                    out_channels=in_ch,
-                    dropout=dropout,
-                    act=act,
-                    groups=groups,
-                )
+        self.middle = nn.Sequential(
+            ResidualBlock(
+                in_channels=in_ch,
+                out_channels=in_ch,
+                dropout=dropout,
+                act=act,
+                groups=groups,
+            ),
+            LearnableFourierMask(
+                in_ch,
+                in_res=current_res
+            ),
+            ResidualBlock(
+                in_channels=in_ch,
+                out_channels=in_ch,
+                dropout=dropout,
+                act=act,
+                groups=groups,
             )
         )
 
@@ -124,7 +122,7 @@ class EdgeNet(pl.LightningModule):
         hidden_dims.append(embed_dim)
 
         for i, out_ch in enumerate(hidden_dims):
-            self.up.append(UpBlock(in_ch + skip_dims.pop(), use_conv, mode=mode))
+            self.up.append(UpBlock(in_ch + skip_dims.pop(), out_channels=in_ch, mode=mode))
             current_res = current_res ** 2
 
             for j in range(num_blocks):
@@ -203,7 +201,7 @@ class EdgeNet(pl.LightningModule):
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
         # generator update
-        g_loss = -torch.mean(self.discriminator(edge_map.contiguous(), img))
+        g_loss = -torch.mean(self.disc(edge_map.contiguous(), img))
 
         if self.disc_factor > 0.0:
             try:
@@ -226,8 +224,8 @@ class EdgeNet(pl.LightningModule):
         opt_unet.step()
 
         # second pass for discriminator update
-        logits_real = self.discriminator(gt.contiguous().detach(), img)
-        logits_fake = self.discriminator(edge_map.contiguous().detach(), img)
+        logits_real = self.disc(gt.contiguous().detach(), img)
+        logits_fake = self.disc(edge_map.contiguous().detach(), img)
 
         d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
 
@@ -251,7 +249,7 @@ class EdgeNet(pl.LightningModule):
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
         # generator update
-        g_loss = -torch.mean(self.discriminator(edge_map.contiguous(), img))
+        g_loss = -torch.mean(self.disc(edge_map.contiguous(), img))
 
         if self.disc_factor > 0.0:
             try:
@@ -274,8 +272,8 @@ class EdgeNet(pl.LightningModule):
         opt_unet.step()
 
         # second pass for discriminator update
-        logits_real = self.discriminator(gt.contiguous().detach(), img)
-        logits_fake = self.discriminator(edge_map.contiguous().detach(), img)
+        logits_real = self.disc(gt.contiguous().detach(), img)
+        logits_fake = self.disc(edge_map.contiguous().detach(), img)
 
         d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
 
@@ -324,8 +322,8 @@ class EdgeNet(pl.LightningModule):
         opt_unet.step()
 
         # second pass for discriminator update
-        logits_real = self.discriminator(gt.contiguous().detach(), img)
-        logits_fake = self.discriminator(edge_map.contiguous().detach(), img)
+        logits_real = self.disc(gt.contiguous().detach(), img)
+        logits_fake = self.disc(edge_map.contiguous().detach(), img)
 
         d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
 
@@ -333,6 +331,13 @@ class EdgeNet(pl.LightningModule):
         self.manual_backward(d_loss)
         opt_disc.step()
         return self.log_dict
+
+    def log_img(self, img, gt, edge):
+        prefix = 'train' if self.training else 'val'
+        tb = self.logger.experiment
+        tb.add_image(f'{prefix}/img', torch.clamp(img, 0, 1)[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/gt', torch.clamp(gt, 0, 1)[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/edge', torch.clamp(edge, 0, 1)[0], self.global_step, dataformats='CHW')
 
     def adopt_weight(self, weight, global_step, threshold=0, value=0.):
         if global_step < threshold:
@@ -345,12 +350,11 @@ class EdgeNet(pl.LightningModule):
 
         d_weight = torch.norm(rec_grads) / (torch.norm(g_grads) + 1e-4)
         d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
-        d_weight = d_weight * self.discriminator_weight
+        d_weight = d_weight * self.disc_weight
         return d_weight
 
     def configure_optimizers(self) -> Any:
-        opt_unet = torch.optim.AdamW(list(self.embed.parameters()) +
-                                     list(self.down.parameters()) +
+        opt_unet = torch.optim.AdamW(list(self.down.parameters()) +
                                      list(self.middle.parameters()) +
                                      list((self.up.parameters())) +
                                      list(self.out.parameters()),

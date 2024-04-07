@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 from typing import Union, List, Tuple
 from utils import get_act, conv_nd, norm, group_norm
-from modules.blocks import LearnableFourierMask
 
 
 class ResidualBlock(nn.Module):

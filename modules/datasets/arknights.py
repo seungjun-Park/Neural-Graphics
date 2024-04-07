@@ -3,6 +3,7 @@ import os
 import json
 
 import cv2
+import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 from utils import instantiate_from_config
@@ -41,9 +42,11 @@ class ArknightsDataset(Dataset):
         else:
             root = os.path.join(root, 'test')
 
-        self.edge_names = glob.glob(f'{root}/*/edges/*.*', recursive=True)
-        self.img_names = glob.glob(f'{root}/*/images/*.*', recursive=True)
-        self.tag_names = glob.glob(f'{root}/*/tags/*.*', recursive=True)
+        self.edge_names = glob.glob(f'{root}/*/edges/*.*')
+        self.img_names = glob.glob(f'{root}/*/images/*.*')
+        self.tag_names = glob.glob(f'{root}/*/tags/.*.*')
+
+        assert len(self.edge_names) == len(self.img_names) == len(self.tag_names)
 
     def __getitem__(self, index):
         edge_name = self.edge_names[index]
@@ -53,18 +56,22 @@ class ArknightsDataset(Dataset):
         img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        edge = cv2.imread(f'f{edge_name}', cv2.IMREAD_GRAYSCALE)
+        edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
 
         with open(f'{tag_name}', 'r') as f:
             tag = json.load(f)
 
         if self.transform is not None:
             img = self.transform(img)
+            edge = self.transform(edge)
 
         if self.target_transform is not None:
             tag = self.target_transform(tag)
 
+        tag = torch.zeros(img.shape)
+
         return img, edge, tag
+        # return img, edge, tag
 
     def __len__(self):
         return len(self.img_names)

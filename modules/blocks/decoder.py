@@ -5,12 +5,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import List, Tuple, Union
 
-from modules.complex import ComplexConv2d, ComplexGroupNorm, ComplexLayerNorm, ComplexLinear
-from modules.blocks.patches import ComplexPatchExpanding
-from modules.blocks.up import UpBlock, ComplexUpBlock
-from modules.blocks.res_block import ResidualBlock, ComplexResidualBlock
-from modules.blocks.attn_block import AttnBlock, ComplexShiftedWindowAttnBlock
-from utils import get_act, conv_nd, group_norm, to_2tuple, ComplexSequential
+from modules.blocks.up import UpBlock
+from modules.blocks.res_block import ResidualBlock
+from modules.blocks.attn_block import AttnBlock
+from utils import get_act, conv_nd, group_norm, to_2tuple
 
 
 class Decoder(nn.Module):

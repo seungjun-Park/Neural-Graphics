@@ -7,4 +7,4 @@ from .mlp import *
 from .patches import *
 from .res_block import *
 from .up import *
-from fourier_mask import *
+from .fourier_mask import *
