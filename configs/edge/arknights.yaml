@@ -11,23 +11,26 @@ module:
         num_layers: 3
         bias: False
     out_channels: 1
-    hidden_dims: [64, 128, 256, 256]
+    hidden_dims: [64, 128, 256, 512, 256]
     embed_dim: 32
     num_blocks: 1
     # fourier_mask_res: [3]
+    num_head_channels: 32
+    mlp_ratio: 4
     dropout: 0.1
+    attn_dropout: 0.1
     bias: True
     groups: 32
-    act: 'silu'
+    act: 'gelu'
     use_conv: True
     mode: 'nearest'
     lr: 2e-5
     weight_decay: 0.
-    disc_weight: 0.
+    disc_weight: 1.
     disc_factor: 1.
-    disc_iter_start: 301
+    disc_iter_start: 5001
     disc_loss: 'hinge'
-    log_interval: 20
+    log_interval: 100
 
 data:
   target: modules.datasets.util.DataModuleFromConfig

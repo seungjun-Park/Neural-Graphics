@@ -31,6 +31,6 @@ class LearnableFourierMask(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x.shape = b, c, h, w
         h = rfftn(x, dim=tuple(range(2, x.ndim)))
-        h = h * F.relu(self.learnable_mask)
+        h = h * F.hardtanh(self.learnable_mask, 0, 1)
         h = irfftn(h, dim=tuple(range(2, h.ndim)))
         return 0.5 * (x + h)

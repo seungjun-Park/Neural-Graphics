@@ -5,8 +5,8 @@ import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple
-from modules.blocks import ResidualBlock, LearnableFourierMask, DownBlock, UpBlock
-from taming.modules.losses.vqperceptual import hinge_d_loss, vanilla_d_loss, weights_init
+from modules.blocks import ResidualBlock, LearnableFourierMask, DownBlock, UpBlock, AttnBlock
+from taming.modules.losses.vqperceptual import hinge_d_loss, vanilla_d_loss, weights_init, LPIPS
 
 
 class EdgeNet(pl.LightningModule):
@@ -19,7 +19,11 @@ class EdgeNet(pl.LightningModule):
                  embed_dim: int = 64,
                  num_blocks: int = 2,
                  fourier_mask_res: Union[List[int], Tuple[int]] = (),
+                 num_heads: int = -1,
+                 num_head_channels: int = -1,
+                 mlp_ratio: int = 4,
                  dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
                  bias: bool = True,
                  groups: int = 32,
                  act: str = 'relu',
@@ -27,12 +31,14 @@ class EdgeNet(pl.LightningModule):
                  mode: str = 'nearest',
                  lr: float = 2e-5,
                  weight_decay: float = 0.,
+                 perceptual_weight: float = 1.0,
                  disc_weight: float = 0.,
                  disc_factor: float = 1.,
                  disc_iter_start: int = 50001,
                  disc_loss: str = 'hinge',
                  log_interval: int = 100,
                  ckpt_path: str = None,
+                 dim: int = 2,
                  *args,
                  **kwargs,
                  ):
@@ -42,6 +48,9 @@ class EdgeNet(pl.LightningModule):
         self.weight_decay = weight_decay
         self.log_interval = log_interval
         self.automatic_optimization = False
+
+        self.perceptual_weight = perceptual_weight
+        self.perceptual_loss = LPIPS().eval()
 
         self.disc = instantiate_from_config(disc_config).apply(weights_init)
         self.disc_weight = disc_weight
@@ -104,9 +113,22 @@ class EdgeNet(pl.LightningModule):
                 act=act,
                 groups=groups,
             ),
-            LearnableFourierMask(
+            # LearnableFourierMask(
+            #     in_ch,
+            #     in_res=current_res
+            # ),
+            AttnBlock(
                 in_ch,
-                in_res=current_res
+                mlp_ratio=mlp_ratio,
+                heads=num_heads,
+                num_head_channels=num_head_channels,
+                dropout=dropout,
+                attn_dropout=attn_dropout,
+                bias=bias,
+                act=act,
+                use_conv=use_conv,
+                dim=dim,
+                groups=groups,
             ),
             ResidualBlock(
                 in_channels=in_ch,
@@ -194,9 +216,9 @@ class EdgeNet(pl.LightningModule):
 
         rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
 
-        # if self.perceptual_weight > 0:
-        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
-        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
+        if self.perceptual_weight > 0:
+            p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
+            rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
@@ -244,9 +266,9 @@ class EdgeNet(pl.LightningModule):
 
         rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
 
-        # if self.perceptual_weight > 0:
-        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
-        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
+        if self.perceptual_weight > 0:
+            p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
+            rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
@@ -285,9 +307,9 @@ class EdgeNet(pl.LightningModule):
 
         rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
 
-        # if self.perceptual_weight > 0:
-        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
-        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
+        if self.perceptual_weight > 0:
+            p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
+            rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
