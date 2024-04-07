@@ -2,7 +2,7 @@ module:
   target: models.enet.enet.EdgeNet
   params:
     in_channels: 3
-    in_res: 128
+    in_res: 512
     disc_config:
       target: models.gan.discriminator.Discriminator
       params:
