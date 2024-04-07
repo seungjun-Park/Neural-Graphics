@@ -33,7 +33,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 1
-    batch_size: 5
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
@@ -45,7 +45,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 128, 128 ]
+                size: [ 512, 512 ]
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
@@ -67,4 +67,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 5
+  max_epochs: 100
