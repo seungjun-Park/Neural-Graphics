@@ -11,8 +11,8 @@ module:
         num_layers: 3
         bias: False
     out_channels: 1
-    hidden_dims: [64, 128, 256, 512, 256]
-    embed_dim: 32
+    hidden_dims: [32, 64, 128, 256]
+    embed_dim: 16
     num_blocks: 1
     # fourier_mask_res: [3]
     num_head_channels: 32
@@ -20,7 +20,7 @@ module:
     dropout: 0.1
     attn_dropout: 0.1
     bias: True
-    groups: 32
+    groups: 16
     act: 'gelu'
     use_conv: True
     mode: 'nearest'
@@ -28,7 +28,7 @@ module:
     weight_decay: 0.
     disc_weight: 1.
     disc_factor: 1.
-    disc_iter_start: 5001
+    disc_iter_start: 20001
     disc_loss: 'hinge'
     log_interval: 100
 
@@ -70,4 +70,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 100
+  max_epochs: 500

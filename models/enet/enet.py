@@ -170,7 +170,7 @@ class EdgeNet(pl.LightningModule):
                 self.up.append(*up)
 
         self.out = nn.Conv2d(
-            in_ch,
+            in_ch + skip_dims.pop(),
             out_channels,
             kernel_size=3,
             stride=1,
@@ -203,6 +203,7 @@ class EdgeNet(pl.LightningModule):
             x = torch.cat([x, hs.pop()], dim=1)
             x = module(x)
 
+        x = torch.cat([x, hs.pop()], dim=1)
         x = self.out(x)
 
         return x
