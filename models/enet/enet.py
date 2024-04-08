@@ -233,7 +233,7 @@ class EdgeNet(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge_map)
 
-        loss = cats_loss(edge_map, gt, l_w)
+        loss = cats_loss(edge_map, gt, self.l_weight)
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
         # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
@@ -287,7 +287,7 @@ class EdgeNet(pl.LightningModule):
 
         self.log_img(img, gt, edge_map)
 
-        loss = cats_loss(edge_map, gt, l_w)
+        loss = cats_loss(edge_map, gt, self.l_weight)
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
         # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
@@ -331,7 +331,7 @@ class EdgeNet(pl.LightningModule):
         if (self.global_step // 2) % self.log_interval == 0:
             self.log_img(img, gt, edge_map)
 
-        loss = cats_loss(edge_map, gt, l_w)
+        loss = cats_loss(edge_map, gt, self.l_weight)
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
         # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
