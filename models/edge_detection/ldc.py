@@ -117,12 +117,11 @@ class CoFusion(nn.Module):
         self.norm = group_norm(embed_dim, num_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # attn = self.act(self.norm(self.conv1(x)))
-        # attn = F.softmax(self.conv2(attn), dim=1)
-        # attn = ((x * attn).sum(1)).unsqueeze(1)
+        attn = self.act(self.norm(self.conv1(x)))
+        attn = F.softmax(self.conv2(attn), dim=1)
+        attn = ((x * attn).sum(1)).unsqueeze(1)
 
-        x = self.conv2(self.act(self.norm(self.conv1(x))))
-        return x
+        return ((x * attn).sum(1)).unsqueeze(1)
 
 
 class DSNet(nn.Module):
@@ -439,7 +438,7 @@ class LDC(pl.LightningModule):
         edge = self(img)
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, gt, cond)
+            self.log_img(img, gt, edge)
 
         loss = cats_loss(edge, gt, (1., 1.))
 
@@ -451,7 +450,7 @@ class LDC(pl.LightningModule):
         img, gt, cond = batch
         edge = self(img)
 
-        self.log_img(img, gt, cond)
+        self.log_img(img, gt, edge)
 
         loss = cats_loss(edge, gt, (1., 1.))
 
