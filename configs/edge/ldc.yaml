@@ -63,7 +63,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/ldc/test'
       filename: 'ldc'
-      monitor: 'val/loss'
+      monitor: 'train/loss'
       mode: 'min'
       save_top_k: 1
 
