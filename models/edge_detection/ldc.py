@@ -102,7 +102,7 @@ class CoFusion(nn.Module):
                  in_channels: int,
                  embed_dim: int = 32,
                  out_channels: int = None,
-                 num_groups: int = 1,
+                 num_groups: int = None,
                  act: str = 'relu',
                  dim: int = 2,
                  ):
@@ -111,9 +111,10 @@ class CoFusion(nn.Module):
         out_channels = in_channels if out_channels is None else out_channels
 
         self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)  # before 64
-        self.conv2 = conv_nd(embed_dim, out_channels, kernel_size=3, stride=1, padding=1)  # before 64  instead of 32
+        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=3, stride=1, padding=1)  # before 64  instead of 32
         self.act = get_act(act)
-        self.norm = group_norm(in_channels, num_groups)
+        num_groups = embed_dim if num_groups is None else num_groups
+        self.norm = group_norm(embed_dim, num_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         attn = self.act(self.norm(self.conv1(x)))
@@ -176,6 +177,8 @@ class USNet(nn.Module):
             layer.append(conv_nd(dim, in_ch, out_ch, kernel_size=3, stride=1, padding=1))
             layer.append(get_act(act))
 
+            in_ch = out_ch
+
             self.layers.append(nn.Sequential(*layer))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -192,7 +195,7 @@ class SingleConvBlock(nn.Module):
                  out_channels: int = None,
                  stride: int = 1,
                  use_norm: bool = True,
-                 num_groups: int = 1,
+                 num_groups: int = None,
                  dim: int = 2,
                  ):
         super().__init__()
@@ -200,7 +203,9 @@ class SingleConvBlock(nn.Module):
         out_channels = in_channels if out_channels is None else out_channels
         self.use_norm = use_norm
 
-        self.conv = conv_nd(dim, in_channels, out_channels, kernel_size=1, strde=stride)
+        num_groups = out_channels if num_groups is None else num_groups
+
+        self.conv = conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=stride)
         if use_norm:
             self.norm = group_norm(out_channels, num_groups)
 
@@ -415,7 +420,7 @@ class LDC(pl.LightningModule):
 
     def forward(self, x: torch.Tensor):
         edges = []
-        for i, block, us_block in enumerate(zip(self.blocks, self.us_blocks)):
+        for i, (block, us_block) in enumerate(zip(self.blocks, self.us_blocks)):
             x = block(x)
             edges.append(us_block(x))
             if 0 < i < len(self.down_blocks) + 1:
