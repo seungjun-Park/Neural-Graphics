@@ -482,6 +482,7 @@ class LDC(pl.LightningModule):
     def configure_optimizers(self) -> Any:
         opt = torch.optim.AdamW(list(self.down_blocks.parameters()) +
                                 list(self.blocks.parameters()) +
+                                list(self.left_skips.parameters()) +
                                 list(self.us_blocks.parameters()),
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
