@@ -398,10 +398,10 @@ class EdgeNet(pl.LightningModule):
                                      weight_decay=self.weight_decay,
                                      )
 
-        opt_disc = torch.optim.AdamW(list(self.disc.parameters()),
-                                     lr=self.lr,
-                                     weight_decay=self.weight_decay,
-                                     )
+        # opt_disc = torch.optim.AdamW(list(self.disc.parameters()),
+        #                              lr=self.lr,
+        #                              weight_decay=self.weight_decay,
+        #                              )
 
         return opt_unet
         # return [opt_unet, opt_disc]
