@@ -4,19 +4,21 @@ module:
     in_channels: 3
     embed_dim: 16
     hidden_dims: [32, 64, 96]
-    num_blocks: 2
+    num_blocks: 3
     num_downs: 2
-    use_conv: False
+    use_conv: True
     pool_type: 'max'
     mode: 'nearest'
     use_norm: True
     num_groups: 4
     use_act: True
-    act: 'relu'
+    act: 'silu'
     dim: 2
-    lr: 1e-4
+    lr: 2e-5
     weight_decay: 0.
     log_interval: 50
+    bdr_factor: 0.5
+    tex_factor: 0.5
 
 data:
   target: modules.datasets.util.DataModuleFromConfig

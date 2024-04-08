@@ -326,12 +326,16 @@ class LDC(pl.LightningModule):
                  lr: float = 1e-4,
                  weight_decay: float = 0.,
                  log_interval: int = 100,
+                 bdr_factor: float = 0.,
+                 tex_factor: float = 0.,
                  ):
         super().__init__()
 
         self.lr = lr
         self.weight_decay = weight_decay
         self.log_interval = log_interval
+        self.bdr_factor = bdr_factor
+        self.tex_factor = tex_factor
 
         self.blocks = nn.ModuleList()
         self.down_blocks = nn.ModuleList()
@@ -453,7 +457,7 @@ class LDC(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
 
-        loss = cats_loss(edge, gt, (0., 0.))
+        loss = cats_loss(edge, gt, (self.bdr_factor, self.tex_factor))
 
         self.log('train/loss', loss, logger=True)
 
@@ -465,7 +469,7 @@ class LDC(pl.LightningModule):
 
         self.log_img(img, gt, edge)
 
-        loss = cats_loss(edge, gt, (0., 0.))
+        loss = cats_loss(edge, gt, (self.bdr_factor, self.tex_factor))
 
         self.log('val/loss', loss, logger=True)
 
