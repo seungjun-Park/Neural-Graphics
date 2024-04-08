@@ -115,7 +115,7 @@ class EdgeNet(pl.LightningModule):
                     )
 
                 skip_dims.append(in_ch)
-                self.down.append(*down)
+                self.down.append(nn.Sequential(*down))
 
             self.down.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
             current_res = current_res // 2
@@ -187,7 +187,7 @@ class EdgeNet(pl.LightningModule):
                             groups=groups,
                         ),
                     )
-                self.up.append(*up)
+                self.up.append(nn.Sequential(*up))
 
         self.out = nn.Conv2d(
             in_ch + skip_dims.pop(),
