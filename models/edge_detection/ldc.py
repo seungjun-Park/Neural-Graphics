@@ -139,7 +139,7 @@ class DSNet(nn.Module):
             self.pooling = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=2, padding=0)
 
         else:
-            self.pooling = pool_nd(pool_type, dim=dim)
+            self.pooling = pool_nd(pool_type, dim=dim, kernel_size=3, stride=2, padding=1)
 
     def forward(self, x):
         if self.use_conv:
