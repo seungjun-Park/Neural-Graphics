@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from .activation import Sine, Cosine
 
 
-def conv_nd(dim=2, *args, **kwargs):
+def conv_nd(dim: int = 2, *args, **kwargs):
     if dim == 1:
         return nn.Conv1d(*args, **kwargs)
 
@@ -18,7 +18,7 @@ def conv_nd(dim=2, *args, **kwargs):
         NotImplementedError("The dims should have a value between 1 and 3.")
 
 
-def avg_pool_nd(dim=2, *args, **kwargs):
+def avg_pool_nd(dim: int = 2, *args, **kwargs):
     if dim == 1:
         return nn.AvgPool1d(*args, **kwargs)
 
@@ -32,7 +32,7 @@ def avg_pool_nd(dim=2, *args, **kwargs):
         NotImplementedError("The dims should have a value between 1 and 3.")
 
 
-def max_pool_nd(dim=2, *args, **kwargs):
+def max_pool_nd(dim: int = 2, *args, **kwargs):
     if dim == 1:
         return nn.MaxPool1d(*args, **kwargs)
 
@@ -44,6 +44,16 @@ def max_pool_nd(dim=2, *args, **kwargs):
 
     else:
         NotImplementedError("The dims should have a value between 1 and 3.")
+
+
+def pool_nd(pool_type: str = 'max', dim: int = 2, *args, **kwargs):
+    pool_type = pool_type.lower()
+    if pool_type == 'max':
+        return max_pool_nd(dim=dim, *args, **kwargs)
+    elif pool_type == 'avg':
+        return avg_pool_nd(dim=dim, *args, **kwargs)
+    else:
+        NotImplementedError('current version should be supported max and avg pooling')
 
 
 def batch_norm_nd(dim=2, *args, **kwargs):
