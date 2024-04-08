@@ -117,9 +117,12 @@ class CoFusion(nn.Module):
         self.norm = group_norm(embed_dim, num_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        attn = self.act(self.norm(self.conv1(x)))
-        attn = F.softmax(self.conv2(attn), dim=1)
-        return ((x * attn).sum(1)).unsqueeze(1)
+        # attn = self.act(self.norm(self.conv1(x)))
+        # attn = F.softmax(self.conv2(attn), dim=1)
+        # attn = ((x * attn).sum(1)).unsqueeze(1)
+
+        x = self.conv2(self.act(self.norm(self.conv1(x))))
+        return x
 
 
 class DSNet(nn.Module):
