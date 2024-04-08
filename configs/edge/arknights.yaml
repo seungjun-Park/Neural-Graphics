@@ -73,13 +73,13 @@ logger:
 
 
 checkpoints:
-  best_checkpoint:
+  latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
       dirpath: './checkpoints/edgenet/test'
       filename: 'edgenet'
-      monitor: 'val/loss'
-      mode: 'min'
+      monitor: 'step'
+      mode: 'max'
       save_top_k: 1
 
 trainer:
