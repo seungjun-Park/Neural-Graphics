@@ -32,8 +32,8 @@ module:
     disc_iter_start: 20001
     disc_loss: 'hinge'
     log_interval: 100
-    bdr_factor: 0.05
-    tex_factor: 2.
+    bdr_factor: [0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.01]
+    tex_factor: [2., 2., 2., 1., 1., 1., 4.]
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -44,7 +44,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights'
+        root: './datasets/arknights'
         train: True
         transform_configs:
           transforms:
@@ -55,7 +55,7 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights'
+        root: './datasets/arknights'
         train: False
         transform_configs:
           transforms:
