@@ -1,4 +1,6 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.fft import rfftn, ifftn
 
 
@@ -28,33 +30,91 @@ def LFD(target, pred, dim=2, type='l1'):
     return lfd
 
 
-def frequency_cosine_similarity(target, pred, dim=2, eps=1e-5):
-    target_freq = img_to_freq(target, dim=dim)
-    pred_freq = img_to_freq(pred, dim=dim)
-    pred_freq_hermitian = pred_freq.conj().permute(0, 1, 3, 2) # conjugate transpose
+def bdcn_loss2(inputs, targets, l_weight=1.1):
+    # bdcn loss modified in DexiNed
 
-    if dim == 1:
-        dim = [-1]
-    elif dim == 2:
-        dim = [-2, -1]
-    elif dim == 3:
-        dim = [-3, -2, -1]
-    else:
-        NotImplementedError(f'dim: {dim} is not supported.')
+    targets = targets.long()
+    mask = targets.float()
+    num_positive = torch.sum((mask > 0.0).float()).float() # >0.1
+    num_negative = torch.sum((mask <= 0.0).float()).float() # <= 0.1
 
-    # calculate cos for each RGB channel
-    target_freq_norm = target_freq.norm(dim=dim)
-    pred_freq_hermitian_norm = pred_freq_hermitian.norm(dim=dim)
+    mask[mask > 0.] = 1.0 * num_negative / (num_positive + num_negative) #0.1
+    mask[mask <= 0.] = 1.1 * num_positive / (num_positive + num_negative)  # before mask[mask <= 0.1]
+    inputs= torch.sigmoid(inputs)
+    cost = torch.nn.BCELoss(mask, reduction='none')(inputs, targets.float())
+    cost = torch.sum(cost.float().mean((1, 2, 3))) # before sum
+    return l_weight*cost
 
-    inner_prod = torch.einsum('bcij,bcjk->bcik', target_freq, pred_freq_hermitian)
-    diag = inner_prod.diagonal(offset=0, dim1=-2, dim2=-1)
-    tr = diag.sum(dim=-1)
+# ------------ cats losses ----------
 
-    # To prevent division by zero, we add small epsilon in denominator.
-    cosine = tr / (target_freq_norm * pred_freq_hermitian_norm + eps)
-    cosine = torch.sum(cosine, dim=-1)
-    cosine = torch.sum(cosine) / cosine.shape[-1]
 
-    cosine_similarity = torch.sum(1 - cosine).real
+def bdrloss(prediction, label, radius):
+    '''
+    The boundary tracing loss that handles the confusing pixels.
+    '''
 
-    return cosine_similarity
+    filt = torch.ones(1, 1, 2*radius+1, 2*radius+1).to(prediction.device)
+    filt.requires_grad = False
+
+    bdr_pred = prediction * label
+    pred_bdr_sum = label * F.conv2d(bdr_pred, filt, bias=None, stride=1, padding=radius)
+
+    texture_mask = F.conv2d(label.float(), filt, bias=None, stride=1, padding=radius)
+    mask = (texture_mask != 0).float()
+    mask[label == 1] = 0
+    pred_texture_sum = F.conv2d(prediction * (1-label) * mask, filt, bias=None, stride=1, padding=radius)
+
+    softmax_map = torch.clamp(pred_bdr_sum / (pred_texture_sum + pred_bdr_sum + 1e-10), 1e-10, 1 - 1e-10)
+    cost = -label * torch.log(softmax_map)
+    cost[label == 0] = 0
+
+    return torch.sum(cost.float().mean((1, 2, 3)))
+
+
+def textureloss(prediction, label, mask_radius):
+    '''
+    The texture suppression loss that smooths the texture regions.
+    '''
+    filt1 = torch.ones(1, 1, 3, 3).to(prediction.device)
+    filt1.requires_grad = False
+
+    filt2 = torch.ones(1, 1, 2*mask_radius+1, 2*mask_radius+1).to(prediction.device)
+    filt2.requires_grad = False
+
+    pred_sums = F.conv2d(prediction.float(), filt1, bias=None, stride=1, padding=1)
+    label_sums = F.conv2d(label.float(), filt2, bias=None, stride=1, padding=mask_radius)
+
+    mask = 1 - torch.gt(label_sums, 0).float()
+
+    loss = -torch.log(torch.clamp(1-pred_sums/9, 1e-10, 1-1e-10))
+    loss[mask == 0] = 0
+
+    return torch.sum(loss.float().mean((1, 2, 3)))
+
+
+def cats_loss(prediction, label, l_weight=(0., 0.)):
+    # tracingLoss
+
+    tex_factor,bdr_factor = l_weight
+    balanced_w = 1.1
+    label = label.float()
+    prediction = prediction.float()
+    with torch.no_grad():
+        mask = label.clone()
+
+        num_positive = torch.sum((mask == 1).float()).float()
+        num_negative = torch.sum((mask == 0).float()).float()
+        beta = num_negative / (num_positive + num_negative)
+        mask[mask == 1] = beta
+        mask[mask == 0] = balanced_w * (1 - beta)
+        mask[mask == 2] = 0
+    prediction = torch.sigmoid(prediction)
+
+    cost = torch.nn.functional.binary_cross_entropy(
+        prediction.float(), label.float(), weight=mask, reduction='none')
+    cost = torch.sum(cost.float().mean((1, 2, 3)))  # by me
+    label_w = (label != 0).float()
+    textcost = textureloss(prediction.float(), label_w.float(), mask_radius=4)
+    bdrcost = bdrloss(prediction.float(), label_w.float(), radius=4)
+
+    return cost + bdr_factor * bdrcost + tex_factor * textcost

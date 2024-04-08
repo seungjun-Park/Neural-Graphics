@@ -5,96 +5,7 @@ import pytorch_lightning as pl
 
 from typing import Union, Tuple, List, Dict, Any
 from utils import conv_nd, get_act, group_norm, pool_nd, conv_transpose_nd
-
-
-def bdcn_loss2(inputs, targets, l_weight=1.1):
-    # bdcn loss modified in DexiNed
-
-    targets = targets.long()
-    mask = targets.float()
-    num_positive = torch.sum((mask > 0.0).float()).float() # >0.1
-    num_negative = torch.sum((mask <= 0.0).float()).float() # <= 0.1
-
-    mask[mask > 0.] = 1.0 * num_negative / (num_positive + num_negative) #0.1
-    mask[mask <= 0.] = 1.1 * num_positive / (num_positive + num_negative)  # before mask[mask <= 0.1]
-    inputs= torch.sigmoid(inputs)
-    cost = torch.nn.BCELoss(mask, reduction='none')(inputs, targets.float())
-    cost = torch.sum(cost.float().mean((1, 2, 3))) # before sum
-    return l_weight*cost
-
-# ------------ cats losses ----------
-
-
-def bdrloss(prediction, label, radius):
-    '''
-    The boundary tracing loss that handles the confusing pixels.
-    '''
-
-    filt = torch.ones(1, 1, 2*radius+1, 2*radius+1).to(prediction.device)
-    filt.requires_grad = False
-
-    bdr_pred = prediction * label
-    pred_bdr_sum = label * F.conv2d(bdr_pred, filt, bias=None, stride=1, padding=radius)
-
-    texture_mask = F.conv2d(label.float(), filt, bias=None, stride=1, padding=radius)
-    mask = (texture_mask != 0).float()
-    mask[label == 1] = 0
-    pred_texture_sum = F.conv2d(prediction * (1-label) * mask, filt, bias=None, stride=1, padding=radius)
-
-    softmax_map = torch.clamp(pred_bdr_sum / (pred_texture_sum + pred_bdr_sum + 1e-10), 1e-10, 1 - 1e-10)
-    cost = -label * torch.log(softmax_map)
-    cost[label == 0] = 0
-
-    return torch.sum(cost.float().mean((1, 2, 3)))
-
-
-def textureloss(prediction, label, mask_radius):
-    '''
-    The texture suppression loss that smooths the texture regions.
-    '''
-    filt1 = torch.ones(1, 1, 3, 3).to(prediction.device)
-    filt1.requires_grad = False
-
-    filt2 = torch.ones(1, 1, 2*mask_radius+1, 2*mask_radius+1).to(prediction.device)
-    filt2.requires_grad = False
-
-    pred_sums = F.conv2d(prediction.float(), filt1, bias=None, stride=1, padding=1)
-    label_sums = F.conv2d(label.float(), filt2, bias=None, stride=1, padding=mask_radius)
-
-    mask = 1 - torch.gt(label_sums, 0).float()
-
-    loss = -torch.log(torch.clamp(1-pred_sums/9, 1e-10, 1-1e-10))
-    loss[mask == 0] = 0
-
-    return torch.sum(loss.float().mean((1, 2, 3)))
-
-
-def cats_loss(prediction, label, l_weight=(0., 0.)):
-    # tracingLoss
-
-    tex_factor,bdr_factor = l_weight
-    balanced_w = 1.1
-    label = label.float()
-    prediction = prediction.float()
-    with torch.no_grad():
-        mask = label.clone()
-
-        num_positive = torch.sum((mask == 1).float()).float()
-        num_negative = torch.sum((mask == 0).float()).float()
-        beta = num_negative / (num_positive + num_negative)
-        mask[mask == 1] = beta
-        mask[mask == 0] = balanced_w * (1 - beta)
-        mask[mask == 2] = 0
-    prediction = torch.sigmoid(prediction)
-
-    cost = torch.nn.functional.binary_cross_entropy(
-        prediction.float(), label.float(), weight=mask, reduction='none')
-    cost = torch.sum(cost.float().mean((1, 2, 3)))  # by me
-    label_w = (label != 0).float()
-    textcost = textureloss(prediction.float(), label_w.float(), mask_radius=4)
-    bdrcost = bdrloss(prediction.float(), label_w.float(), radius=4)
-
-    return cost + bdr_factor * bdrcost + tex_factor * textcost
+from utils.loss import cats_loss
 
 
 class CoFusion(nn.Module):
@@ -132,22 +43,14 @@ class DSNet(nn.Module):
                  ):
         super().__init__()
 
-        self.use_conv = use_conv
-
         if use_conv:
-            self.pooling = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=2, padding=0)
+            self.pooling = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=2, padding=1)
 
         else:
             self.pooling = pool_nd(pool_type, dim=dim, kernel_size=3, stride=2, padding=1)
 
     def forward(self, x):
-        if self.use_conv:
-            pad = (0, 1, 0, 1)
-            x = F.pad(x, pad, mode='constant', value=0)
-            x = self.pooling(x)
-
-        else:
-            x = self.pooling(x)
+        x = self.pooling(x)
 
         return x
 
@@ -299,7 +202,7 @@ class DenseBlock(nn.Module):
             dim=dim
         )
 
-    def forward(self, x):
+    def forward(self, x, res):
         residual = self.skip(x)
 
         for module in self.blocks:
@@ -342,6 +245,8 @@ class LDC(pl.LightningModule):
         self.down_blocks = nn.ModuleList()
         self.us_blocks = nn.ModuleList()
         self.left_skips = nn.ModuleList()
+        self.right_skips = nn.ModuleList()
+        self.down_skips = nn.ModuleList()
 
         self.blocks.append(
             DoubleConvBlock(
@@ -395,6 +300,27 @@ class LDC(pl.LightningModule):
                     )
                 )
 
+                self.right_skips.append(
+                    SingleConvBlock(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        stride=1,
+                        use_norm=use_norm,
+                        num_groups=num_groups
+                    )
+                )
+
+            if i != len(hidden_dims) - 1:
+                self.left_skips.append(
+                    SingleConvBlock(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        stride=1,
+                        use_norm=use_norm,
+                        num_groups=num_groups
+                    )
+                )
+
             self.us_blocks.append(
                 USNet(
                     in_channels=out_ch,
@@ -406,21 +332,22 @@ class LDC(pl.LightningModule):
             )
 
             if i < num_downs:
+                if len(self.down_blocks) > 0:
+                    self.down_skips.append(
+                        SingleConvBlock(
+                            in_channels=in_ch,
+                            out_channels=out_ch,
+                            stride=2,
+                            use_norm=use_norm,
+                            num_groups=num_groups
+                        )
+                    )
                 self.down_blocks.append(
                     DSNet(
                         in_channels=out_ch,
                         dim=2,
                         use_conv=use_conv,
                         pool_type=pool_type,
-                    )
-                )
-                self.left_skips.append(
-                    SingleConvBlock(
-                        in_channels=in_ch,
-                        out_channels=out_ch,
-                        stride=2,
-                        use_norm=use_norm,
-                        num_groups=num_groups
                     )
                 )
                 up_scale += 1
@@ -438,13 +365,25 @@ class LDC(pl.LightningModule):
     def forward(self, x: torch.Tensor):
         edges = []
         for i, (block, us_block) in enumerate(zip(self.blocks, self.us_blocks)):
-            h = block(x)
-            edges.append(us_block(h))
-            if 0 < i < len(self.down_blocks) + 1:
-                residual = self.left_skips[i - 1](x)
-                h = self.down_blocks[i - 1](h)
-                h = h + residual
-            x = h
+            if i < 1:
+                x = block(x)
+                edges.append(us_block(x))
+                continue
+
+            if i != len(self.blocks) - 1:
+                left_res = self.left_skips[i - 1](x)
+                x = block(x)
+                edges.append(us_block(x))
+                if i < len(self.down_blocks) + 1:
+                    x = self.down_blocks[i - 1](x)
+
+                x = x + left_res
+
+            else:
+                x = block(x)
+                edges.append(us_block(x))
+                if i < len(self.down_blocks) + 1:
+                    x = self.down_blocks[i - 1](x)
 
         edges = torch.cat(edges, dim=1)
         edge = self.co_fusion(edges)
