@@ -7,7 +7,7 @@ from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple
 from modules.blocks import ResidualBlock, LearnableFourierMask, DownBlock, UpBlock, AttnBlock
 from taming.modules.losses.vqperceptual import hinge_d_loss, vanilla_d_loss, weights_init, LPIPS
-from utils.loss import cats_loss
+from utils.loss import cats_loss, bdcn_loss2
 
 
 class EdgeNet(pl.LightningModule):
@@ -34,8 +34,7 @@ class EdgeNet(pl.LightningModule):
                  lr: float = 2e-5,
                  weight_decay: float = 0.,
                  perceptual_weight: float = 1.0,
-                 bdr_factor: Union[float, List[float], Tuple[float]] = 0.,
-                 tex_factor: Union[float, List[float], Tuple[float]] = 0.,
+                 l_weight: Union[float, List[float], Tuple[float]] = 0.,
                  disc_weight: float = 0.,
                  disc_factor: float = 1.,
                  disc_iter_start: int = 50001,
@@ -53,8 +52,7 @@ class EdgeNet(pl.LightningModule):
         self.log_interval = log_interval
         # self.automatic_optimization = False
 
-        self.bdr_factor = bdr_factor
-        self.tex_factor = tex_factor
+        self.l_weight = l_weight
 
         self.perceptual_weight = perceptual_weight
         # self.perceptual_loss = LPIPS().eval()
@@ -235,8 +233,8 @@ class EdgeNet(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge_map)
 
-        loss = sum([cats_loss(edge, gt.squeeze(1), l_w) for edge, l_w in zip(edge_map, zip(self.bdr_factor, self.tex_factor))])
-        # loss = bdcn_loss2(edge_map, gt, )
+        # loss = sum([cats_loss(edge, gt.squeeze(1), l_w) for edge, l_w in zip(edge_map, zip(self.bdr_factor, self.tex_factor))])
+        loss = sum([bdcn_loss2(edge, gt.squeeze(1), l_w) for edge, l_w in zip(edge_map, self.l_weight)])
 
         # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
         #
@@ -289,7 +287,8 @@ class EdgeNet(pl.LightningModule):
 
         self.log_img(img, gt, edge_map)
 
-        loss = sum([cats_loss(edge, gt.squeeze(1), l_w) for edge, l_w in zip(edge_map, zip(self.bdr_factor, self.tex_factor))])
+        # loss = sum([cats_loss(edge, gt.squeeze(1), l_w) for edge, l_w in zip(edge_map, zip(self.bdr_factor, self.tex_factor))])
+        loss = sum([bdcn_loss2(edge, gt.squeeze(1), l_w) for edge, l_w in zip(edge_map, self.l_weight)])
 
         # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
         #
@@ -332,7 +331,8 @@ class EdgeNet(pl.LightningModule):
         if (self.global_step // 2) % self.log_interval == 0:
             self.log_img(img, gt, edge_map)
 
-        loss = sum([cats_loss(edge, gt, l_w) for edge, l_w in zip(edge_map, zip(self.bdr_factor, self.tex_factor))])
+        # loss = sum([cats_loss(edge, gt, l_w) for edge, l_w in zip(edge_map, zip(self.bdr_factor, self.tex_factor))])
+        loss = sum([bdcn_loss2(edge, gt.squeeze(1), l_w) for edge, l_w in zip(edge_map, self.l_weight)])
 
         # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
         #

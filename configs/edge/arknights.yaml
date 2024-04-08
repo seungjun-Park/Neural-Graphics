@@ -14,15 +14,15 @@ module:
     hidden_dims: [32, 64, 96, 128]
     embed_dim: 16
     num_blocks: 2
-    attn_res: [3]
-    num_head_channels: 8
-    mlp_ratio: 2
-    dropout: 0.2
-    attn_dropout: 0.2
+    # attn_res: [3]
+    num_heads: 8
+    mlp_ratio: 4
+    dropout: 0.
+    attn_dropout: 0.
     bias: True
     groups: 4
-    act: 'gelu'
-    use_conv: True
+    act: 'silu'
+    use_conv: False
     pool_type: 'max'
     mode: 'nearest'
     lr: 2e-5
@@ -34,8 +34,7 @@ module:
     log_interval: 100
 #    bdr_factor: [0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.01]
 #    tex_factor: [2., 2., 2., 1., 1., 1., 4.]
-    bdr_factor: [ 0, 0, 0, 0, 0, 0, 0 ]
-    tex_factor: [ 0, 0, 0, 0, 0, 0, 0]
+    l_weight: [0.7, 0.7, 1.1, 1.1, 0.3, 0.3, 1.3]
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
