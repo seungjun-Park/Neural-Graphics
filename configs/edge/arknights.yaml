@@ -32,8 +32,10 @@ module:
     disc_iter_start: 20001
     disc_loss: 'hinge'
     log_interval: 100
-    bdr_factor: [0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.01]
-    tex_factor: [2., 2., 2., 1., 1., 1., 4.]
+#    bdr_factor: [0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.01]
+#    tex_factor: [2., 2., 2., 1., 1., 1., 4.]
+    bdr_factor: [ 0, 0, 0, 0, 0, 0, 0 ]
+    tex_factor: [ 0, 0, 0, 0, 0, 0, 0]
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
