@@ -57,7 +57,7 @@ class EdgeNet(pl.LightningModule):
         self.tex_factor = tex_factor
 
         self.perceptual_weight = perceptual_weight
-        self.perceptual_loss = LPIPS().eval()
+        # self.perceptual_loss = LPIPS().eval()
 
         # self.disc = instantiate_from_config(disc_config).apply(weights_init)
         self.disc_weight = disc_weight
