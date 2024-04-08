@@ -14,7 +14,7 @@ module:
     use_act: True
     act: 'silu'
     dim: 2
-    lr: 1e-4
+    lr: 2e-5
     weight_decay: 0.
     log_interval: 100
 
@@ -22,7 +22,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 1
-    batch_size: 1
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
