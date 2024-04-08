@@ -18,6 +18,20 @@ def conv_nd(dim: int = 2, *args, **kwargs):
         NotImplementedError("The dims should have a value between 1 and 3.")
 
 
+def conv_transpose_nd(dim: int = 2, *args, **kwargs):
+    if dim == 1:
+        return nn.ConvTranspose1d(*args, **kwargs)
+
+    elif dim == 2:
+        return nn.ConvTranspose2d(*args, **kwargs)
+
+    elif dim == 3:
+        return nn.ConvTranspose3d(*args, **kwargs)
+
+    else:
+        NotImplementedError("The dims should have a value between 1 and 3.")
+
+
 def avg_pool_nd(dim: int = 2, *args, **kwargs):
     if dim == 1:
         return nn.AvgPool1d(*args, **kwargs)

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from typing import Union, Tuple, List, Dict, Any
-from utils import conv_nd, get_act, group_norm, pool_nd
+from utils import conv_nd, get_act, group_norm, pool_nd, conv_transpose_nd
 
 
 def bdcn_loss2(inputs, targets, l_weight=1.1):
@@ -119,7 +119,6 @@ class CoFusion(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         attn = self.act(self.norm(self.conv1(x)))
         attn = F.softmax(self.conv2(attn), dim=1)
-        attn = ((x * attn).sum(1)).unsqueeze(1)
 
         return ((x * attn).sum(1)).unsqueeze(1)
 
@@ -169,15 +168,19 @@ class USNet(nn.Module):
 
         in_ch = in_channels
 
+        self.pads = [0, 0, 1, 3, 7]
+
         for i in range(num_blocks):
             layer = list()
+            pad = self.pads[num_blocks]
             if i == num_blocks - 1:
                 out_ch = 1
             else:
-                out_ch = in_ch // 2
+                out_ch = 16
 
-            layer.append(conv_nd(dim, in_ch, out_ch, kernel_size=3, stride=1, padding=1))
+            layer.append(conv_nd(dim, in_ch, out_ch, kernel_size=1, stride=1))
             layer.append(get_act(act))
+            layer.append(conv_transpose_nd(dim, out_ch, out_ch, kernel_size=2 ** num_blocks, stride=2, padding=pad))
 
             in_ch = out_ch
 
@@ -185,9 +188,7 @@ class USNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         for module in self.layers:
-            x = F.interpolate(x, scale_factor=2.0, mode=self.mode)
             x = module(x)
-        x = F.hardtanh(x, 0, 1)
         return x
 
 

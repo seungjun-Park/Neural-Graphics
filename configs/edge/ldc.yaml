@@ -16,7 +16,7 @@ module:
     dim: 2
     lr: 2e-5
     weight_decay: 0.
-    log_interval: 50
+    log_interval: 100
     bdr_factor: 0.5
     tex_factor: 0.5
 
@@ -24,7 +24,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 1
-    batch_size: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
