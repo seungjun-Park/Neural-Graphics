@@ -453,7 +453,7 @@ class LDC(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
 
-        loss = cats_loss(edge, gt, (1., 1.))
+        loss = cats_loss(edge, gt, (0., 0.))
 
         self.log('train/loss', loss, logger=True)
 
@@ -465,7 +465,7 @@ class LDC(pl.LightningModule):
 
         self.log_img(img, gt, edge)
 
-        loss = cats_loss(edge, gt, (1., 1.))
+        loss = cats_loss(edge, gt, (0., 0.))
 
         self.log('val/loss', loss, logger=True)
 
