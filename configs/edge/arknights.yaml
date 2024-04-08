@@ -23,6 +23,7 @@ module:
     groups: 4
     act: 'gelu'
     use_conv: True
+    pool_type: 'max'
     mode: 'nearest'
     lr: 2e-5
     weight_decay: 0.

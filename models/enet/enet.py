@@ -29,6 +29,7 @@ class EdgeNet(pl.LightningModule):
                  groups: int = 32,
                  act: str = 'relu',
                  use_conv: bool = True,
+                 pool_type: str = 'max',
                  mode: str = 'nearest',
                  lr: float = 2e-5,
                  weight_decay: float = 0.,
@@ -116,7 +117,7 @@ class EdgeNet(pl.LightningModule):
                 skip_dims.append(in_ch)
                 self.down.append(*down)
 
-            self.down.append(DownBlock(in_ch))
+            self.down.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
             current_res = current_res // 2
             skip_dims.append(in_ch)
 
