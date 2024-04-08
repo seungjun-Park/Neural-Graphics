@@ -336,6 +336,7 @@ class LDC(pl.LightningModule):
         self.blocks = nn.ModuleList()
         self.down_blocks = nn.ModuleList()
         self.us_blocks = nn.ModuleList()
+        self.left_skips = nn.ModuleList()
 
         self.blocks.append(
             DoubleConvBlock(
@@ -389,11 +390,9 @@ class LDC(pl.LightningModule):
                     )
                 )
 
-            in_ch = out_ch
-
             self.us_blocks.append(
                 USNet(
-                    in_channels=in_ch,
+                    in_channels=out_ch,
                     num_blocks=up_scale,
                     mode=mode,
                     act=act,
@@ -404,13 +403,24 @@ class LDC(pl.LightningModule):
             if i < num_downs:
                 self.down_blocks.append(
                     DSNet(
-                        in_channels=in_ch,
+                        in_channels=out_ch,
                         dim=2,
                         use_conv=use_conv,
                         pool_type=pool_type,
                     )
                 )
+                self.left_skips.append(
+                    SingleConvBlock(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        stride=2,
+                        use_norm=use_norm,
+                        num_groups=num_groups
+                    )
+                )
                 up_scale += 1
+
+            in_ch = out_ch
 
         self.co_fusion = CoFusion(
             in_channels=len(hidden_dims) + 1,
@@ -423,10 +433,13 @@ class LDC(pl.LightningModule):
     def forward(self, x: torch.Tensor):
         edges = []
         for i, (block, us_block) in enumerate(zip(self.blocks, self.us_blocks)):
-            x = block(x)
-            edges.append(us_block(x))
+            h = block(x)
+            edges.append(us_block(h))
             if 0 < i < len(self.down_blocks) + 1:
-                x = self.down_blocks[i - 1](x)
+                residual = self.left_skips[i - 1](x)
+                h = self.down_blocks[i - 1](h)
+                h = h + residual
+            x = h
 
         edges = torch.cat(edges, dim=1)
         edge = self.co_fusion(edges)
