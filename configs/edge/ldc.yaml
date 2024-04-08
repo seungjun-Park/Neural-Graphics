@@ -12,9 +12,9 @@ module:
     use_norm: True
     num_groups: 4
     use_act: True
-    act: 'silu'
+    act: 'relu'
     dim: 2
-    lr: 2e-5
+    lr: 1e-4
     weight_decay: 0.
     log_interval: 50
 
