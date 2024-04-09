@@ -272,7 +272,7 @@ class EdgeNet(pl.LightningModule):
         edges = self(img)
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, gt, edges[-1])
+            self.log_img(img, gt, edges)
 
         cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
@@ -280,10 +280,12 @@ class EdgeNet(pl.LightningModule):
         g_loss, g_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=0, split='train')
         d_loss, d_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=1, split='train')
 
+        loss = cats_l + g_loss
+
         opt_net, opt_disc = self.optimizers()
 
         opt_net.zero_grad()
-        self.manual_backward(g_loss)
+        self.manual_backward(loss)
         opt_net.step()
 
 
@@ -291,7 +293,7 @@ class EdgeNet(pl.LightningModule):
         self.manual_backward(d_loss)
         opt_disc.step()
 
-        self.log('train/loss', g_loss, logger=True)
+        self.log('train/loss', loss, logger=True)
         self.log_dict(g_loss_log)
         self.log_dict(d_loss_log)
 
@@ -299,7 +301,7 @@ class EdgeNet(pl.LightningModule):
         img, gt, cond = batch
         edges = self(img)
 
-        self.log_img(img, gt, edges[-1])
+        self.log_img(img, gt, edges)
 
         cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
@@ -318,12 +320,13 @@ class EdgeNet(pl.LightningModule):
         return self.log_dict
 
     @torch.no_grad()
-    def log_img(self, img, gt, edge):
+    def log_img(self, img, gt, edges):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
         tb.add_image(f'{prefix}/img', torch.clamp(img, 0, 1)[0], self.global_step, dataformats='CHW')
         tb.add_image(f'{prefix}/gt', torch.clamp(gt, 0, 1)[0], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/edge', torch.clamp(edge, 0, 1)[0], self.global_step, dataformats='CHW')
+        for i in range(len(edges)):
+            tb.add_image(f'{prefix}/side_edge_{i}', torch.clamp(edges[i], 0, 1)[0], self.global_step, dataformats='CHW')
 
     def adopt_weight(self, weight, global_step, threshold=0, value=0.):
         if global_step < threshold:
