@@ -296,7 +296,7 @@ class EdgeNet(pl.LightningModule):
                 self.decoder.append(nn.Sequential(*up))
 
         skip_dim = skip_dims.pop()
-        self.out = PatchExpanding(in_ch + skip_dim, out_channels, scale_factor=4)
+        self.out = PatchExpanding(in_ch + skip_dim, out_channels, scale_factor=patch_size)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
