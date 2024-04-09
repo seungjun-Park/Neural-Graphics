@@ -53,7 +53,6 @@ class USBlock(nn.Module):
 
         for i in range(num_upscale):
             out_ch = 1 if i == num_upscale - 1 else embed_dim
-            in_ch = in_ch + skip_dim
             self.blocks.append(conv_nd(dim, in_ch, embed_dim, kernel_size=1, stride=1, padding=0))
             self.blocks.append(conv_nd(dim, embed_dim, out_ch, kernel_size=3, stride=1, padding=1))
             in_ch = out_ch
