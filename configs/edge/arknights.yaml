@@ -34,7 +34,7 @@ module:
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
-    lr: 1e-5
+    lr: 2e-5
     weight_decay: 0.
     # l_weight: [0.01, 4.]
     l_weight: [ [ 0.05, 2. ], [ 0.05, 2. ], [ 0.05, 2. ], [ 0.1, 1. ], [ 0.1, 1. ], [ 0.1, 1. ], [ 0.01, 4. ] ]
