@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm
-from modules.blocks import ResidualBlock, DownBlock, UpBlock, AttnBlock, WindowAttnBlock, PatchEmbedding, PatchMerging
+from modules.blocks import ResidualBlock, DownBlock, UpBlock, AttnBlock, WindowAttnBlock, PatchEmbedding, PatchMerging, PatchExpanding
 from taming.modules.losses.vqperceptual import hinge_d_loss, vanilla_d_loss, weights_init, LPIPS
 from utils.loss import cats_loss, bdcn_loss2
 
@@ -125,17 +125,16 @@ class EdgeNet(pl.LightningModule):
         )
 
         in_ch = embed_dim
-        skip_dims = []
+        skip_dims = [embed_dim]
         cur_res = self.patch_embed.patch_res
-        num_upscale = patch_size // 2
 
-        self.encoders = nn.ModuleList()
-        self.skip_us_nets = nn.ModuleList()
+        self.encoder = nn.ModuleList()
+        self.decoder = nn.ModuleList()
 
         for i, out_ch in enumerate(hidden_dims):
-            encoders = list()
+            down = list()
             for j in range(num_blocks):
-                encoders.append(
+                down.append(
                     ResidualBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
@@ -146,7 +145,7 @@ class EdgeNet(pl.LightningModule):
                 )
                 in_ch = out_ch
 
-                encoders.append(
+                down.append(
                     nn.Sequential(
                         WindowAttnBlock(
                             in_channels=in_ch,
@@ -181,29 +180,124 @@ class EdgeNet(pl.LightningModule):
                     )
                 )
 
-            self.encoders.append(nn.Sequential(*encoders))
-            self.skip_us_nets.append(
-                USBlock(
-                    in_channels=in_ch,
-                    num_upscale=num_upscale,
-                    mode=mode,
-                    dim=dim
-                )
-            )
+                skip_dims.append(in_ch)
+                self.encoder.append(nn.Sequential(*down))
 
             if i != len(hidden_dims) - 1:
-                self.encoders.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
-                # self.encoders.append(PatchMerging(in_ch, in_ch))
+                self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+                skip_dims.append(in_ch)
                 cur_res = [cur_res[0] // 2, cur_res[1] // 2]
                 num_upscale += 1
 
-        self.co_fusion = CoFusion(
-            in_channels=len(hidden_dims),
-            out_channels=1,
-            num_groups=groups,
-            act=act,
-            dim=dim,
+        self.middle = nn.Sequential(
+            ResidualBlock(
+                in_channels=in_ch,
+                out_channels=in_ch,
+                dropout=dropout,
+                act=act,
+                groups=groups,
+            ),
+            WindowAttnBlock(
+                in_channels=in_ch,
+                in_res=cur_res,
+                num_heads=num_heads,
+                num_head_channels=num_head_channels,
+                window_size=window_size,
+                shift_size=0,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=qkv_bias,
+                proj_bias=bias,
+                drop=dropout,
+                attn_drop=attn_dropout,
+                drop_path=drop_path,
+                act=act,
+            ),
+            WindowAttnBlock(
+                in_channels=in_ch,
+                in_res=cur_res,
+                num_heads=num_heads,
+                num_head_channels=num_head_channels,
+                window_size=window_size,
+                shift_size=window_size // 2,
+                mlp_ratio=mlp_ratio,
+                qkv_bias=qkv_bias,
+                proj_bias=bias,
+                drop=dropout,
+                attn_drop=attn_dropout,
+                drop_path=drop_path,
+                act=act,
+            ),
+            ResidualBlock(
+                in_channels=in_ch,
+                out_channels=in_ch,
+                dropout=dropout,
+                act=act,
+                groups=groups,
+            ),
         )
+
+        hidden_dims = hidden_dims[1:]
+        hidden_dims.insert(0, embed_dim)
+
+        for i, out_ch in list(enumerate(hidden_dims))[::-1]:
+            if i != 0:
+                skip_dim = skip_dims.pop()
+                self.decoder.append(UpBlock(in_ch + skip_dim, dim=dim, mode=mode))
+                cur_res = [cur_res[0] * 2, cur_res[1] * 2]
+
+            up = list()
+            for j in range(num_blocks):
+                skip_dim = skip_dims.pop()
+                up.append(
+                    ResidualBlock(
+                        in_channels=in_ch + skip_dim,
+                        out_channels=out_ch,
+                        dropout=dropout,
+                        act=act,
+                        groups=groups,
+                    )
+                )
+                in_ch = out_ch
+
+                up.append(
+                    nn.Sequential(
+                        WindowAttnBlock(
+                            in_channels=in_ch,
+                            in_res=cur_res,
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            window_size=window_size,
+                            shift_size=0,
+                            mlp_ratio=mlp_ratio,
+                            qkv_bias=qkv_bias,
+                            proj_bias=bias,
+                            drop=dropout,
+                            attn_drop=attn_dropout,
+                            drop_path=drop_path,
+                            act=act,
+                        ),
+                        WindowAttnBlock(
+                            in_channels=in_ch,
+                            in_res=cur_res,
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            window_size=window_size,
+                            shift_size=window_size // 2,
+                            mlp_ratio=mlp_ratio,
+                            qkv_bias=qkv_bias,
+                            proj_bias=bias,
+                            drop=dropout,
+                            attn_drop=attn_dropout,
+                            drop_path=drop_path,
+                            act=act,
+                        ),
+                    )
+                )
+
+                self.decoder.append(nn.Sequential(*up))
+
+        skip_dim = skip_dims.pop()
+        self.out = PatchExpanding(in_ch + skip_dim, out_channels, scale_factor=4)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -221,36 +315,37 @@ class EdgeNet(pl.LightningModule):
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
         hs = []
-        edges = []
         x = self.patch_embed(x)
-        # hs.append(x)
+        hs.append(x)
 
-        for i, encoder in enumerate(self.encoders):
-            x = encoder(x)
-            if i % 2 == 0:
-                edges.append(self.skip_us_nets[i // 2](x))
-                hs.append(x)
+        for i, block in enumerate(self.encoder):
+            x = block(x)
+            hs.append(x)
 
-        edge = torch.cat(edges, dim=1)
-        edge = self.co_fusion(edge)
-        edges.append(edge)
+        x = self.middle(x)
 
-        return edges
+        for i, block in enumerate(self.decoder):
+            x = torch.cat([x, hs.pop()], dim=1)
+            x = block(x)
+
+        x = self.out(x)
+
+        return x
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
-        edges = self(img)
+        edge = self(img)
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, gt, edges)
+            self.log_img(img, gt, edge)
 
-        cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
+        # cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
-        g_loss, g_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=0, split='train')
-        d_loss, d_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=1, split='train')
+        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, split='train')
+        d_loss, d_loss_log = self.loss(gt, egde, cond=img, global_step=self.global_step, optimizer_idx=1, split='train')
 
-        loss = cats_l + g_loss
+        # loss = cats_l + g_loss
 
         opt_net, opt_disc = self.optimizers()
 
@@ -263,17 +358,17 @@ class EdgeNet(pl.LightningModule):
         self.manual_backward(d_loss)
         opt_disc.step()
 
-        self.log('train/loss', loss, logger=True)
+        self.log('train/loss', g_loss, logger=True)
         self.log_dict(g_loss_log)
         self.log_dict(d_loss_log)
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
-        edges = self(img)
+        edge = self(img)
 
-        self.log_img(img, gt, edges)
+        self.log_img(img, gt, edge)
 
-        cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
+        # cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
         g_loss, g_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=0,
@@ -281,9 +376,9 @@ class EdgeNet(pl.LightningModule):
         d_loss, d_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=1,
                                        split='val')
 
-        loss = cats_l + g_loss
+        # loss = cats_l + g_loss
 
-        self.log('val/loss', loss)
+        self.log('val/loss', g_loss)
         self.log_dict(g_loss_log)
         self.log_dict(d_loss_log)
 

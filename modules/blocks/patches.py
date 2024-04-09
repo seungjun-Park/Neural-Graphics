@@ -75,7 +75,7 @@ class PatchMerging(nn.Module):
         x = self.norm(x)
         x = self.reduction(x)
 
-        x = x.permute(0, 2, 1).reshape(b, c, h, w)
+        x = x.permute(0, 2, 1).reshape(b, -1, h, w)
 
         return x
 
@@ -102,7 +102,7 @@ class PatchExpanding(nn.Module):
         x = x.reshape(b, c, -1).permute(0, 2, 1)
         x = self.norm(x)
         x = self.expand(x)
-        x = x.permute(0, 2, 1).reshape(b, c, h, w)
+        x = x.permute(0, 2, 1).reshape(b, -1, h, w)
         x = rearrange(x, 'b (s_h s_w c) h w -> b c (h s_h) (w s_w)', s_h=self.scale_factor, s_w=self.scale_factor)
 
         return x

@@ -6,7 +6,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_start: 50001
+        disc_start: 20001
         disc_embed_dim: 64
         disc_num_layers: 3
         disc_in_channels: 1
