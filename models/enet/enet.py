@@ -192,8 +192,8 @@ class EdgeNet(pl.LightningModule):
             )
 
             if i != len(hidden_dims) - 1:
-                # self.encoders.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
-                self.encoders.append(PatchMerging(in_ch, in_ch))
+                self.encoders.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+                # self.encoders.append(PatchMerging(in_ch, in_ch))
                 cur_res = [cur_res[0] // 2, cur_res[1] // 2]
                 num_upscale += 1
 
