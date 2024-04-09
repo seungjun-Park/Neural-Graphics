@@ -238,7 +238,7 @@ class EdgeNet(pl.LightningModule):
         hidden_dims = hidden_dims[1:]
         hidden_dims.insert(0, embed_dim)
 
-        for i, out_ch in list(enumerate(hidden_dims))[::-1]:
+        for i, out_ch in enumerate(reversed(hidden_dims)):
             if i != 0:
                 skip_dim = skip_dims.pop()
                 self.decoder.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
@@ -327,6 +327,7 @@ class EdgeNet(pl.LightningModule):
             x = torch.cat([x, hs.pop()], dim=1)
             x = block(x)
 
+        x = torch.cat([x, hs.pop()], dim=1)
         x = self.out(x)
 
         return x
@@ -342,7 +343,7 @@ class EdgeNet(pl.LightningModule):
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
         g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, split='train')
-        d_loss, d_loss_log = self.loss(gt, egde, cond=img, global_step=self.global_step, optimizer_idx=1, split='train')
+        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1, split='train')
 
         # loss = cats_l + g_loss
 
@@ -370,9 +371,9 @@ class EdgeNet(pl.LightningModule):
         # cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
-        g_loss, g_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=0,
+        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0,
                                        split='val')
-        d_loss, d_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=1,
+        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1,
                                        split='val')
 
         # loss = cats_l + g_loss
@@ -389,8 +390,12 @@ class EdgeNet(pl.LightningModule):
         tb = self.logger.experiment
         tb.add_image(f'{prefix}/img', torch.clamp(img, 0, 1)[0], self.global_step, dataformats='CHW')
         tb.add_image(f'{prefix}/gt', torch.clamp(gt, 0, 1)[0], self.global_step, dataformats='CHW')
-        for i in range(len(edges)):
-            tb.add_image(f'{prefix}/side_edge_{i}', torch.clamp(edges[i], 0, 1)[0], self.global_step, dataformats='CHW')
+        if isinstance(edges, list):
+            for i in range(len(edges)):
+                tb.add_image(f'{prefix}/side_edge_{i}', torch.clamp(edges[i], 0, 1)[0], self.global_step,
+                             dataformats='CHW')
+        else:
+            tb.add_image(f'{prefix}/edge', torch.clamp(edges, 0, 1)[0], self.global_step, dataformats='CHW')
 
     def adopt_weight(self, weight, global_step, threshold=0, value=0.):
         if global_step < threshold:
