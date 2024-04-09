@@ -346,7 +346,7 @@ class EdgeNet(pl.LightningModule):
                     )
                 )
 
-            up.append(conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1))
+        up.append(conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1))
 
         self.decoder.append(nn.Sequential(*up))
 
