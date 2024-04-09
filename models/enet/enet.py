@@ -17,7 +17,7 @@ class CoFusion(nn.Module):
                  ):
         super().__init__()
 
-        self.conv = conv_nd(dim, in_channels, 1, kernel_size=1, stride=1, padding=0)
+        self.conv = conv_nd(dim, in_channels, 1, kernel_size=1, stride=1, padding=0, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
@@ -217,9 +217,6 @@ class EdgeNet(pl.LightningModule):
 
         self.co_fusion = CoFusion(
             in_channels=len(hidden_dims),
-            out_channels=1,
-            num_groups=groups,
-            act=act,
             dim=dim,
         )
 
