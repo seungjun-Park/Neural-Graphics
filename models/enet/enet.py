@@ -13,41 +13,41 @@ from utils.loss import cats_loss, bdcn_loss2
 class CoFusion(nn.Module):
     def __init__(self,
                  in_channels: int,
+                 embed_dim: int = 32,
+                 out_channels: int = None,
+                 num_groups: int = None,
+                 act: str = 'relu',
                  dim: int = 2,
                  ):
         super().__init__()
 
-        self.conv = conv_nd(dim, in_channels, 1, kernel_size=1, stride=1, padding=0, bias=False)
+        out_channels = in_channels if out_channels is None else out_channels
+
+        self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)  # before 64
+        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=3, stride=1, padding=1)  # before 64  instead of 32
+        self.act = get_act(act)
+        num_groups = embed_dim if num_groups is None else num_groups
+        self.norm = group_norm(embed_dim, num_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        attn = self.act(self.norm(self.conv1(x)))
+        attn = F.softmax(self.conv2(attn), dim=1)
 
-        return F.hardtanh(self.conv(x), 0, 1)
-
-
-class AttentionCoFusion(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x: torch.Tensor):
-        return
+        return ((x * attn).sum(1)).unsqueeze(1)
 
 
-class SkipUSBlock(nn.Module):
+class USBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
                  embed_dim: int = 16,
-                 skip_dims: Union[int, List[int], Tuple[int]] = (),
                  num_upscale: int = 1,
-                 num_groups: int = 1,
                  mode: str = 'nearest',
-                 act: str = 'relu',
                  dim: int = 2,
                  ):
         super().__init__()
 
         self.blocks = nn.ModuleList()
         self.mode = mode.lower()
-        skip_dims = list(skip_dims)
 
         in_ch = in_channels
 
@@ -55,28 +55,16 @@ class SkipUSBlock(nn.Module):
             skip_dim = skip_dims.pop() if len(skip_dims) > 0 and i > 0 else 0
             out_ch = 1 if i == num_upscale - 1 else embed_dim
             in_ch = in_ch + skip_dim
-            self.blocks.append(
-                nn.Sequential(
-                    group_norm(in_ch , num_groups=num_groups),
-                    get_act(act),
-                    conv_nd(dim, in_ch, embed_dim, kernel_size=1, stride=1, padding=0),
-                )
-            )
+            self.blocks.append(conv_nd(dim, in_ch, embed_dim, kernel_size=1, stride=1, padding=0))
             self.blocks.append(conv_nd(dim, embed_dim, out_ch, kernel_size=3, stride=1, padding=1))
             in_ch = out_ch
 
     def forward(self, x: torch.Tensor, hs: Union[List[torch.Tensor], Tuple[torch.Tensor]] = ()) -> torch.Tensor:
         hs = list(hs)
         for i, module in enumerate(self.blocks):
-            if i % 2 == 0:
-                if i > 0 and len(hs) > 0:
-                    h = hs.pop()
-                    x = torch.cat([x, h], dim=1)
-                x = module(x)
+            if i % 2 != 0:
                 x = F.interpolate(x, scale_factor=2.0, mode=self.mode)
-            else:
-                x = module(x)
-
+            x = module(x)
         return F.hardtanh(x, 0, 1)
 
 
@@ -198,25 +186,25 @@ class EdgeNet(pl.LightningModule):
 
             self.encoders.append(nn.Sequential(*encoders))
             self.skip_us_nets.append(
-                SkipUSBlock(
+                USBlock(
                     in_channels=in_ch,
-                    skip_dims=skip_dims,
                     num_upscale=num_upscale,
-                    num_groups=groups,
                     mode=mode,
-                    act=act,
                     dim=dim
                 )
             )
-            skip_dims.append(in_ch)
 
             if i != len(hidden_dims) - 1:
-                self.encoders.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+                # self.encoders.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+                self.encoders.append(PatchMerging(in_ch, in_ch))
                 cur_res = [cur_res[0] // 2, cur_res[1] // 2]
                 num_upscale += 1
 
         self.co_fusion = CoFusion(
             in_channels=len(hidden_dims),
+            out_channels=1,
+            num_groups=num_groups,
+            act=act,
             dim=dim,
         )
 

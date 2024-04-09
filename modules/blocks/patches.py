@@ -67,15 +67,15 @@ class PatchMerging(nn.Module):
         self.reduction = nn.Linear((scale_factor ** 2) * in_channels, out_channels, bias=False)
 
     def forward(self, x):
-        x = rearrange(x, 'b (h s_h) (w s_w) c -> b h w (c s_h s_w)', s_w=self.scale_factor, s_h=self.scale_factor)
-        b, h, w, c = x.shape
+        x = rearrange(x, 'b c (h s_h) (w s_w) -> b (c s_h s_w) h w', s_w=self.scale_factor, s_h=self.scale_factor)
+        b, c, h, w = x.shape
 
-        x = x.reshape(b, -1, c)
+        x = x.reshape(b, c, -1).permute(0, 2, 1)
 
         x = self.norm(x)
         x = self.reduction(x)
 
-        x = x.reshape(b, h, w, c)
+        x = x.permute(0, 2, 1).reshape(b, c, h, w)
 
         return x
 
@@ -98,12 +98,12 @@ class PatchExpanding(nn.Module):
         self.expand = nn.Linear(in_channels, (scale_factor ** 2) * out_channels, bias=False)
 
     def forward(self, x):
-        b, h, w, c = x.shape
-        x = x.reshape(b, -1, c)
+        b, c, h, w = x.shape
+        x = x.reshape(b, c, -1).permute(0, 2, 1)
         x = self.norm(x)
         x = self.expand(x)
-        x = self.reshape(b, h, w, c)
-        x = rearrange(x, 'b h w (s_h s_w c) -> b (h s_h) (w s_w) c', p1=self.scale_factor, p2=self.scale_factor)
+        x = x.permute(0, 2, 1).reshape(b, c, h, w)
+        x = rearrange(x, 'b (s_h s_w c) h w -> b c (h s_h) (w s_w)', s_h=self.scale_factor, s_w=self.scale_factor)
 
         return x
 
