@@ -295,13 +295,13 @@ class EdgeNet(pl.LightningModule):
 
                 self.decoder.append(nn.Sequential(*up))
 
+        up = list()
         for i in range(patch_size // 2):
             skip_dim = skip_dims.pop() if len(skip_dims) > 0 else 0
-            self.decoder.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
+            up.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
             cur_res = [cur_res[0] * 2, cur_res[1] * 2]
 
             for j in range(num_blocks):
-                up = list()
                 up.append(
                     ResidualBlock(
                         in_channels=in_ch,
@@ -346,9 +346,9 @@ class EdgeNet(pl.LightningModule):
                     )
                 )
 
-                self.decoder.append(nn.Sequential(*up))
+            up.append(conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1))
 
-        self.out = conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1)
+        self.decoder.append(nn.Sequential(*up))
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -378,9 +378,6 @@ class EdgeNet(pl.LightningModule):
         for i, block in enumerate(self.decoder):
             x = torch.cat([x, hs.pop()], dim=1)
             x = block(x)
-
-        x = torch.cat([x, hs.pop()], dim=1)
-        x = self.out(x)
 
         return x
 
