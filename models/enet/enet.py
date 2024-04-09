@@ -132,8 +132,8 @@ class EdgeNet(pl.LightningModule):
         self.decoder = nn.ModuleList()
 
         for i, out_ch in enumerate(hidden_dims):
-            down = list()
             for j in range(num_blocks):
+                down = list()
                 down.append(
                     ResidualBlock(
                         in_channels=in_ch,
@@ -244,8 +244,8 @@ class EdgeNet(pl.LightningModule):
                 self.decoder.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
                 cur_res = [cur_res[0] * 2, cur_res[1] * 2]
 
-            up = list()
             for j in range(num_blocks):
+                up = list()
                 skip_dim = skip_dims.pop()
                 up.append(
                     ResidualBlock(

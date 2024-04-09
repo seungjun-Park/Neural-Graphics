@@ -49,7 +49,8 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights'
+        # root: '/local_datasets/arknights'
+        root: './datasets/arknights'
         train: True
         transform_configs:
           transforms:
@@ -60,7 +61,8 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights'
+        # root: '/local_datasets/arknights'
+        root: './datasets/arknights'
         train: False
         transform_configs:
           transforms:
