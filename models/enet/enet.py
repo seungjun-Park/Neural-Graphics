@@ -52,15 +52,13 @@ class USBlock(nn.Module):
         in_ch = in_channels
 
         for i in range(num_upscale):
-            skip_dim = skip_dims.pop() if len(skip_dims) > 0 and i > 0 else 0
             out_ch = 1 if i == num_upscale - 1 else embed_dim
             in_ch = in_ch + skip_dim
             self.blocks.append(conv_nd(dim, in_ch, embed_dim, kernel_size=1, stride=1, padding=0))
             self.blocks.append(conv_nd(dim, embed_dim, out_ch, kernel_size=3, stride=1, padding=1))
             in_ch = out_ch
 
-    def forward(self, x: torch.Tensor, hs: Union[List[torch.Tensor], Tuple[torch.Tensor]] = ()) -> torch.Tensor:
-        hs = list(hs)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         for i, module in enumerate(self.blocks):
             if i % 2 != 0:
                 x = F.interpolate(x, scale_factor=2.0, mode=self.mode)
@@ -231,7 +229,7 @@ class EdgeNet(pl.LightningModule):
         for i, encoder in enumerate(self.encoders):
             x = encoder(x)
             if i % 2 == 0:
-                edges.append(self.skip_us_nets[i // 2](x, hs=hs))
+                edges.append(self.skip_us_nets[i // 2](x))
                 hs.append(x)
 
         edge = torch.cat(edges, dim=1)
