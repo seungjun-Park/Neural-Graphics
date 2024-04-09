@@ -295,8 +295,60 @@ class EdgeNet(pl.LightningModule):
 
                 self.decoder.append(nn.Sequential(*up))
 
-        skip_dim = skip_dims.pop()
-        self.out = PatchExpanding(in_ch + skip_dim, out_channels, scale_factor=patch_size)
+        for i in range(patch_size // 2):
+            skip_dim = skip_dims.pop() if len(skip_dims) > 0 else 0
+            self.decoder.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
+            cur_res = [cur_res[0] * 2, cur_res[1] * 2]
+
+            for j in range(num_blocks):
+                up = list()
+                up.append(
+                    ResidualBlock(
+                        in_channels=in_ch,
+                        out_channels=in_ch,
+                        dropout=dropout,
+                        act=act,
+                        groups=groups,
+                    )
+                )
+                up.append(
+                    nn.Sequential(
+                        WindowAttnBlock(
+                            in_channels=in_ch,
+                            in_res=cur_res,
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            window_size=window_size,
+                            shift_size=0,
+                            mlp_ratio=mlp_ratio,
+                            qkv_bias=qkv_bias,
+                            proj_bias=bias,
+                            drop=dropout,
+                            attn_drop=attn_dropout,
+                            drop_path=drop_path,
+                            act=act,
+                        ),
+                        WindowAttnBlock(
+                            in_channels=in_ch,
+                            in_res=cur_res,
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            window_size=window_size,
+                            shift_size=window_size // 2,
+                            mlp_ratio=mlp_ratio,
+                            qkv_bias=qkv_bias,
+                            proj_bias=bias,
+                            drop=dropout,
+                            attn_drop=attn_dropout,
+                            drop_path=drop_path,
+                            act=act,
+                        ),
+                    )
+                )
+
+                self.decoder.append(nn.Sequential(*up))
+
+        self.out = conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
