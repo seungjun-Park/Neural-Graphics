@@ -400,9 +400,10 @@ class EdgeNet(pl.LightningModule):
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.patch_embed.parameters()) +
-                                    list(self.encoders.parameters()) +
-                                    list((self.skip_us_nets.parameters())) +
-                                    list(self.co_fusion.parameters()),
+                                    list(self.encoder.parameters()) +
+                                    list(self.middle.parameters()) +
+                                    list((self.decoder.parameters())) +
+                                    list(self.out.parameters()),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
                                     )
