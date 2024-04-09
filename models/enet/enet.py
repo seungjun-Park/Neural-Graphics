@@ -258,7 +258,7 @@ class EdgeNet(pl.LightningModule):
         opt_net, opt_disc = self.optimizers()
 
         opt_net.zero_grad()
-        self.manual_backward(loss)
+        self.manual_backward(g_loss)
         opt_net.step()
 
 
