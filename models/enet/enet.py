@@ -13,27 +13,15 @@ from utils.loss import cats_loss, bdcn_loss2
 class CoFusion(nn.Module):
     def __init__(self,
                  in_channels: int,
-                 embed_dim: int = 32,
-                 out_channels: int = None,
-                 num_groups: int = None,
-                 act: str = 'relu',
                  dim: int = 2,
                  ):
         super().__init__()
 
-        out_channels = in_channels if out_channels is None else out_channels
-
-        self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)  # before 64
-        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=3, stride=1, padding=1)  # before 64  instead of 32
-        self.act = get_act(act)
-        num_groups = embed_dim if num_groups is None else num_groups
-        self.norm = group_norm(embed_dim, num_groups)
+        self.conv = conv_nd(dim, in_channels, 1, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        attn = self.act(self.norm(self.conv1(x)))
-        attn = F.softmax(self.conv2(attn), dim=1)
 
-        return ((x * attn).sum(1)).unsqueeze(1)
+        return F.hardtanh(self.conv(x), 0, 1)
 
 
 class AttentionCoFusion(nn.Module):

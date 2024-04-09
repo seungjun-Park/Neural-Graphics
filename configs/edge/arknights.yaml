@@ -6,7 +6,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_start: 40001
+        disc_start: 50001
         disc_embed_dim: 64
         disc_num_layers: 3
         disc_in_channels: 1
@@ -19,14 +19,14 @@ module:
     patch_size: 4
     window_size: 8
     out_channels: 1
-    hidden_dims: [64, 96, 128]
+    hidden_dims: [64, 96, 128, 160]
     embed_dim: 32
-    num_blocks: 2
-    num_head_channels: 16
+    num_blocks: 3
+    num_heads: 8
     mlp_ratio: 4
-    dropout: 0.1
-    attn_dropout: 0.1
-    drop_path: 0.1
+    dropout: 0
+    attn_dropout: 0
+    drop_path: 0
     qkv_bias: True
     bias: True
     groups: 4
