@@ -200,7 +200,7 @@ class EdgeNet(pl.LightningModule):
         self.co_fusion = CoFusion(
             in_channels=len(hidden_dims),
             out_channels=1,
-            num_groups=num_groups,
+            num_groups=groups,
             act=act,
             dim=dim,
         )
