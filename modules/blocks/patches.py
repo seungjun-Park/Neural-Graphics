@@ -13,7 +13,6 @@ class PatchEmbedding(nn.Module):
                  embed_dim: int,
                  in_resolution: Union[int, List, Tuple] = (64, 64),
                  patch_size: Union[int, List, Tuple] = (4, 4),
-                 num_groups: int = 32,
                  dim=2,
                  *args,
                  **kwargs
@@ -24,7 +23,7 @@ class PatchEmbedding(nn.Module):
         self.patch_size = to_2tuple(patch_size)
         assert self.in_res[0] % self.patch_size[0] == 0 and self.in_res[1] % self.patch_size[1] == 0
 
-        self.patch_res = to_2tuple([in_resolution[0] // patch_size[0], in_resolution[0] // patch_size[0]])
+        self.patch_res = to_2tuple([self.in_res[0] // self.patch_size[0], self.in_res[1] // self.patch_size[1]])
         self.num_patches = self.patch_res[0] * self.patch_res[1]
 
         self.in_channels = in_channels
@@ -38,7 +37,7 @@ class PatchEmbedding(nn.Module):
             stride=self.patch_size,
         )
 
-        self.norm = group_norm(embed_dim, num_groups=num_groups)
+        self.norm = group_norm(embed_dim, num_groups=1)
 
     def forward(self, x):
         b, c, h, w = x.shape
@@ -52,7 +51,7 @@ class PatchEmbedding(nn.Module):
 class PatchMerging(nn.Module):
     def __init__(self,
                  in_channels: int,
-                 out_channels: int,
+                 out_channels: int = None,
                  scale_factor: int = 2,
                  *args,
                  **kwargs,
@@ -61,7 +60,7 @@ class PatchMerging(nn.Module):
 
         self.in_res = to_2tuple(in_resolution)
         self.in_channels = in_channels
-        self.out_channels = out_channels,
+        self.out_channels = in_channels * 2 if out_channels is None else out_channels
         self.scale_factor = scale_factor
 
         self.norm = nn.LayerNorm((scale_factor ** 2) * in_channels)

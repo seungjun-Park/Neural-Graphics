@@ -4,27 +4,112 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
-from utils import instantiate_from_config, to_2tuple
-from modules.blocks import ResidualBlock, LearnableFourierMask, DownBlock, UpBlock, AttnBlock
+from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm
+from modules.blocks import ResidualBlock, DownBlock, UpBlock, AttnBlock, WindowAttnBlock, PatchEmbedding, PatchMerging
 from taming.modules.losses.vqperceptual import hinge_d_loss, vanilla_d_loss, weights_init, LPIPS
 from utils.loss import cats_loss, bdcn_loss2
+
+
+class CoFusion(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 embed_dim: int = 32,
+                 out_channels: int = None,
+                 num_groups: int = None,
+                 act: str = 'relu',
+                 dim: int = 2,
+                 ):
+        super().__init__()
+
+        out_channels = in_channels if out_channels is None else out_channels
+
+        self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)  # before 64
+        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=3, stride=1, padding=1)  # before 64  instead of 32
+        self.act = get_act(act)
+        num_groups = embed_dim if num_groups is None else num_groups
+        self.norm = group_norm(embed_dim, num_groups)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        attn = self.act(self.norm(self.conv1(x)))
+        attn = F.softmax(self.conv2(attn), dim=1)
+
+        return ((x * attn).sum(1)).unsqueeze(1)
+
+
+class AttentionCoFusion(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x: torch.Tensor):
+        return
+
+
+class SkipUSBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 embed_dim: int = 16,
+                 skip_dims: Union[int, List[int], Tuple[int]] = (),
+                 num_upscale: int = 1,
+                 num_groups: int = 1,
+                 mode: str = 'nearest',
+                 act: str = 'relu',
+                 dim: int = 2,
+                 ):
+        super().__init__()
+
+        self.blocks = nn.ModuleList()
+        self.mode = mode.lower()
+        skip_dims = list(skip_dims)
+
+        in_ch = in_channels
+
+        for i in range(num_upscale):
+            skip_dim = skip_dims.pop() if len(skip_dims) > 0 and i > 0 else 0
+            out_ch = 1 if i == num_upscale - 1 else embed_dim
+            in_ch = in_ch + skip_dim
+            self.blocks.append(
+                nn.Sequential(
+                    group_norm(in_ch , num_groups=num_groups),
+                    get_act(act),
+                    conv_nd(dim, in_ch, embed_dim, kernel_size=1, stride=1, padding=0),
+                )
+            )
+            self.blocks.append(conv_nd(dim, embed_dim, out_ch, kernel_size=3, stride=1, padding=1))
+            in_ch = out_ch
+
+    def forward(self, x: torch.Tensor, hs: Union[List[torch.Tensor], Tuple[torch.Tensor]] = ()) -> torch.Tensor:
+        hs = list(hs)
+        for i, module in enumerate(self.blocks):
+            if i % 2 == 0:
+                if i > 0 and len(hs) > 0:
+                    h = hs.pop()
+                    x = torch.cat([x, h], dim=1)
+                x = module(x)
+                x = F.interpolate(x, scale_factor=2.0, mode=self.mode)
+            else:
+                x = module(x)
+
+        return F.hardtanh(x, 0, 1)
 
 
 class EdgeNet(pl.LightningModule):
     def __init__(self,
                  in_channels: int,
                  in_res: Union[int, List[int], Tuple[int]],
-                 disc_config: dict = None,
+                 patch_size: Union[int, List[int], Tuple[int]] = 4,
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 loss_config: dict = None,
                  out_channels: int = None,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  embed_dim: int = 64,
                  num_blocks: int = 2,
-                 attn_res: Union[List[int], Tuple[int]] = (),
                  num_heads: int = -1,
                  num_head_channels: int = -1,
                  mlp_ratio: int = 4,
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
+                 drop_path: float = 0.0,
+                 qkv_bias: bool = True,
                  bias: bool = True,
                  groups: int = 32,
                  act: str = 'relu',
@@ -33,12 +118,7 @@ class EdgeNet(pl.LightningModule):
                  mode: str = 'nearest',
                  lr: float = 2e-5,
                  weight_decay: float = 0.,
-                 perceptual_weight: float = 1.0,
                  l_weight: Union[float, List[float], Tuple[float]] = 0.,
-                 disc_weight: float = 0.,
-                 disc_factor: float = 1.,
-                 disc_iter_start: int = 50001,
-                 disc_loss: str = 'hinge',
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  dim: int = 2,
@@ -50,18 +130,12 @@ class EdgeNet(pl.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
         self.log_interval = log_interval
-        # self.automatic_optimization = False
+        self.automatic_optimization = False
 
         self.l_weight = l_weight
 
-        self.perceptual_weight = perceptual_weight
-        # self.perceptual_loss = LPIPS().eval()
-
-        # self.disc = instantiate_from_config(disc_config).apply(weights_init)
-        self.disc_weight = disc_weight
-        self.disc_factor = disc_factor
-        self.disc_iter_start = disc_iter_start
-        self.disc_loss = hinge_d_loss if disc_loss.lower() == "hinge" else vanilla_d_loss
+        if loss_config is not None:
+            self.loss = instantiate_from_config(loss_config)
 
         self.in_channels = in_channels
         self.in_res = in_res
@@ -69,22 +143,26 @@ class EdgeNet(pl.LightningModule):
         self.hidden_dims = hidden_dims
         self.embed_dim = embed_dim
 
-        self.down = nn.ModuleList()
-        self.down.append(nn.Conv2d(in_channels, embed_dim, kernel_size=3, stride=1, padding=1))
-
-        self.middle = nn.ModuleList()
-        self.up = nn.ModuleList()
-
-        skip_dims = [embed_dim]
+        self.patch_embed = PatchEmbedding(
+            in_channels=in_channels,
+            in_resolution=in_res,
+            embed_dim=embed_dim,
+            patch_size=patch_size,
+            dim=dim
+        )
 
         in_ch = embed_dim
+        skip_dims = []
+        cur_res = self.patch_embed.patch_res
+        num_upscale = patch_size // 2
 
-        current_res = in_res
+        self.encoders = nn.ModuleList()
+        self.skip_us_nets = nn.ModuleList()
 
         for i, out_ch in enumerate(hidden_dims):
+            encoders = list()
             for j in range(num_blocks):
-                down = list()
-                down.append(
+                encoders.append(
                     ResidualBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
@@ -95,104 +173,66 @@ class EdgeNet(pl.LightningModule):
                 )
                 in_ch = out_ch
 
-                if i in attn_res:
-                    down.append(
-                        AttnBlock(
-                            in_ch,
-                            mlp_ratio=mlp_ratio,
-                            heads=num_heads,
+                encoders.append(
+                    nn.Sequential(
+                        WindowAttnBlock(
+                            in_channels=in_ch,
+                            in_res=cur_res,
+                            num_heads=num_heads,
                             num_head_channels=num_head_channels,
-                            dropout=dropout,
-                            attn_dropout=attn_dropout,
-                            bias=bias,
+                            window_size=window_size,
+                            shift_size=0,
+                            mlp_ratio=mlp_ratio,
+                            qkv_bias=qkv_bias,
+                            proj_bias=bias,
+                            drop=dropout,
+                            attn_drop=attn_dropout,
+                            drop_path=drop_path,
                             act=act,
-                            use_conv=use_conv,
-                            dim=dim,
-                            groups=groups,
                         ),
-                    )
-
-                skip_dims.append(in_ch)
-                self.down.append(nn.Sequential(*down))
-
-            self.down.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
-            current_res = current_res // 2
-            skip_dims.append(in_ch)
-
-        self.middle = nn.Sequential(
-            ResidualBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                dropout=dropout,
-                act=act,
-                groups=groups,
-            ),
-            AttnBlock(
-                in_ch,
-                mlp_ratio=mlp_ratio,
-                heads=num_heads,
-                num_head_channels=num_head_channels,
-                dropout=dropout,
-                attn_dropout=attn_dropout,
-                bias=bias,
-                act=act,
-                use_conv=use_conv,
-                dim=dim,
-                groups=groups,
-            ),
-            ResidualBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                dropout=dropout,
-                act=act,
-                groups=groups,
-            )
-        )
-
-        hidden_dims = hidden_dims[1:]
-        hidden_dims.insert(0, embed_dim)
-
-        for i, out_ch in reversed(list(enumerate(hidden_dims))):
-            self.up.append(UpBlock(in_ch + skip_dims.pop(), out_channels=in_ch, mode=mode))
-            current_res = current_res ** 2
-
-            for j in range(num_blocks):
-                up = list()
-                up.append(
-                    ResidualBlock(
-                        in_channels=in_ch + skip_dims.pop(),
-                        out_channels=out_ch,
-                        dropout=dropout,
-                        act=act,
-                        groups=groups,
+                        WindowAttnBlock(
+                            in_channels=in_ch,
+                            in_res=cur_res,
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            window_size=window_size,
+                            shift_size=window_size // 2,
+                            mlp_ratio=mlp_ratio,
+                            qkv_bias=qkv_bias,
+                            proj_bias=bias,
+                            drop=dropout,
+                            attn_drop=attn_dropout,
+                            drop_path=drop_path,
+                            act=act,
+                        ),
                     )
                 )
-                in_ch = out_ch
 
-                if i in attn_res:
-                    up.append(
-                        AttnBlock(
-                            in_ch,
-                            mlp_ratio=mlp_ratio,
-                            heads=num_heads,
-                            num_head_channels=num_head_channels,
-                            dropout=dropout,
-                            attn_dropout=attn_dropout,
-                            bias=bias,
-                            act=act,
-                            use_conv=use_conv,
-                            dim=dim,
-                            groups=groups,
-                        ),
-                    )
-                self.up.append(nn.Sequential(*up))
+            self.encoders.append(nn.Sequential(*encoders))
+            self.skip_us_nets.append(
+                SkipUSBlock(
+                    in_channels=in_ch,
+                    skip_dims=skip_dims,
+                    num_upscale=num_upscale,
+                    num_groups=groups,
+                    mode=mode,
+                    act=act,
+                    dim=dim
+                )
+            )
+            skip_dims.append(in_ch)
 
-        self.out = nn.Conv2d(
-            in_ch + skip_dims.pop(),
-            out_channels,
-            kernel_size=3,
-            stride=1,
-            padding=1,
+            if i != len(hidden_dims) - 1:
+                self.encoders.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+                cur_res = [cur_res[0] // 2, cur_res[1] // 2]
+                num_upscale += 1
+
+        self.co_fusion = CoFusion(
+            in_channels=len(hidden_dims),
+            out_channels=1,
+            num_groups=groups,
+            act=act,
+            dim=dim,
         )
 
         if ckpt_path is not None:
@@ -209,162 +249,71 @@ class EdgeNet(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
         hs = []
-        for module in self.down:
-            x = module(x)
-            hs.append(x)
+        edges = []
+        x = self.patch_embed(x)
+        # hs.append(x)
 
-        x = self.middle(x)
+        for i, encoder in enumerate(self.encoders):
+            x = encoder(x)
+            if i % 2 == 0:
+                edges.append(self.skip_us_nets[i // 2](x, hs=hs))
+                hs.append(x)
 
-        for module in self.up:
-            x = torch.cat([x, hs.pop()], dim=1)
-            x = module(x)
+        edge = torch.cat(edges, dim=1)
+        edge = self.co_fusion(edge)
+        edges.append(edge)
 
-        x = torch.cat([x, hs.pop()], dim=1)
-        x = self.out(x)
-
-        return x
+        return edges
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
-        edge_map = self(img)
+        edges = self(img)
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, gt, edge_map)
+            self.log_img(img, gt, edges[-1])
 
-        loss = cats_loss(edge_map, gt, self.l_weight)
+        cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
-        # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
-        #
-        # if self.perceptual_weight > 0:
-        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
-        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
-        #
-        # rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
-        #
-        # # generator update
-        # g_loss = -torch.mean(self.disc(edge_map.contiguous(), img))
-        #
-        # if self.disc_factor > 0.0:
-        #     try:
-        #         d_weight = self.calculate_adaptive_weight(rec_loss, g_loss)
-        #     except RuntimeError:
-        #         assert not self.training
-        #         d_weight = torch.tensor(0.0)
-        # else:
-        #     d_weight = torch.tensor(0.0)
-        #
-        # disc_factor = self.adopt_weight(self.disc_factor, self.global_step // 2, threshold=self.disc_iter_start)
-        #
-        # loss = d_weight * disc_factor * g_loss + rec_loss
-        #
-        # opt_unet, opt_disc = self.optimizers()
-        #
-        # # train encoder+decoder+logvar
-        # opt_unet.zero_grad()
-        # self.manual_backward(loss)
-        # opt_unet.step()
-        #
-        # # second pass for discriminator update
-        # logits_real = self.disc(gt.contiguous().detach(), img)
-        # logits_fake = self.disc(edge_map.contiguous().detach(), img)
-        #
-        # d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
-        #
-        # opt_disc.zero_grad()
-        # self.manual_backward(d_loss)
-        # opt_disc.step()
+        g_loss, g_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=0, split='train')
+        d_loss, d_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=1, split='train')
 
-        self.log('train/loss', loss, logger=True)
+        opt_net, opt_disc = self.optimizers()
 
-        return loss
+        opt_net.zero_grad()
+        self.manual_backward(g_loss)
+        opt_net.step()
+
+
+        opt_disc.zero_grad()
+        self.manual_backward(d_loss)
+        opt_disc.step()
+
+        self.log('train/loss', g_loss, logger=True)
+        self.log_dict(g_loss_log)
+        self.log_dict(d_loss_log)
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
-        edge_map = self(img)
+        edges = self(img)
 
-        self.log_img(img, gt, edge_map)
+        self.log_img(img, gt, edges[-1])
 
-        loss = cats_loss(edge_map, gt, self.l_weight)
+        cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
-        # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
-        #
-        # if self.perceptual_weight > 0:
-        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
-        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
-        #
-        # rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
-        #
-        # # generator update
-        # g_loss = -torch.mean(self.disc(edge_map.contiguous(), img))
-        #
-        # if self.disc_factor > 0.0:
-        #     try:
-        #         d_weight = self.calculate_adaptive_weight(rec_loss, g_loss)
-        #     except RuntimeError:
-        #         assert not self.training
-        #         d_weight = torch.tensor(0.0)
-        # else:
-        #     d_weight = torch.tensor(0.0)
-        #
-        # disc_factor = self.adopt_weight(self.disc_factor, self.global_step // 2, threshold=self.disc_iter_start)
-        #
-        # loss = d_weight * disc_factor * g_loss + rec_loss
-        #
-        # # discriminator update
-        # logits_real = self.disc(gt.contiguous().detach(), img)
-        # logits_fake = self.disc(edge_map.contiguous().detach(), img)
-        #
-        # d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+        g_loss, g_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=0,
+                                       split='val')
+        d_loss, d_loss_log = self.loss(gt, edges[-1], cond=img, global_step=self.global_step, optimizer_idx=1,
+                                       split='val')
 
-        self.log('val/loss', loss, logger=True)
+        loss = cats_l + g_loss
 
-        return self.log_dict
-
-    def test_step(self, batch, batch_idx) -> Optional[Any]:
-        img, gt, cond = batch
-        edge_map = self(img)
-
-        if (self.global_step // 2) % self.log_interval == 0:
-            self.log_img(img, gt, edge_map)
-
-        loss = cats_loss(edge_map, gt, self.l_weight)
-        # loss = bdcn_loss2(edge_map, gt, self.l_weight)
-
-        # rec_loss = torch.abs(gt.contiguous() - edge_map.contiguous())
-        #
-        # if self.perceptual_weight > 0:
-        #     p_loss = self.perceptual_loss(gt.repeat(1, 3, 1, 1).contiguous(), edge_map.repeat(1, 3, 1, 1).contiguous())
-        #     rec_loss = rec_loss + self.perceptual_weight * p_loss
-        #
-        # rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
-        #
-        # # generator update
-        # g_loss = -torch.mean(self.disc(edge_map.contiguous(), img))
-        #
-        # if self.disc_factor > 0.0:
-        #     try:
-        #         d_weight = self.calculate_adaptive_weight(rec_loss, g_loss)
-        #     except RuntimeError:
-        #         assert not self.training
-        #         d_weight = torch.tensor(0.0)
-        # else:
-        #     d_weight = torch.tensor(0.0)
-        #
-        # disc_factor = self.adopt_weight(self.disc_factor, self.global_step // 2, threshold=self.disc_iter_start)
-        #
-        # loss = d_weight * disc_factor * g_loss + rec_loss
-        #
-        # # discriminator update
-        # logits_real = self.disc(gt.contiguous().detach(), img)
-        # logits_fake = self.disc(edge_map.contiguous().detach(), img)
-        #
-        # d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
-
-        self.log('test/loss', loss, logger=True)
+        self.log('val/loss', loss)
+        self.log_dict(g_loss_log)
+        self.log_dict(d_loss_log)
 
         return self.log_dict
 
@@ -381,28 +330,18 @@ class EdgeNet(pl.LightningModule):
             weight = value
         return weight
 
-    def calculate_adaptive_weight(self, rec_loss, g_loss):
-        rec_grads = torch.autograd.grad(rec_loss, self.out.weight, retain_graph=True)[0]
-        g_grads = torch.autograd.grad(g_loss, self.out.weight, retain_graph=True)[0]
-
-        d_weight = torch.norm(rec_grads) / (torch.norm(g_grads) + 1e-4)
-        d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
-        d_weight = d_weight * self.disc_weight
-        return d_weight
-
     def configure_optimizers(self) -> Any:
-        opt_unet = torch.optim.AdamW(list(self.down.parameters()) +
-                                     list(self.middle.parameters()) +
-                                     list((self.up.parameters())) +
-                                     list(self.out.parameters()),
+        opt_net = torch.optim.AdamW(list(self.patch_embed.parameters()) +
+                                    list(self.encoders.parameters()) +
+                                    list((self.skip_us_nets.parameters())) +
+                                    list(self.co_fusion.parameters()),
+                                    lr=self.lr,
+                                    weight_decay=self.weight_decay,
+                                    )
+
+        opt_disc = torch.optim.AdamW(list(self.loss.discriminator.parameters()),
                                      lr=self.lr,
                                      weight_decay=self.weight_decay,
                                      )
 
-        # opt_disc = torch.optim.AdamW(list(self.disc.parameters()),
-        #                              lr=self.lr,
-        #                              weight_decay=self.weight_decay,
-        #                              )
-
-        return opt_unet
-        # return [opt_unet, opt_disc]
+        return [opt_net, opt_disc]

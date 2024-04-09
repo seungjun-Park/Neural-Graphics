@@ -3,38 +3,42 @@ module:
   params:
     in_channels: 3
     in_res: 512
-#    disc_config:
-#      target: models.gan.discriminator.Discriminator
-#      params:
-#        in_channels: 4
-#        embed_dim: 64
-#        num_layers: 3
-#        bias: False
+    loss_config:
+      target: modules.loss.edge_perceptual.EdgePerceptualLoss
+      params:
+        disc_start: 40001
+        disc_embed_dim: 64
+        disc_num_layers: 3
+        disc_in_channels: 1
+        d_weight: 1.0
+        g_weight: 1e-4
+        l1_weight: 1.0
+        perceptual_weight: 1.0
+        disc_loss: "hinge"
+
+    patch_size: 4
+    window_size: 8
     out_channels: 1
-    hidden_dims: [32, 64, 96, 128]
-    embed_dim: 16
+    hidden_dims: [64, 96, 128]
+    embed_dim: 32
     num_blocks: 2
-    # attn_res: [3]
-    num_heads: 8
+    num_head_channels: 16
     mlp_ratio: 4
-    dropout: 0.
-    attn_dropout: 0.
+    dropout: 0.1
+    attn_dropout: 0.1
+    drop_path: 0.1
+    qkv_bias: True
     bias: True
     groups: 4
     act: 'silu'
-    use_conv: False
+    use_conv: True
     pool_type: 'max'
     mode: 'nearest'
-    lr: 2e-5
+    lr: 5e-5
     weight_decay: 0.
-    disc_weight: 1
-    disc_factor: 1.
-    disc_iter_start: 20001
-    disc_loss: 'hinge'
-    log_interval: 100
-#    bdr_factor: [0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.01]
-#    tex_factor: [2., 2., 2., 1., 1., 1., 4.]
-    l_weight: [0.01, 4.]
+    # l_weight: [0.01, 4.]
+    l_weight: [ [ 0.05, 2. ], [ 0.05, 2. ], [ 0.05, 2. ], [ 0.1, 1. ], [ 0.1, 1. ], [ 0.1, 1. ], [ 0.01, 4. ] ]
+    dim: 2
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
