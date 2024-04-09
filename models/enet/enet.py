@@ -187,7 +187,6 @@ class EdgeNet(pl.LightningModule):
                 self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
                 skip_dims.append(in_ch)
                 cur_res = [cur_res[0] // 2, cur_res[1] // 2]
-                num_upscale += 1
 
         self.middle = nn.Sequential(
             ResidualBlock(
@@ -242,7 +241,7 @@ class EdgeNet(pl.LightningModule):
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             if i != 0:
                 skip_dim = skip_dims.pop()
-                self.decoder.append(UpBlock(in_ch + skip_dim, dim=dim, mode=mode))
+                self.decoder.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
                 cur_res = [cur_res[0] * 2, cur_res[1] * 2]
 
             up = list()
