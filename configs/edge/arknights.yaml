@@ -6,7 +6,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_iter_start: 2500
+        disc_iter_start: 5000
         disc_embed_dim: 64
         disc_num_layers: 3
         disc_in_channels: 1
@@ -35,7 +35,7 @@ module:
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
-    lr: 1e-5
+    lr: 2e-5
     weight_decay: 0.
     lr_decay_epoch: 50
     dim: 2
