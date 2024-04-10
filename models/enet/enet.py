@@ -420,11 +420,13 @@ class EdgeNet(pl.LightningModule):
                                     list((self.out.parameters())),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
+                                    betas=(0.5, 0.9)
                                     )
 
         opt_disc = torch.optim.AdamW(list(self.loss.discriminator.parameters()),
                                      lr=self.lr,
                                      weight_decay=self.weight_decay,
+                                     betas=(0.5, 0.9)
                                      )
 
         lr_net = torch.optim.lr_scheduler.LambdaLR(

@@ -13,7 +13,7 @@ module:
         disc_weight: 1e-4
         disc_factor: 1.0
         l1_weight: 1.0
-        cats_weight: [1.0, 0.01, 2.]
+        cats_weight: [0.0, 0.05, 1.]
         perceptual_weight: 1.0
         disc_loss: "hinge"
 
@@ -24,7 +24,7 @@ module:
     embed_dim: 16
     num_blocks: 2
     num_head_channels: 16
-    mlp_ratio: 4
+    mlp_ratio: 2
     dropout: 0.0
     attn_dropout: 0.0
     drop_path: 0.0
