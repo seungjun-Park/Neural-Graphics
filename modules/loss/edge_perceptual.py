@@ -18,8 +18,6 @@ class EdgePerceptualLoss(nn.Module):
         self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
 
-        self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
-
         self.discriminator = Discriminator(net=self.perceptual_loss.net,
                                            in_channels=disc_in_channels,
                                            embed_dim=disc_embed_dim,
@@ -28,33 +26,37 @@ class EdgePerceptualLoss(nn.Module):
         self.discriminator_iter_start = disc_start
         self.disc_loss = hinge_d_loss if disc_loss == "hinge" else vanilla_d_loss
 
-    def calculate_adaptive_weight(self, nll_loss, g_loss, last_layer):
-        nll_grads = torch.autograd.grad(nll_loss, last_layer, retain_graph=True)[0]
+    def calculate_adaptive_weight(self, rec_loss, g_loss, last_layer):
+        rec_grads = torch.autograd.grad(rec_loss, last_layer, retain_graph=True)[0]
         g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
 
-        d_weight = torch.norm(nll_grads) / (torch.norm(g_grads) + 1e-4)
+        d_weight = torch.norm(rec_grads) / (torch.norm(g_grads) + 1e-4)
         d_weight = torch.clamp(d_weight, 0.0, self.disc_weight).detach()
         return d_weight
 
     def forward(self, inputs, target, cond, optimizer_idx, global_step, last_layer, split="train"):
         rec_loss = torch.abs(inputs.contiguous() - target.contiguous()) * self.l1_weight
 
+        if inputs.shape[1] == 1:
+            inputs = inputs.repeat(1, 3, 1, 1)
+        if target.shape[1] == 1:
+            target = target.repeat(1, 3, 1, 1)
+
         if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(inputs.repeat(1, 3, 1, 1).contiguous(), target.repeat(1, 3, 1, 1).contiguous())
+            p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
-        nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
-        nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
+        rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
         # now the GAN part
         if optimizer_idx == 0:
             # generator update
-            logits_fake = self.discriminator(target.repeat(1, 3, 1, 1).contiguous(), cond.contiguous())
+            logits_fake = self.discriminator(target.contiguous(), cond.contiguous())
             g_loss = -torch.mean(logits_fake)
 
             if self.disc_factor > 0.0:
                 if self.training:
-                    g_weight = self.calculate_adaptive_weight(nll_loss, g_loss, last_layer=last_layer)
+                    g_weight = self.calculate_adaptive_weight(rec_loss, g_loss, last_layer=last_layer)
                 else:
                     g_weight = torch.tensor(0.0)
             else:
@@ -73,8 +75,8 @@ class EdgePerceptualLoss(nn.Module):
 
         if optimizer_idx == 1:
             # second pass for discriminator update
-            logits_real = self.discriminator(inputs.repeat(1, 3, 1, 1).contiguous().detach(), cond.contiguous().detach())
-            logits_fake = self.discriminator(target.repeat(1, 3, 1, 1).contiguous().detach(), cond.contiguous().detach())
+            logits_real = self.discriminator(inputs.contiguous().detach(), cond.contiguous().detach())
+            logits_fake = self.discriminator(target.contiguous().detach(), cond.contiguous().detach())
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
 
