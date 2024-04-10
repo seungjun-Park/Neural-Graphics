@@ -397,4 +397,4 @@ class EdgeNet(pl.LightningModule):
         #     lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_epoch))
         # )
 
-        return [opt_net], # [{"scheduler": lr_net, "interval": "epoch"}]
+        return [opt_net]#, [{"scheduler": lr_net, "interval": "epoch"}]
