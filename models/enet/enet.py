@@ -366,6 +366,12 @@ class EdgeNet(pl.LightningModule):
         self.manual_backward(d_loss)
         opt_disc.step()
 
+        self.log('train/loss', g_loss, logger=True)
+        self.log_dict(g_loss_log)
+        self.log_dict(d_loss_log)
+
+    def on_train_epoch_end(self):
+        opt_net, opt_disc = self.optimizers()
         lr_net = opt_net.param_groups[0]['lr']
         lr_disc = opt_disc.param_groups[0]['lr']
         self.log('train/lr_net', lr_net, logger=True)
@@ -374,10 +380,6 @@ class EdgeNet(pl.LightningModule):
         lr_net, lr_disc = self.lr_schedulers()
         lr_net.step(self.current_epoch)
         lr_disc.step(self.current_epoch)
-
-        self.log('train/loss', g_loss, logger=True)
-        self.log_dict(g_loss_log)
-        self.log_dict(d_loss_log)
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
