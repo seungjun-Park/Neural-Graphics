@@ -368,8 +368,8 @@ class EdgeNet(pl.LightningModule):
 
         lr_net = opt_net.param_groups[0]['lr']
         lr_disc = opt_disc.param_groups[0]['lr']
-        self.log('lr_net', lr_net, logger=True)
-        self.log('lr_disc', lr_disc, logger=True)
+        self.log('train/lr_net', lr_net, logger=True)
+        self.log('train/lr_disc', lr_disc, logger=True)
 
         lr_net, lr_disc = self.lr_schedulers()
         lr_net.step(self.global_step)
