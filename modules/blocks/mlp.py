@@ -22,8 +22,8 @@ class MLP(nn.Module):
         self.use_conv = use_conv
 
         if use_conv:
-            self.fc1 = conv_nd(dim, self.in_channels, self.embed_dim, kernel_size=1, stride=1, padding=1)
-            self.fc2 = conv_nd(dim, self.embed_dim, self.in_channels, kernel_size=1, stride=1, padding=1)
+            self.fc1 = conv_nd(dim, self.in_channels, self.embed_dim, kernel_size=1, stride=1, padding=0)
+            self.fc2 = conv_nd(dim, self.embed_dim, self.in_channels, kernel_size=1, stride=1, padding=0)
 
         else:
             self.fc1 = nn.Linear(self.in_channels, self.embed_dim)
