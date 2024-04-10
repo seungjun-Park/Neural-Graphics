@@ -339,8 +339,8 @@ class EdgeNet(pl.LightningModule):
 
         x = torch.cat([x, hs.pop()], dim=1)
         x = self.out(x)
-        x[x < 0.9] = 0
-        return x
+
+        return F.sigmoid(x)
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
@@ -349,8 +349,10 @@ class EdgeNet(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
 
-        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, last_layer=self.last_layer(), split='train')
-        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1, last_layer=self.last_layer(), split='train')
+        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0,
+                                       last_layer=self.last_layer(), split='train')
+        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1,
+                                       last_layer=self.last_layer(), split='train')
 
         opt_net, opt_disc = self.optimizers()
 
@@ -372,15 +374,10 @@ class EdgeNet(pl.LightningModule):
 
         self.log_img(img, gt, edge)
 
-        # cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
-        # loss = bdcn_loss2(edge_map, gt, self.l_weight)
-
         g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, last_layer=self.last_layer(),
                                        split='val')
         d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1, last_layer=self.last_layer(),
                                        split='val')
-
-        # loss = cats_l + g_loss
 
         self.log('val/loss', g_loss)
         self.log_dict(g_loss_log)
