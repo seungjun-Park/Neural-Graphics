@@ -371,15 +371,17 @@ class EdgeNet(pl.LightningModule):
         self.log_dict(d_loss_log)
 
     def on_train_epoch_end(self):
-        opt_net, opt_disc = self.optimizers()
-        lr_net = opt_net.param_groups[0]['lr']
-        lr_disc = opt_disc.param_groups[0]['lr']
-        self.log('train/lr_net', lr_net, logger=True)
-        self.log('train/lr_disc', lr_disc, logger=True)
+        # opt_net, opt_disc = self.optimizers()
+        # lr_net = opt_net.param_groups[0]['lr']
+        # lr_disc = opt_disc.param_groups[0]['lr']
+        # self.log('train/lr_net', lr_net, logger=True)
+        # self.log('train/lr_disc', lr_disc, logger=True)
+        #
+        # lr_net, lr_disc = self.lr_schedulers()
+        # lr_net.step(self.current_epoch)
+        # lr_disc.step(self.current_epoch)
 
-        lr_net, lr_disc = self.lr_schedulers()
-        lr_net.step(self.current_epoch)
-        lr_disc.step(self.current_epoch)
+        return
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
@@ -431,15 +433,15 @@ class EdgeNet(pl.LightningModule):
                                      betas=(0.5, 0.9)
                                      )
 
-        lr_net = torch.optim.lr_scheduler.LambdaLR(
-            optimizer=opt_net,
-            lr_lambda=lambda epoch: self.lr if epoch < self.lr_decay_epoch else self.lr * (0.95 ** (epoch - self.lr_decay_iter))
-        )
+        # lr_net = torch.optim.lr_scheduler.LambdaLR(
+        #     optimizer=opt_net,
+        #     lr_lambda=lambda epoch: self.lr if epoch < self.lr_decay_epoch else self.lr * (0.95 ** (epoch - self.lr_decay_iter))
+        # )
+        #
+        # lr_disc = torch.optim.lr_scheduler.LambdaLR(
+        #     optimizer=opt_disc,
+        #     lr_lambda=lambda epoch: self.lr if epoch < self.lr_decay_epoch else self.lr * (0.95 ** (
+        #                 epoch - self.lr_decay_iter))
+        # )
 
-        lr_disc = torch.optim.lr_scheduler.LambdaLR(
-            optimizer=opt_disc,
-            lr_lambda=lambda epoch: self.lr if epoch < self.lr_decay_epoch else self.lr * (0.95 ** (
-                        epoch - self.lr_decay_iter))
-        )
-
-        return [opt_net, opt_disc], [{"scheduler": lr_net, "interval": "epoch"}, {"scheduler": lr_disc, "interval": "epoch"}]
+        return [opt_net, opt_disc] #, [{"scheduler": lr_net, "interval": "epoch"}, {"scheduler": lr_disc, "interval": "epoch"}]
