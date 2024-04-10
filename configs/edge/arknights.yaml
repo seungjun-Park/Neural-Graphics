@@ -10,7 +10,7 @@ module:
         disc_embed_dim: 64
         disc_num_layers: 3
         disc_in_channels: 1
-        disc_weight: 1e-5
+        disc_weight: 1e-4
         disc_factor: 1.0
         l1_weight: 1.0
         cats_weight: [1.0, 0.01, 2.]
@@ -35,9 +35,9 @@ module:
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
-    lr: 2e-5
+    lr: 2e-4
     weight_decay: 0.
-    lr_decay_iter: 5000
+    lr_decay_epoch: 60
     dim: 2
 
 data:

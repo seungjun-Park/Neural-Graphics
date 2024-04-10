@@ -90,7 +90,7 @@ class EdgeNet(pl.LightningModule):
                  mode: str = 'nearest',
                  lr: float = 2e-5,
                  weight_decay: float = 0.,
-                 lr_decay_iter: int = 10000,
+                 lr_decay_epoch: int = 100,
                  l_weight: Union[float, List[float], Tuple[float]] = 0.,
                  log_interval: int = 100,
                  ckpt_path: str = None,
@@ -102,7 +102,7 @@ class EdgeNet(pl.LightningModule):
 
         self.lr = lr
         self.weight_decay = weight_decay
-        self.lr_decay_iter = lr_decay_iter
+        self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
         self.automatic_optimization = False
 
@@ -372,8 +372,8 @@ class EdgeNet(pl.LightningModule):
         self.log('train/lr_disc', lr_disc, logger=True)
 
         lr_net, lr_disc = self.lr_schedulers()
-        lr_net.step(self.global_step)
-        lr_disc.step(self.global_step)
+        lr_net.step(self.current_epoch)
+        lr_disc.step(self.current_epoch)
 
         self.log('train/loss', g_loss, logger=True)
         self.log_dict(g_loss_log)
@@ -429,13 +429,13 @@ class EdgeNet(pl.LightningModule):
 
         lr_net = torch.optim.lr_scheduler.LambdaLR(
             optimizer=opt_net,
-            lr_lambda=lambda step: self.lr if step < self.lr_decay_iter else self.lr * (0.99 ** (step - self.lr_decay_iter))
+            lr_lambda=lambda epoch: self.lr if epoch < self.lr_decay_epoch else self.lr * (0.95 ** (epoch - self.lr_decay_iter))
         )
 
         lr_disc = torch.optim.lr_scheduler.LambdaLR(
             optimizer=opt_disc,
-            lr_lambda=lambda step: self.lr if step < self.lr_decay_iter else self.lr * (0.99 ** (
-                        step - self.lr_decay_iter))
+            lr_lambda=lambda epoch: self.lr if epoch < self.lr_decay_epoch else self.lr * (0.95 ** (
+                        epoch - self.lr_decay_iter))
         )
 
-        return [opt_net, opt_disc], [{"scheduler": lr_net, "interval": "step"}, {"scheduler": lr_disc, "interval": "step"}]
+        return [opt_net, opt_disc], [{"scheduler": lr_net, "interval": "epoch"}, {"scheduler": lr_disc, "interval": "epoch"}]
