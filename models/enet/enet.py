@@ -340,7 +340,7 @@ class EdgeNet(pl.LightningModule):
         x = torch.cat([x, hs.pop()], dim=1)
         x = self.out(x)
 
-        return torch.round(F.sigmoid(x))
+        return F.sigmoid(x)
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch

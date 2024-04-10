@@ -6,7 +6,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_start: 6001
+        disc_start: 3001
         disc_embed_dim: 32
         disc_num_layers: 3
         disc_in_channels: 1
@@ -43,7 +43,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 1
-    batch_size: 1
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
@@ -90,4 +90,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 500
+  max_epochs: 250
