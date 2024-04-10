@@ -36,11 +36,11 @@ class EdgePerceptualLoss(nn.Module):
     def forward(self, inputs, target, cond, optimizer_idx, global_step, last_layer, split="train"):
         rec_loss = torch.abs(inputs.contiguous() - target.contiguous()) * self.l1_weight
 
-        if inputs.shape[1] != 3:
+        if inputs.shape[1] == 1:
             inputs = inputs.repeat(1, 3, 1, 1)
 
-        if target.shape[1] != 3:
-            target = inputs.repeat(1, 3, 1, 1)
+        if target.shape[1] == 1:
+            target = target.repeat(1, 3, 1, 1)
 
         if self.perceptual_weight > 0:
             p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
