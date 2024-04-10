@@ -35,7 +35,7 @@ class EdgePerceptualLoss(nn.Module):
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
-        contents = self.perceptual_loss(inputs.contiguous(), cond.contiguous()) * self.contents_weight
+        contents = self.perceptual_loss(target.contiguous(), cond.contiguous()) * self.contents_weight
 
         loss = cats + rec_loss + contents
 
