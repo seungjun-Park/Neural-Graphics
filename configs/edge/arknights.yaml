@@ -2,18 +2,18 @@ module:
   target: models.enet.enet.EdgeNet
   params:
     in_channels: 3
-    in_res: 512
+    in_res: 256
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_iter_start: 5001
+        disc_iter_start: 6001
         disc_embed_dim: 32
         disc_num_layers: 3
         disc_in_channels: 1
-        disc_weight: 1e-4
+        disc_weight: 1e-5
         disc_factor: 1.0
         l1_weight: 1.0
-        cats_weight: [0.0, 0.05, 1.]
+        cats_weight: [1.0, 0.05, 1.]
         perceptual_weight: 1.0
         disc_loss: "hinge"
 
@@ -22,16 +22,16 @@ module:
     out_channels: 1
     hidden_dims: [32, 64, 96]
     embed_dim: 16
-    num_blocks: 2
+    num_blocks: 1
     num_head_channels: 16
-    mlp_ratio: 4
+    mlp_ratio: 2
     dropout: 0.0
     attn_dropout: 0.0
     drop_path: 0.0
     qkv_bias: True
     bias: True
     groups: 16
-    act: 'silu'
+    act: 'gelu'
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
@@ -57,7 +57,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 512, 512 ]
+                size: [ 256, 256 ]
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
@@ -69,7 +69,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 512, 512 ]
+                size: [ 256, 256 ]
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
