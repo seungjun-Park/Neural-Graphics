@@ -6,7 +6,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_iter_start: 5000
+        disc_iter_start: 5001
         disc_embed_dim: 64
         disc_num_layers: 3
         disc_in_channels: 1
@@ -44,7 +44,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 2
-    batch_size: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
