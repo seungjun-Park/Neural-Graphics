@@ -42,7 +42,7 @@ module:
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
-    num_workers: 1
+    num_workers: 2
     batch_size: 2
     wrap: True
     train:
