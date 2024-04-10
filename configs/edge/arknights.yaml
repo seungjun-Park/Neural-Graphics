@@ -6,10 +6,10 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        l1_weight: 0.5
+        l1_weight: 1
         cats_weight: [1.0, 0.05, 1.]
-        perceptual_weight: 0.5
-        contents_weight: 0.5
+        perceptual_weight: 1
+        contents_weight: 0.1
 
     patch_size: 4
     window_size: 8
@@ -31,7 +31,7 @@ module:
     mode: 'nearest'
     lr: 2e-5
     weight_decay: 0.
-    lr_decay_epoch: 10
+    lr_decay_epoch: 25
     dim: 2
 
 data:
@@ -85,4 +85,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 50
+  max_epochs: 30
