@@ -22,7 +22,7 @@ module:
     out_channels: 1
     hidden_dims: [32, 64, 96]
     embed_dim: 16
-    num_blocks: 1
+    num_blocks: 2
     num_head_channels: 16
     mlp_ratio: 2
     dropout: 0.0
@@ -35,7 +35,7 @@ module:
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
-    lr: 5e-5
+    lr: 1e-4
     weight_decay: 0.
     lr_decay_iter: 2000
     dim: 2
