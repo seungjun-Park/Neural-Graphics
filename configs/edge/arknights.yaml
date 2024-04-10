@@ -6,14 +6,14 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_iter_start: 2000
+        disc_iter_start: 2500
         disc_embed_dim: 64
         disc_num_layers: 3
         disc_in_channels: 1
         disc_weight: 1e-5
         disc_factor: 1.0
         l1_weight: 1.0
-        cats_weight: [1.0, 0.1, 1.5]
+        cats_weight: [1.0, 0.01, 2.]
         perceptual_weight: 1.0
         disc_loss: "hinge"
 
@@ -31,13 +31,13 @@ module:
     qkv_bias: True
     bias: True
     groups: 16
-    act: 'gelu'
+    act: 'silu'
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
-    lr: 1e-4
+    lr: 2e-5
     weight_decay: 0.
-    lr_decay_iter: 2000
+    lr_decay_iter: 5000
     dim: 2
 
 data:
