@@ -117,3 +117,39 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
     bdrcost = bdrloss(prediction.float(), label_w.float(), radius=4)
 
     return cost_weight * (cost + bdr_factor * bdrcost + tex_factor * textcost)
+
+
+SHIFT = torch.Tensor([-.030, -.088, -.188])[None, :, None, None]
+SCALE = torch.Tensor([.458, .448, .450])[None, :, None, None]
+
+
+def scaling(x: torch.Tensor):
+    shift = SHIFT.to(x.device)
+    scale = SCALE.to(x.device)
+    return (x - shift) / scale
+
+
+def contents_loss(net, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+
+    in0_input, in1_input = (scaling(inputs), scaling(targets))
+    feats0, feats1 = net(in0_input), net(in1_input)
+    diffs = []
+
+    for kk in range(len(net.chns)):
+        diffs.append(torch.mean((feats0[kk] - feats1[kk]) ** 2, dim=[2, 3]))
+
+    val = torch.cat(diffs, dim=1)
+    val = torch.sum(val, dim=1)
+    val = torch.sum(val) / val.shape[0]
+
+    return val
+
+
+class ScalingLayer(nn.Module):
+    def __init__(self):
+        super(ScalingLayer, self).__init__()
+        self.register_buffer('shift', torch.Tensor([-.030, -.088, -.188])[None, :, None, None])
+        self.register_buffer('scale', torch.Tensor([.458, .448, .450])[None, :, None, None])
+
+    def forward(self, inp):
+        return (inp - self.shift) / self.scale

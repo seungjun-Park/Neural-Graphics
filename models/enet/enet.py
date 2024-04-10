@@ -104,7 +104,7 @@ class EdgeNet(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
-        self.automatic_optimization = False
+        # self.automatic_optimization = False
 
         self.l_weight = l_weight
 
@@ -351,34 +351,10 @@ class EdgeNet(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
 
-        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0,
-                                       last_layer=self.last_layer(), split='train')
-        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1,
-                                       last_layer=self.last_layer(), split='train')
+        loss, loss_log = self.loss(gt, edge, cond=img, split='train')
 
-        opt_net, opt_disc = self.optimizers()
-
-        opt_net.zero_grad()
-        self.manual_backward(g_loss)
-        opt_net.step()
-
-        opt_disc.zero_grad()
-        self.manual_backward(d_loss)
-        opt_disc.step()
-
-        self.log('train/loss', g_loss, logger=True)
-        self.log_dict(g_loss_log)
-        self.log_dict(d_loss_log)
-
-        lr_net = opt_net.param_groups[0]['lr']
-        lr_disc = opt_disc.param_groups[0]['lr']
-        self.log('train/lr_net', lr_net, logger=True)
-        self.log('train/lr_disc', lr_disc, logger=True)
-
-    def on_train_epoch_end(self):
-        lr_net, lr_disc = self.lr_schedulers()
-        lr_net.step(self.current_epoch)
-        lr_disc.step(self.current_epoch)
+        self.log('train/loss', loss, logger=True)
+        self.log_dict(loss_log)
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
@@ -386,14 +362,9 @@ class EdgeNet(pl.LightningModule):
 
         self.log_img(img, gt, edge)
 
-        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, last_layer=self.last_layer(),
-                                       split='val')
-        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1, last_layer=self.last_layer(),
-                                       split='val')
-
-        self.log('val/loss', g_loss)
-        self.log_dict(g_loss_log)
-        self.log_dict(d_loss_log)
+        loss, loss_log = self.loss(gt, edge, cond=img, split='val')
+        self.log('val/loss', loss)
+        self.log_dict(loss_log)
 
         return self.log_dict
 
@@ -410,9 +381,6 @@ class EdgeNet(pl.LightningModule):
         else:
             tb.add_image(f'{prefix}/edge', edges[0, ...], self.global_step, dataformats='CHW')
 
-    def last_layer(self):
-        return self.out[-1].weight
-
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.embed.parameters()) +
                                     list(self.encoder.parameters()) +
@@ -424,20 +392,9 @@ class EdgeNet(pl.LightningModule):
                                     betas=(0.5, 0.9)
                                     )
 
-        opt_disc = torch.optim.AdamW(list(self.loss.discriminator.parameters()),
-                                     lr=self.lr,
-                                     weight_decay=self.weight_decay,
-                                     betas=(0.5, 0.9)
-                                     )
-
         lr_net = torch.optim.lr_scheduler.LambdaLR(
             optimizer=opt_net,
-            lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_iter))
+            lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_epoch))
         )
 
-        lr_disc = torch.optim.lr_scheduler.LambdaLR(
-            optimizer=opt_disc,
-            lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_iter))
-        )
-
-        return [opt_net, opt_disc], [{"scheduler": lr_net, "interval": "epoch"}, {"scheduler": lr_disc, "interval": "epoch"}]
+        return [opt_net], [{"scheduler": lr_net, "interval": "epoch"}]

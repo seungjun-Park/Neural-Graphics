@@ -6,16 +6,10 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_iter_start: 2000
-        disc_embed_dim: 64
-        disc_num_layers: 3
-        disc_in_channels: 1
-        disc_weight: 1e-5
-        disc_factor: 1.0
         l1_weight: 0.5
         cats_weight: [1.0, 0.05, 1.]
         perceptual_weight: 0.5
-        disc_loss: "hinge"
+        contents_weight: 0.5
 
     patch_size: 4
     window_size: 8
