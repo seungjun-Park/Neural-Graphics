@@ -339,8 +339,7 @@ class EdgeNet(pl.LightningModule):
 
         x = torch.cat([x, hs.pop()], dim=1)
         x = self.out(x)
-
-        return x
+        return F.sigmoid(x)
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
@@ -397,14 +396,14 @@ class EdgeNet(pl.LightningModule):
     def log_img(self, img, gt, edges):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', normalize_img(img[0, ...]), self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/gt', normalize_img(gt[0, ...]), self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/img', img[0, ...], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/gt', gt[0, ...], self.global_step, dataformats='CHW')
         if isinstance(edges, list):
             for i in range(len(edges)):
-                tb.add_image(f'{prefix}/side_edge_{i}', normalize_img(edges[i][0, ...]), self.global_step,
+                tb.add_image(f'{prefix}/side_edge_{i}', edges[i][0, ...], self.global_step,
                              dataformats='CHW')
         else:
-            tb.add_image(f'{prefix}/edge', normalize_img(edges[0, ...]), self.global_step, dataformats='CHW')
+            tb.add_image(f'{prefix}/edge', edges[0, ...], self.global_step, dataformats='CHW')
 
     def last_layer(self):
         return self.out[-1].weight
