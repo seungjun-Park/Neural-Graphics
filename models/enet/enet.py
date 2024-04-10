@@ -376,11 +376,9 @@ class EdgeNet(pl.LightningModule):
         self.log('train/lr_disc', lr_disc, logger=True)
 
     def on_train_epoch_end(self):
-        # lr_net, lr_disc = self.lr_schedulers()
-        # lr_net.step(self.current_epoch)
-        # lr_disc.step(self.current_epoch)
-
-        return
+        lr_net, lr_disc = self.lr_schedulers()
+        lr_net.step(self.current_epoch)
+        lr_disc.step(self.current_epoch)
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
