@@ -3,10 +3,11 @@ import torch.nn as nn
 
 from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight, LPIPS
 from models.gan.discriminator import Discriminator
+from utils import cats_loss, bdcn_loss2
 
 
 class EdgePerceptualLoss(nn.Module):
-    def __init__(self, disc_start, logvar_init=0.0, disc_num_layers=3, disc_in_channels=1, disc_embed_dim=64,
+    def __init__(self, disc_start, cats_weight=(1., 0, 0), disc_num_layers=3, disc_in_channels=1, disc_embed_dim=64,
                  l1_weight=1.0, perceptual_weight=1.0, disc_factor=1.0, disc_weight=1e-4, disc_loss="hinge"):
 
         super().__init__()
@@ -17,6 +18,7 @@ class EdgePerceptualLoss(nn.Module):
         self.l1_weight = l1_weight
         self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
+        self.cats_weight = tuple(cats_weight)
 
         self.discriminator = Discriminator(net=self.perceptual_loss.net,
                                            in_channels=disc_in_channels,
@@ -35,6 +37,7 @@ class EdgePerceptualLoss(nn.Module):
         return d_weight
 
     def forward(self, inputs, target, cond, optimizer_idx, global_step, last_layer, split="train"):
+        cats = cats_loss(target, inputs, self.cats_weight)
         rec_loss = torch.abs(inputs.contiguous() - target.contiguous()) * self.l1_weight
 
         if inputs.shape[1] == 1:
@@ -64,7 +67,7 @@ class EdgePerceptualLoss(nn.Module):
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
 
-            loss = rec_loss + g_loss * g_weight * disc_factor
+            loss = cats + rec_loss + g_loss * g_weight * disc_factor
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),

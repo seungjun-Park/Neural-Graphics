@@ -92,9 +92,9 @@ def textureloss(prediction, label, mask_radius):
     return torch.sum(loss)
 
 
-def cats_loss(prediction, label, l_weight=(0., 0.)):
+def cats_loss(prediction, label, weights=(1., 0., 0.)):
     # tracingLoss
-    tex_factor, bdr_factor = l_weight
+    cost_weight, tex_factor, bdr_factor = weights
     balanced_w = 1.1
     label = label.float()
     prediction = prediction.float()
@@ -116,4 +116,4 @@ def cats_loss(prediction, label, l_weight=(0., 0.)):
     textcost = textureloss(prediction.float(), label_w.float(), mask_radius=4)
     bdrcost = bdrloss(prediction.float(), label_w.float(), radius=4)
 
-    return cost + bdr_factor * bdrcost + tex_factor * textcost
+    return cost_weight* cost + bdr_factor * bdrcost + tex_factor * textcost

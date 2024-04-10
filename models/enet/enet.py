@@ -339,7 +339,8 @@ class EdgeNet(pl.LightningModule):
 
         x = torch.cat([x, hs.pop()], dim=1)
         x = self.out(x)
-        return F.sigmoid(x)
+        x[x < 0.9] = 0
+        return x
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
@@ -348,13 +349,8 @@ class EdgeNet(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
 
-        # cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
-        # loss = bdcn_loss2(edge_map, gt, self.l_weight)
-
         g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, last_layer=self.last_layer(), split='train')
         d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1, last_layer=self.last_layer(), split='train')
-
-        # loss = cats_l + g_loss
 
         opt_net, opt_disc = self.optimizers()
 
