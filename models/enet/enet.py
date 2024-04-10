@@ -263,7 +263,7 @@ class EdgeNet(pl.LightningModule):
                     nn.Sequential(
                         WindowAttnBlock(
                             in_channels=in_ch,
-                            in_res=cur_res,
+                            in_res=to_2tuple(cur_res),
                             num_heads=num_heads,
                             num_head_channels=num_head_channels,
                             window_size=window_size,
@@ -280,7 +280,7 @@ class EdgeNet(pl.LightningModule):
                         ),
                         WindowAttnBlock(
                             in_channels=in_ch,
-                            in_res=cur_res,
+                            in_res=to_2tuple(cur_res),
                             num_heads=num_heads,
                             num_head_channels=num_head_channels,
                             window_size=window_size,
