@@ -35,7 +35,7 @@ module:
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
-    lr: 2e-4
+    lr: 1e-5
     weight_decay: 0.
     lr_decay_epoch: 50
     dim: 2
