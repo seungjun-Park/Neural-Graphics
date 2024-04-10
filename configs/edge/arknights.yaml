@@ -6,7 +6,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_iter_start: 1600
+        disc_iter_start: 2000
         disc_embed_dim: 64
         disc_num_layers: 3
         disc_in_channels: 1
@@ -37,7 +37,7 @@ module:
     mode: 'nearest'
     lr: 5e-5
     weight_decay: 0.
-    lr_decay_iter: 1600
+    lr_decay_iter: 2000
     dim: 2
 
 data:

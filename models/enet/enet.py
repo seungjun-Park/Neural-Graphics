@@ -429,13 +429,13 @@ class EdgeNet(pl.LightningModule):
 
         lr_net = torch.optim.lr_scheduler.LambdaLR(
             optimizer=opt_net,
-            lr_lambda=lambda step: self.lr if step > self.lr_decay_iter else self.lr * 0.99 * (step - self.lr_decay_iter)
+            lr_lambda=lambda step: self.lr if step > self.lr_decay_iter else self.lr * (0.99 ** (step - self.lr_decay_iter))
         )
 
         lr_disc = torch.optim.lr_scheduler.LambdaLR(
-            optimizer=opt_net,
-            lr_lambda=lambda step: self.lr if step > self.lr_decay_iter else self.lr * 0.99 * (
-                        step - self.lr_decay_iter)
+            optimizer=opt_disc,
+            lr_lambda=lambda step: self.lr if step > self.lr_decay_iter else self.lr * (0.99 ** (
+                        step - self.lr_decay_iter))
         )
 
         return [opt_net, opt_disc], [{"scheduler": lr_net, "interval": "step"}, {"scheduler": lr_disc, "interval": "step"}]
