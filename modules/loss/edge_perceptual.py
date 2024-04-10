@@ -30,12 +30,12 @@ class EdgePerceptualLoss(nn.Module):
             target = target.repeat(1, 3, 1, 1)
 
         if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(inputs.contiguous(), cond.contiguous())
+            p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
 
-        contents = contents_loss(self.perceptual_loss.net, inputs.contiguous(), target.contiguous()) * self.contents_weight
+        contents = contents_loss(self.perceptual_loss.net, inputs.contiguous(), cond.contiguous()) * self.contents_weight
 
         loss = cats + rec_loss + contents
 
