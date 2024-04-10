@@ -356,6 +356,8 @@ class EdgeNet(pl.LightningModule):
         self.log('train/loss', loss, logger=True)
         self.log_dict(loss_log)
 
+        return loss
+
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
         edge = self(img)
