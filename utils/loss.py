@@ -135,7 +135,7 @@ def contents_loss(net, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Ten
     feats0, feats1 = net(in0_input), net(in1_input)
     diffs = []
 
-    for kk in range(len(net.chns)):
+    for kk in range(5):
         diffs.append(torch.mean((feats0[kk] - feats1[kk]) ** 2, dim=[2, 3]))
 
     val = torch.cat(diffs, dim=1)
