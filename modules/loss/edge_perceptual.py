@@ -4,6 +4,7 @@ import torch.nn as nn
 from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight, LPIPS
 from models.gan.discriminator import Discriminator
 
+
 class EdgePerceptualLoss(nn.Module):
     def __init__(self, disc_start, logvar_init=0.0, disc_num_layers=3, disc_in_channels=1, disc_embed_dim=64,
                  l1_weight=1.0, perceptual_weight=1.0, disc_factor=1.0, disc_weight=1e-4, disc_loss="hinge"):
@@ -38,14 +39,8 @@ class EdgePerceptualLoss(nn.Module):
     def forward(self, inputs, target, cond, optimizer_idx, global_step, last_layer, split="train"):
         rec_loss = torch.abs(inputs.contiguous() - target.contiguous()) * self.l1_weight
 
-        if inputs.shape[1] == 1:
-            inputs = inputs.repeat(1, 3, 1, 1).contiguous()
-
-        if target.shape[1] == 1:
-            target = target.repeat(1, 3, 1, 1).contiguous()
-
         if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
+            p_loss = self.perceptual_loss(inputs.repeat(1, 3, 1, 1).contiguous(), target.repeat(1, 3, 1, 1).contiguous())
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
@@ -54,11 +49,14 @@ class EdgePerceptualLoss(nn.Module):
         # now the GAN part
         if optimizer_idx == 0:
             # generator update
-            logits_fake = self.discriminator(target.contiguous(), cond.contiguous())
+            logits_fake = self.discriminator(target.repeat(1, 3, 1, 1).contiguous(), cond.contiguous())
             g_loss = -torch.mean(logits_fake)
 
-            if self.disc_factor > 0.:
-                g_weight = self.calculate_adaptive_weight(nll_loss, g_loss, last_layer=last_layer)
+            if self.disc_factor > 0.0:
+                if self.training:
+                    g_weight = self.calculate_adaptive_weight(nll_loss, g_loss, last_layer=last_layer)
+                else:
+                    g_weight = torch.tensor(0.0)
             else:
                 g_weight = torch.tensor(0.0)
 
@@ -75,8 +73,8 @@ class EdgePerceptualLoss(nn.Module):
 
         if optimizer_idx == 1:
             # second pass for discriminator update
-            logits_real = self.discriminator(inputs.contiguous().detach(), cond.contiguous().detach())
-            logits_fake = self.discriminator(target.contiguous().detach(), cond.contiguous().detach())
+            logits_real = self.discriminator(inputs.repeat(1, 3, 1, 1).contiguous().detach(), cond.contiguous().detach())
+            logits_fake = self.discriminator(target.repeat(1, 3, 1, 1).contiguous().detach(), cond.contiguous().detach())
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
 
