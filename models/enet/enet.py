@@ -90,6 +90,7 @@ class EdgeNet(pl.LightningModule):
                  mode: str = 'nearest',
                  lr: float = 2e-5,
                  weight_decay: float = 0.,
+                 lr_decay_iter: int = 10000,
                  l_weight: Union[float, List[float], Tuple[float]] = 0.,
                  log_interval: int = 100,
                  ckpt_path: str = None,
@@ -101,6 +102,7 @@ class EdgeNet(pl.LightningModule):
 
         self.lr = lr
         self.weight_decay = weight_decay
+        self.lr_decay_iter = lr_decay_iter
         self.log_interval = log_interval
         self.automatic_optimization = False
 
@@ -364,6 +366,15 @@ class EdgeNet(pl.LightningModule):
         self.manual_backward(d_loss)
         opt_disc.step()
 
+        lr_net = opt_net.param_groups[0]['lr']
+        lr_disc = opt_disc.param_groups[0]['lr']
+        self.log('lr_net', lr_net, logger=True)
+        self.loss('lr_disc', lr_disc, logger=True)
+
+        lr_net, lr_disc = self.lr_schedulers()
+        lr_net.step(self.global_step)
+        lr_disc.step(self.global_step)
+
         self.log('train/loss', g_loss, logger=True)
         self.log_dict(g_loss_log)
         self.log_dict(d_loss_log)
@@ -416,4 +427,15 @@ class EdgeNet(pl.LightningModule):
                                      weight_decay=self.weight_decay,
                                      )
 
-        return [opt_net, opt_disc]
+        lr_net = torch.optim.lr_scheduler.LambdaLR(
+            optimizer=opt_net,
+            lr_lambda=lambda step: self.lr if step > self.lr_decay_iter else self.lr * 0.99 * (step - self.lr_decay_iter)
+        )
+
+        lr_disc = torch.optim.lr_scheduler.LambdaLR(
+            optimizer=opt_net,
+            lr_lambda=lambda step: self.lr if step > self.lr_decay_iter else self.lr * 0.99 * (
+                        step - self.lr_decay_iter)
+        )
+
+        return [opt_net, opt_disc], [{"scheduler": lr_net, "interval": "step"}, {"scheduler": lr_disc, "interval": "step"}]

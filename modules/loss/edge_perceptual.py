@@ -7,7 +7,7 @@ from utils import cats_loss, bdcn_loss2
 
 
 class EdgePerceptualLoss(nn.Module):
-    def __init__(self, disc_start, cats_weight=(1., 0, 0), disc_num_layers=3, disc_in_channels=1, disc_embed_dim=64,
+    def __init__(self, disc_iter_start, cats_weight=(1., 0, 0), disc_num_layers=3, disc_in_channels=1, disc_embed_dim=64,
                  l1_weight=1.0, perceptual_weight=1.0, disc_factor=1.0, disc_weight=1e-4, disc_loss="hinge"):
 
         super().__init__()
@@ -25,7 +25,7 @@ class EdgePerceptualLoss(nn.Module):
                                            embed_dim=disc_embed_dim,
                                            num_layers=disc_num_layers,
                                            ).apply(weights_init)
-        self.discriminator_iter_start = disc_start
+        self.disc_iter_start = disc_iter_start
         self.disc_loss = hinge_d_loss if disc_loss == "hinge" else vanilla_d_loss
 
     def calculate_adaptive_weight(self, rec_loss, g_loss, last_layer):
@@ -65,10 +65,9 @@ class EdgePerceptualLoss(nn.Module):
             else:
                 g_weight = torch.tensor(0.0)
 
-            disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            rec_factor = g_weight if self.discriminator_iter_start < global_step else 1.0
+            disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.disc_iter_start)
 
-            loss = cats + rec_factor * rec_loss + g_loss * g_weight * disc_factor
+            loss = cats + rec_loss + g_loss * g_weight * disc_factor
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
@@ -83,7 +82,7 @@ class EdgePerceptualLoss(nn.Module):
             logits_real = self.discriminator(inputs.contiguous().detach(), cond.contiguous().detach())
             logits_fake = self.discriminator(target.contiguous().detach(), cond.contiguous().detach())
 
-            disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
+            disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.disc_iter_start)
 
             d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
 
