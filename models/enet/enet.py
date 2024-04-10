@@ -370,13 +370,12 @@ class EdgeNet(pl.LightningModule):
         self.log_dict(g_loss_log)
         self.log_dict(d_loss_log)
 
+        lr_net = opt_net.param_groups[0]['lr']
+        lr_disc = opt_disc.param_groups[0]['lr']
+        self.log('train/lr_net', lr_net, logger=True)
+        self.log('train/lr_disc', lr_disc, logger=True)
+
     def on_train_epoch_end(self):
-        # opt_net, opt_disc = self.optimizers()
-        # lr_net = opt_net.param_groups[0]['lr']
-        # lr_disc = opt_disc.param_groups[0]['lr']
-        # self.log('train/lr_net', lr_net, logger=True)
-        # self.log('train/lr_disc', lr_disc, logger=True)
-        #
         # lr_net, lr_disc = self.lr_schedulers()
         # lr_net.step(self.current_epoch)
         # lr_disc.step(self.current_epoch)
