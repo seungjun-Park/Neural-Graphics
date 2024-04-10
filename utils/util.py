@@ -331,3 +331,13 @@ def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
     """
     with torch.no_grad():
         return _trunc_normal_(tensor, mean, std, a, b)
+
+
+def normalize_img(img):
+    assert img.ndim == 3
+    max_val = torch.max(img)
+    min_val = torch.min(img)
+
+    norm_x = (img - min_val) / (max_val - min_val)
+
+    return norm_x

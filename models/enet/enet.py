@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
-from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm
+from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img
 from modules.blocks import ResidualBlock, DownBlock, UpBlock, AttnBlock, WindowAttnBlock, PatchEmbedding, PatchMerging, PatchExpanding
 from taming.modules.losses.vqperceptual import hinge_d_loss, vanilla_d_loss, weights_init, LPIPS
 from utils.loss import cats_loss, bdcn_loss2
@@ -69,7 +69,6 @@ class EdgeNet(pl.LightningModule):
     def __init__(self,
                  in_channels: int,
                  in_res: Union[int, List[int], Tuple[int]],
-                 patch_size: Union[int, List[int], Tuple[int]] = 4,
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  loss_config: dict = None,
                  out_channels: int = None,
@@ -116,17 +115,11 @@ class EdgeNet(pl.LightningModule):
         self.hidden_dims = hidden_dims
         self.embed_dim = embed_dim
 
-        self.patch_embed = PatchEmbedding(
-            in_channels=in_channels,
-            in_resolution=in_res,
-            embed_dim=embed_dim,
-            patch_size=patch_size,
-            dim=dim
-        )
+        self.embed = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
 
         in_ch = embed_dim
         skip_dims = [embed_dim]
-        cur_res = self.patch_embed.patch_res
+        cur_res = in_res
 
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
@@ -149,7 +142,7 @@ class EdgeNet(pl.LightningModule):
                     nn.Sequential(
                         WindowAttnBlock(
                             in_channels=in_ch,
-                            in_res=cur_res,
+                            in_res=to_2tuple(cur_res),
                             num_heads=num_heads,
                             num_head_channels=num_head_channels,
                             window_size=window_size,
@@ -161,10 +154,12 @@ class EdgeNet(pl.LightningModule):
                             attn_drop=attn_dropout,
                             drop_path=drop_path,
                             act=act,
+                            use_conv=use_conv,
+                            dim=dim
                         ),
                         WindowAttnBlock(
                             in_channels=in_ch,
-                            in_res=cur_res,
+                            in_res=to_2tuple(cur_res),
                             num_heads=num_heads,
                             num_head_channels=num_head_channels,
                             window_size=window_size,
@@ -176,6 +171,8 @@ class EdgeNet(pl.LightningModule):
                             attn_drop=attn_dropout,
                             drop_path=drop_path,
                             act=act,
+                            use_conv=use_conv,
+                            dim=dim
                         ),
                     )
                 )
@@ -186,7 +183,7 @@ class EdgeNet(pl.LightningModule):
             if i != len(hidden_dims) - 1:
                 self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
                 skip_dims.append(in_ch)
-                cur_res = [cur_res[0] // 2, cur_res[1] // 2]
+                cur_res //= 2
 
         self.middle = nn.Sequential(
             ResidualBlock(
@@ -198,7 +195,7 @@ class EdgeNet(pl.LightningModule):
             ),
             WindowAttnBlock(
                 in_channels=in_ch,
-                in_res=cur_res,
+                in_res=to_2tuple(cur_res),
                 num_heads=num_heads,
                 num_head_channels=num_head_channels,
                 window_size=window_size,
@@ -210,10 +207,12 @@ class EdgeNet(pl.LightningModule):
                 attn_drop=attn_dropout,
                 drop_path=drop_path,
                 act=act,
+                use_conv=use_conv,
+                dim=dim
             ),
             WindowAttnBlock(
                 in_channels=in_ch,
-                in_res=cur_res,
+                in_res=to_2tuple(cur_res),
                 num_heads=num_heads,
                 num_head_channels=num_head_channels,
                 window_size=window_size,
@@ -225,6 +224,8 @@ class EdgeNet(pl.LightningModule):
                 attn_drop=attn_dropout,
                 drop_path=drop_path,
                 act=act,
+                use_conv=use_conv,
+                dim=dim
             ),
             ResidualBlock(
                 in_channels=in_ch,
@@ -242,7 +243,7 @@ class EdgeNet(pl.LightningModule):
             if i != 0:
                 skip_dim = skip_dims.pop()
                 self.decoder.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
-                cur_res = [cur_res[0] * 2, cur_res[1] * 2]
+                cur_res = int(cur_res * 2)
 
             for j in range(num_blocks):
                 up = list()
@@ -274,6 +275,8 @@ class EdgeNet(pl.LightningModule):
                             attn_drop=attn_dropout,
                             drop_path=drop_path,
                             act=act,
+                            use_conv=use_conv,
+                            dim=dim
                         ),
                         WindowAttnBlock(
                             in_channels=in_ch,
@@ -289,66 +292,21 @@ class EdgeNet(pl.LightningModule):
                             attn_drop=attn_dropout,
                             drop_path=drop_path,
                             act=act,
+                            use_conv=use_conv,
+                            dim=dim
                         ),
                     )
                 )
 
                 self.decoder.append(nn.Sequential(*up))
 
-        up = list()
-        for i in range(patch_size // 2):
-            skip_dim = skip_dims.pop() if len(skip_dims) > 0 else 0
-            up.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
-            cur_res = [cur_res[0] * 2, cur_res[1] * 2]
-
-            for j in range(num_blocks):
-                up.append(
-                    ResidualBlock(
-                        in_channels=in_ch,
-                        out_channels=in_ch,
-                        dropout=dropout,
-                        act=act,
-                        groups=groups,
-                    )
-                )
-                up.append(
-                    nn.Sequential(
-                        WindowAttnBlock(
-                            in_channels=in_ch,
-                            in_res=cur_res,
-                            num_heads=num_heads,
-                            num_head_channels=num_head_channels,
-                            window_size=window_size,
-                            shift_size=0,
-                            mlp_ratio=mlp_ratio,
-                            qkv_bias=qkv_bias,
-                            proj_bias=bias,
-                            drop=dropout,
-                            attn_drop=attn_dropout,
-                            drop_path=drop_path,
-                            act=act,
-                        ),
-                        WindowAttnBlock(
-                            in_channels=in_ch,
-                            in_res=cur_res,
-                            num_heads=num_heads,
-                            num_head_channels=num_head_channels,
-                            window_size=window_size,
-                            shift_size=window_size // 2,
-                            mlp_ratio=mlp_ratio,
-                            qkv_bias=qkv_bias,
-                            proj_bias=bias,
-                            drop=dropout,
-                            attn_drop=attn_dropout,
-                            drop_path=drop_path,
-                            act=act,
-                        ),
-                    )
-                )
-
-        up.append(conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1))
-
-        self.decoder.append(nn.Sequential(*up))
+        skip_dim = skip_dims.pop()
+        in_ch = in_ch + skip_dim
+        self.out = nn.Sequential(
+            group_norm(in_ch, groups),
+            get_act(act),
+            conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1)
+        )
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -366,7 +324,7 @@ class EdgeNet(pl.LightningModule):
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
         hs = []
-        x = self.patch_embed(x)
+        x = self.embed(x)
         hs.append(x)
 
         for i, block in enumerate(self.encoder):
@@ -378,6 +336,9 @@ class EdgeNet(pl.LightningModule):
         for i, block in enumerate(self.decoder):
             x = torch.cat([x, hs.pop()], dim=1)
             x = block(x)
+
+        x = torch.cat([x, hs.pop()], dim=1)
+        x = self.out(x)
 
         return x
 
@@ -391,8 +352,8 @@ class EdgeNet(pl.LightningModule):
         # cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
-        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, split='train')
-        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1, split='train')
+        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, last_layer=self.last_layer(), split='train')
+        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1, last_layer=self.last_layer(), split='train')
 
         # loss = cats_l + g_loss
 
@@ -401,7 +362,6 @@ class EdgeNet(pl.LightningModule):
         opt_net.zero_grad()
         self.manual_backward(g_loss)
         opt_net.step()
-
 
         opt_disc.zero_grad()
         self.manual_backward(d_loss)
@@ -420,9 +380,9 @@ class EdgeNet(pl.LightningModule):
         # cats_l = sum([cats_loss(edge, gt, l_weight) for edge, l_weight in zip(edges, self.l_weight)])
         # loss = bdcn_loss2(edge_map, gt, self.l_weight)
 
-        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0,
+        g_loss, g_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=0, last_layer=self.last_layer(),
                                        split='val')
-        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1,
+        d_loss, d_loss_log = self.loss(gt, edge, cond=img, global_step=self.global_step, optimizer_idx=1, last_layer=self.last_layer(),
                                        split='val')
 
         # loss = cats_l + g_loss
@@ -437,25 +397,24 @@ class EdgeNet(pl.LightningModule):
     def log_img(self, img, gt, edges):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', torch.clamp(img, 0, 1)[0], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/gt', torch.clamp(gt, 0, 1)[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/img', normalize_img(img[0, ...]), self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/gt', normalize_img(gt[0, ...]), self.global_step, dataformats='CHW')
         if isinstance(edges, list):
             for i in range(len(edges)):
-                tb.add_image(f'{prefix}/side_edge_{i}', torch.clamp(edges[i], 0, 1)[0], self.global_step,
+                tb.add_image(f'{prefix}/side_edge_{i}', normalize_img(edges[i][0, ...]), self.global_step,
                              dataformats='CHW')
         else:
-            tb.add_image(f'{prefix}/edge', torch.clamp(edges, 0, 1)[0], self.global_step, dataformats='CHW')
+            tb.add_image(f'{prefix}/edge', normalize_img(edges[0, ...]), self.global_step, dataformats='CHW')
 
-    def adopt_weight(self, weight, global_step, threshold=0, value=0.):
-        if global_step < threshold:
-            weight = value
-        return weight
+    def last_layer(self):
+        return self.out[-1].weight
 
     def configure_optimizers(self) -> Any:
-        opt_net = torch.optim.AdamW(list(self.patch_embed.parameters()) +
+        opt_net = torch.optim.AdamW(list(self.embed.parameters()) +
                                     list(self.encoder.parameters()) +
                                     list(self.middle.parameters()) +
-                                    list((self.decoder.parameters())),
+                                    list((self.decoder.parameters())) +
+                                    list((self.out.parameters())),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
                                     )

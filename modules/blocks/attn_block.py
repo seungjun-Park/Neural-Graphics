@@ -266,6 +266,8 @@ class WindowAttnBlock(nn.Module):
                  attn_drop: float = 0.,
                  drop_path: float = 0.,
                  act: str = 'relu',
+                 use_conv: bool = True,
+                 dim: int = 2,
                  ):
         super().__init__()
 
@@ -276,6 +278,8 @@ class WindowAttnBlock(nn.Module):
         self.window_size = window_size
         self.shift_size = shift_size
         self.mlp_ratio = mlp_ratio
+        self.use_conv = use_conv
+        self.dim = dim
 
         if min(self.in_res) <= self.window_size:
             # if window size is larger than input resolution, we don't partition windows
@@ -297,10 +301,10 @@ class WindowAttnBlock(nn.Module):
         )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = nn.LayerNorm(in_channels)
+        self.norm2 = nn.LayerNorm(in_channels) if not use_conv else group_norm(in_channels, 1)
 
         mlp_embed_dim = int(in_channels * mlp_ratio)
-        self.mlp = MLP(in_channels=in_channels, embed_dim=mlp_embed_dim, dropout=drop, act=act)
+        self.mlp = MLP(in_channels=in_channels, embed_dim=mlp_embed_dim, dropout=drop, act=act, use_conv=use_conv, dim=dim)
 
         if self.shift_size > 0:
             # calculate attention mask for SW-MSA
@@ -367,8 +371,13 @@ class WindowAttnBlock(nn.Module):
         x = x.reshape(b, h * w, c)
         x = shortcut + self.drop_path(x)
 
+        if self.use_conv:
+            x = x.permute(0, 2, 1).reshape(b, c, h, w)
+
         # FFN
         x = x + self.drop_path(self.mlp(self.norm2(x)))
-        x = x.permute(0, 2, 1).reshape(b, c, h, w)
+
+        if not self.use_conv:
+            x = x.permute(0, 2, 1).reshape(b, c, h, w)
 
         return x
