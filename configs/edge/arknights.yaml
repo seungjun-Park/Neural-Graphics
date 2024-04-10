@@ -6,14 +6,14 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        disc_start: 3001
-        disc_embed_dim: 32
+        disc_start: 1601
+        disc_embed_dim: 64
         disc_num_layers: 3
         disc_in_channels: 1
-        disc_weight: 1e-4
+        disc_weight: 1e-5
         disc_factor: 1.0
         l1_weight: 1.0
-        cats_weight: [1.0, 0.05, 1.0]
+        cats_weight: [1.0, 0.1, 1.5]
         perceptual_weight: 1.0
         disc_loss: "hinge"
 
@@ -22,11 +22,11 @@ module:
     out_channels: 1
     hidden_dims: [32, 64, 96]
     embed_dim: 16
-    num_blocks: 2
+    num_blocks: 1
     num_head_channels: 16
     mlp_ratio: 2
-    dropout: 0.0
-    attn_dropout: 0.0
+    dropout: 0.1
+    attn_dropout: 0.1
     drop_path: 0.0
     qkv_bias: True
     bias: True
@@ -35,7 +35,7 @@ module:
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
-    lr: 5e-5
+    lr: 1e-5
     weight_decay: 0.
     dim: 2
 
@@ -90,4 +90,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 250
+  max_epochs: 100

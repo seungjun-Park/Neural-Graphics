@@ -66,12 +66,14 @@ class EdgePerceptualLoss(nn.Module):
                 g_weight = torch.tensor(0.0)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
+            rec_factor = g_weight if self.discriminator_iter_start < global_step else 1.0
 
-            loss = cats + rec_loss + g_loss * g_weight * disc_factor
+            loss = cats + rec_factor * rec_loss + g_loss * g_weight * disc_factor
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
+                   "{}/cats_loss".format(split): cats.detach().mean(),
                    }
 
             return loss, log
