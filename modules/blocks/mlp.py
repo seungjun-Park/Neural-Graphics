@@ -33,14 +33,14 @@ class MLP(nn.Module):
         self.drop = nn.Dropout(dropout)
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.drop(x)
-        x = self.fc2(x)
-        x = self.act(x)
-        x = self.drop(x)
+        h = self.fc1(x)
+        h = self.act(h)
+        h = self.drop(h)
+        h = self.fc2(h)
+        h = self.act(h)
+        h = self.drop(h)
 
-        return x
+        return h + x
 
 
 
