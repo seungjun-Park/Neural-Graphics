@@ -13,7 +13,7 @@ module:
         disc_weight: 1e-4
         disc_factor: 1.0
         l1_weight: 1.0
-        cast_weight: [1.0, 0.05, 1.0]
+        cats_weight: [1.0, 0.05, 1.0]
         perceptual_weight: 1.0
         disc_loss: "hinge"
 
