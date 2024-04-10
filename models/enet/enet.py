@@ -432,15 +432,14 @@ class EdgeNet(pl.LightningModule):
                                      betas=(0.5, 0.9)
                                      )
 
-        # lr_net = torch.optim.lr_scheduler.LambdaLR(
-        #     optimizer=opt_net,
-        #     lr_lambda=lambda epoch: self.lr if epoch < self.lr_decay_epoch else self.lr * (0.95 ** (epoch - self.lr_decay_iter))
-        # )
-        #
-        # lr_disc = torch.optim.lr_scheduler.LambdaLR(
-        #     optimizer=opt_disc,
-        #     lr_lambda=lambda epoch: self.lr if epoch < self.lr_decay_epoch else self.lr * (0.95 ** (
-        #                 epoch - self.lr_decay_iter))
-        # )
+        lr_net = torch.optim.lr_scheduler.LambdaLR(
+            optimizer=opt_net,
+            lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_iter))
+        )
 
-        return [opt_net, opt_disc] #, [{"scheduler": lr_net, "interval": "epoch"}, {"scheduler": lr_disc, "interval": "epoch"}]
+        lr_disc = torch.optim.lr_scheduler.LambdaLR(
+            optimizer=opt_disc,
+            lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_iter))
+        )
+
+        return [opt_net, opt_disc], [{"scheduler": lr_net, "interval": "epoch"}, {"scheduler": lr_disc, "interval": "epoch"}]
