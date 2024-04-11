@@ -6,26 +6,26 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        l1_weight: 0.5
-        cats_weight: [1.0, 0.05, 1.]
+        l1_weight: 1.0
+        cats_weight: [0.5, 0.05, 1.]
         perceptual_weight: 1.0
-        contents_weight: 0.25
+        contents_weight: 0.5
 
     patch_size: 4
     window_size: 8
     out_channels: 1
-    hidden_dims: [32, 64, 96, 64]
+    hidden_dims: [32, 64, 96]
     embed_dim: 16
     num_blocks: 4
     num_head_channels: 16
     mlp_ratio: 2
-    dropout: 0.1
-    attn_dropout: 0.1
-    drop_path: 0.1
+    dropout: 0.0
+    attn_dropout: 0.0
+    drop_path: 0.0
     qkv_bias: True
     bias: True
-    groups: 16
-    act: 'silu'
+    groups: 4
+    act: 'gelu'
     use_conv: True
     pool_type: 'max'
     mode: 'nearest'
