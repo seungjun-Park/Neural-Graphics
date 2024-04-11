@@ -7,9 +7,9 @@ module:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
         l1_weight: 1.0
-        cats_weight: [1.0, 0.05, 1.]
+        cats_weight: [0.5, 0.05, 1.]
         perceptual_weight: 1.0
-        contents_weight: 0.5
+        contents_weight: 0.7
 
     patch_size: 4
     window_size: 8
@@ -21,7 +21,7 @@ module:
     mlp_ratio: 4
     dropout: 0.0
     attn_dropout: 0.0
-    drop_path: 0.0
+    drop_path: 0.1
     qkv_bias: True
     bias: True
     groups: 8
@@ -33,6 +33,7 @@ module:
     weight_decay: 0.
     lr_decay_epoch: 100
     dim: 2
+    # ckpt_path: './checkpoints/edgenet/test2/edgenet.ckpt'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -85,4 +86,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 50
+  max_epochs: 100
