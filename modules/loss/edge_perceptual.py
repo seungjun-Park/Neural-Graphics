@@ -31,12 +31,12 @@ class EdgePerceptualLoss(nn.Module):
             target = target.repeat(1, 3, 1, 1)
 
         p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
-        loss += self.perceptual_weight * torch.mean(p_loss)
+        loss = loss + self.perceptual_weight * torch.mean(p_loss)
 
         c_loss = self.perceptual_loss(cond.contiguous(), target.contiguous())
-        loss += torch.mean(c_loss) * self.contents_weight
+        loss = loss + torch.mean(c_loss) * self.contents_weight
 
-        loss += cats
+        loss = loss + cats
 
         log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                "{}/rec_loss".format(split): rec_loss.detach().mean(),
