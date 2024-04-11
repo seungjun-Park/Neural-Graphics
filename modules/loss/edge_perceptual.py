@@ -33,7 +33,7 @@ class EdgePerceptualLoss(nn.Module):
         p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
         loss += self.perceptual_weight * torch.mean(p_loss)
 
-        c_loss = self.perceptual_loss(cond.contiguous(), target.contiguous()) * self.contents_weigh
+        c_loss = self.perceptual_loss(cond.contiguous(), target.contiguous())
         loss += torch.mean(c_loss) * self.contents_weight
 
         loss += cats

@@ -7,9 +7,9 @@ module:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
         l1_weight: 1.0
-        cats_weight: [0.7, 0.05, 1.]
+        cats_weight: [1.0, 0.05, 1.]
         perceptual_weight: 1.0
-        contents_weight: 1.0
+        contents_weight: 0.5
 
     patch_size: 4
     window_size: 8
