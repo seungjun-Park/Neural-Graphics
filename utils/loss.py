@@ -44,7 +44,7 @@ def bdcn_loss2(inputs, targets, l_weight=1.1):
     inputs = torch.sigmoid(inputs)
     cost = torch.nn.BCELoss(mask, reduction='none')(inputs, targets.float())
     # cost = torch.mean(cost.float().mean((1, 2, 3))) # before sum
-    cost = torch.sum(cost.float().mean((1, 2, 3)))  # before sum
+    cost = torch.mean(cost.float().mean((1, 2, 3)))  # before sum
     return l_weight * cost
 
 # ------------ cats losses ----------
@@ -69,7 +69,7 @@ def bdrloss(prediction, label, radius):
     cost = -label * torch.log(softmax_map)
     cost[label == 0] = 0
 
-    return cost.sum()
+    return cost.mean()
 
 
 def textureloss(prediction, label, mask_radius):
@@ -89,7 +89,7 @@ def textureloss(prediction, label, mask_radius):
     loss = -torch.log(torch.clamp(1-pred_sums/9, 1e-10, 1-1e-10))
     loss[mask == 0] = 0
 
-    return torch.sum(loss)
+    return torch.mean(loss)
 
 
 def cats_loss(prediction, label, weights=(1., 0., 0.)):
@@ -108,11 +108,11 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
         mask[mask == 0] = balanced_w * (1 - beta)
         mask[mask == 2] = 0
     prediction = torch.sigmoid(prediction)
-    # print('bce')
-    cost = torch.sum(torch.nn.functional.binary_cross_entropy(
+
+    cost = torch.mean(torch.nn.functional.binary_cross_entropy(
         prediction.float(), label.float(), weight=mask, reduce=False))
     label_w = (label != 0).float()
-    # print('tex')
+
     textcost = textureloss(prediction.float(), label_w.float(), mask_radius=4)
     bdrcost = bdrloss(prediction.float(), label_w.float(), radius=4)
 

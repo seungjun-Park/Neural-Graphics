@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight, LPIPS
 from models.gan.discriminator import Discriminator
@@ -22,26 +23,25 @@ class EdgePerceptualLoss(nn.Module):
 
     def forward(self, inputs, target, cond, split="train"):
         cats = cats_loss(target, inputs, self.cats_weight)
-        rec_loss = torch.abs(inputs.contiguous() - target.contiguous()) * self.l1_weight
-
+        rec_loss = F.l1_loss(inputs, target) * self.l1_weight
+        loss = rec_loss
         if inputs.shape[1] == 1:
             inputs = inputs.repeat(1, 3, 1, 1)
         if target.shape[1] == 1:
             target = target.repeat(1, 3, 1, 1)
 
-        if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
-            rec_loss = rec_loss + self.perceptual_weight * p_loss
+        p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
+        loss += self.perceptual_weight * torch.mean(p_loss)
 
-        rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+        c_loss = self.perceptual_loss(cond.contiguous(), target.contiguous()) * self.contents_weigh
+        loss += torch.mean(c_loss) * self.contents_weight
 
-        contents = self.perceptual_loss(target.contiguous(), cond.contiguous()) * self.contents_weight
-
-        loss = cats + rec_loss + contents
+        loss += cats
 
         log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                "{}/rec_loss".format(split): rec_loss.detach().mean(),
-               "{}/contents_loss".format(split): contents.detach().mean(),
+               "{}/p_loss".format(split): p_loss.detach().mean(),
+               "{}/contents_loss".format(split): c_loss.detach().mean(),
                "{}/cats_loss".format(split): cats.detach().mean(),
                }
 
