@@ -156,7 +156,7 @@ class EdgeNet(pl.LightningModule):
                             attn_drop=attn_dropout,
                             drop_path=drop_path,
                             act=act,
-                            use_conv=use_conv,
+                            use_conv=False,
                             dim=dim
                         ),
                         WindowAttnBlock(
@@ -173,7 +173,7 @@ class EdgeNet(pl.LightningModule):
                             attn_drop=attn_dropout,
                             drop_path=drop_path,
                             act=act,
-                            use_conv=use_conv,
+                            use_conv=False,
                             dim=dim
                         ),
                     )
@@ -209,7 +209,7 @@ class EdgeNet(pl.LightningModule):
                 attn_drop=attn_dropout,
                 drop_path=drop_path,
                 act=act,
-                use_conv=use_conv,
+                use_conv=False,
                 dim=dim
             ),
             WindowAttnBlock(
@@ -226,7 +226,7 @@ class EdgeNet(pl.LightningModule):
                 attn_drop=attn_dropout,
                 drop_path=drop_path,
                 act=act,
-                use_conv=use_conv,
+                use_conv=False,
                 dim=dim
             ),
             ResidualBlock(
@@ -277,7 +277,7 @@ class EdgeNet(pl.LightningModule):
                             attn_drop=attn_dropout,
                             drop_path=drop_path,
                             act=act,
-                            use_conv=use_conv,
+                            use_conv=False,
                             dim=dim
                         ),
                         WindowAttnBlock(
@@ -294,7 +294,7 @@ class EdgeNet(pl.LightningModule):
                             attn_drop=attn_dropout,
                             drop_path=drop_path,
                             act=act,
-                            use_conv=use_conv,
+                            use_conv=False,
                             dim=dim
                         ),
                     )
