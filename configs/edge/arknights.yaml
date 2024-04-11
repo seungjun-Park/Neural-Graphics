@@ -9,7 +9,7 @@ module:
         l1_weight: 0.5
         cats_weight: [1.0, 0.05, 1.]
         perceptual_weight: 0.5
-        contents_weight: 0.3
+        contents_weight: 1e-2
 
     patch_size: 4
     window_size: 8
@@ -21,7 +21,7 @@ module:
     mlp_ratio: 1
     dropout: 0.0
     attn_dropout: 0.0
-    drop_path: 0.0
+    drop_path: 0.1
     qkv_bias: True
     bias: True
     groups: 16
@@ -70,14 +70,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'edgenet'
-    version: 'test'
+    version: 'test2'
 
 
 checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/edgenet/test'
+      dirpath: './checkpoints/edgenet/test2'
       filename: 'edgenet'
       monitor: 'step'
       mode: 'max'
@@ -85,4 +85,4 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 20
+  max_epochs: 50
