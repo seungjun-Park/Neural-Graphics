@@ -7,9 +7,9 @@ module:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
         l1_weight: 1.0
-        cats_weight: [0.5, 0.05, 1.]
+        cats_weight: [1.0, 0.05, 1.]
         perceptual_weight: 1.0
-        contents_weight: 0.5
+        contents_weight: 0.25
 
     window_size: 8
     out_channels: 1
@@ -33,7 +33,7 @@ module:
     weight_decay: 0.
     lr_decay_epoch: 100
     dim: 2
-    use_checkpoint: False
+    use_checkpoint: True
     # ckpt_path: './checkpoints/edgenet/test3/edgenet.ckpt'
 
 data:
@@ -45,15 +45,15 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights_v2'
-        # root: './datasets/arknights'
+        # root: '/local_datasets/arknights_v2'
+        root: './datasets/arknights'
         train: True
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 512, 512 ]
+                size: [ 1024, 1024 ]
 #    validation:
 #      target: modules.datasets.arknights.ArknightsDataset
 #      params:
@@ -72,14 +72,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'edgenet'
-    version: 'arknights_v2'
+    version: 'test'
 
 
 checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/edgenet/arknights_v2'
+      dirpath: './checkpoints/edgenet/test'
       filename: 'edgenet'
       monitor: 'step'
       mode: 'max'
@@ -89,3 +89,4 @@ trainer:
   accelerator: 'gpu'
   accumulate_grad_batches: 5
   max_epochs: 10
+  precision: 16

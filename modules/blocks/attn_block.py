@@ -281,7 +281,7 @@ class WindowAttnBlock(nn.Module):
         self.mlp_ratio = mlp_ratio
         self.use_conv = use_conv
         self.dim = dim
-        self.use_checkpoint = False
+        self.use_checkpoint = use_checkpoint
 
         if min(self.in_res) <= self.window_size:
             # if window size is larger than input resolution, we don't partition windows
