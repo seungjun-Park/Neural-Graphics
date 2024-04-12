@@ -9,13 +9,13 @@ module:
         l1_weight: 1.0
         cats_weight: [0.5, 0.05, 1.]
         perceptual_weight: 1.0
-        contents_weight: 0.7
+        contents_weight: 0.5
 
-    patch_size: 4
     window_size: 8
     out_channels: 1
     hidden_dims: [32, 64, 96]
     embed_dim: 16
+    attn_res: [1, 2]
     num_blocks: 4
     num_head_channels: 16
     mlp_ratio: 4
@@ -33,7 +33,8 @@ module:
     weight_decay: 0.
     lr_decay_epoch: 100
     dim: 2
-    # ckpt_path: './checkpoints/edgenet/test2/edgenet.ckpt'
+    use_checkpoint: True
+    # ckpt_path: './checkpoints/edgenet/test3/edgenet.ckpt'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -44,7 +45,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights'
+        root: '/local_datasets/arknights_v2'
         # root: './datasets/arknights'
         train: True
         transform_configs:
@@ -56,7 +57,7 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights'
+        root: '/local_datasets/arknights_v2'
         # root: './datasets/arknights'
         train: False
         transform_configs:
@@ -71,14 +72,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'edgenet'
-    version: 'test3'
+    version: 'arknights_v2'
 
 
 checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/edgenet/test3'
+      dirpath: './checkpoints/edgenet/arknights_v2'
       filename: 'edgenet'
       monitor: 'step'
       mode: 'max'
@@ -86,4 +87,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
+  accumulate_grad_batches: 5
   max_epochs: 100

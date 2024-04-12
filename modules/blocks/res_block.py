@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from typing import Union, List, Tuple
-from utils import get_act, conv_nd, norm, group_norm
+from utils import get_act, conv_nd, norm, group_norm, checkpoint
 
 
 class ResidualBlock(nn.Module):
@@ -14,6 +14,7 @@ class ResidualBlock(nn.Module):
                  act='relu',
                  dim=2,
                  groups: int = 32,
+                 use_checkpoint: bool = False,
                  *args,
                  **kwargs
                  ):
@@ -23,6 +24,7 @@ class ResidualBlock(nn.Module):
         out_channels = in_channels if out_channels is None else out_channels
         self.out_channels = out_channels
         self.dim = dim
+        self.use_checkpoint = use_checkpoint
 
         self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
         self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
@@ -42,7 +44,10 @@ class ResidualBlock(nn.Module):
         else:
             self.shortcut = nn.Identity()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return checkpoint(self._forward, (x, ), self.parameters(), self.use_checkpoint)
+
+    def _forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.norm1(x)
         h = self.act(h)
         h = self.conv1(h)

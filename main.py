@@ -1,6 +1,7 @@
 import argparse
 import glob
 import cv2
+import torch.cuda
 
 import torchvision
 from omegaconf import OmegaConf
@@ -74,22 +75,25 @@ def test():
     # NOTE according to https://pytorch-lightning.readthedocs.io/en/latest/datamodules.html
     # calling these ourselves should not be necessary but it is.
     # lightning still takes care of proper multiprocessing though
+    device = torch.device('cuda')
+    model = instantiate_from_config(config.module).eval().to(device)
 
-    model = instantiate_from_config(config.module).eval()
-
-    data_path = '../test'
-    file_names = glob.glob(f'{data_path}/*')
-    for i, name in enumerate(file_names):
-        img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = torchvision.transforms.transforms.ToTensor()(img)
-        img = torchvision.transforms.transforms.Resize([512, 512])(img)
-        img = img.unsqueeze(0)
-        img = model(img)
-        if len(img.shape) == 4:
-            img = img[0]
-        img = torchvision.transforms.ToPILImage()(img)
-        img.save(f'{name}_{i}.png', 'png')
+    data_path = '../BIPEDv2/BIPED/edges/'
+    file_names = glob.glob(f'{data_path}/imgs/train/rgbr/real/*')
+    with torch.no_grad():
+        for i, name in enumerate(file_names):
+            img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = torchvision.transforms.transforms.ToTensor()(img).to(device)
+            img = torchvision.transforms.transforms.Resize([512, 512])(img)
+            img = img.unsqueeze(0)
+            img = model(img)
+            # img = img.detach().cpu()
+            if len(img.shape) == 4:
+                img = img[0]
+            img = torchvision.transforms.ToPILImage()(img)
+            first, second = name.split('imgs')
+            img.save(f'{first}test{second}', 'png')
 
 
 if __name__ == '__main__':

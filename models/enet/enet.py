@@ -74,6 +74,7 @@ class EdgeNet(pl.LightningModule):
                  out_channels: int = None,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  embed_dim: int = 64,
+                 attn_res: Union[List[int], Tuple[int]] = (2, 3),
                  num_blocks: int = 2,
                  num_heads: int = -1,
                  num_head_channels: int = -1,
@@ -95,8 +96,7 @@ class EdgeNet(pl.LightningModule):
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  dim: int = 2,
-                 *args,
-                 **kwargs,
+                 use_checkpoint: bool = True,
                  ):
         super().__init__()
 
@@ -136,48 +136,53 @@ class EdgeNet(pl.LightningModule):
                         dropout=dropout,
                         act=act,
                         groups=groups,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
                     )
                 )
                 in_ch = out_ch
 
-                down.append(
-                    nn.Sequential(
-                        WindowAttnBlock(
-                            in_channels=in_ch,
-                            in_res=to_2tuple(cur_res),
-                            num_heads=num_heads,
-                            num_head_channels=num_head_channels,
-                            window_size=window_size,
-                            shift_size=0,
-                            mlp_ratio=mlp_ratio,
-                            qkv_bias=qkv_bias,
-                            proj_bias=bias,
-                            drop=dropout,
-                            attn_drop=attn_dropout,
-                            drop_path=drop_path,
-                            act=act,
-                            use_conv=False,
-                            dim=dim
-                        ),
-                        WindowAttnBlock(
-                            in_channels=in_ch,
-                            in_res=to_2tuple(cur_res),
-                            num_heads=num_heads,
-                            num_head_channels=num_head_channels,
-                            window_size=window_size,
-                            shift_size=window_size // 2,
-                            mlp_ratio=mlp_ratio,
-                            qkv_bias=qkv_bias,
-                            proj_bias=bias,
-                            drop=dropout,
-                            attn_drop=attn_dropout,
-                            drop_path=drop_path,
-                            act=act,
-                            use_conv=False,
-                            dim=dim
-                        ),
+                if i in attn_res:
+                    down.append(
+                        nn.Sequential(
+                            WindowAttnBlock(
+                                in_channels=in_ch,
+                                in_res=to_2tuple(cur_res),
+                                num_heads=num_heads,
+                                num_head_channels=num_head_channels,
+                                window_size=window_size,
+                                shift_size=0,
+                                mlp_ratio=mlp_ratio,
+                                qkv_bias=qkv_bias,
+                                proj_bias=bias,
+                                drop=dropout,
+                                attn_drop=attn_dropout,
+                                drop_path=drop_path,
+                                act=act,
+                                use_conv=False,
+                                dim=dim,
+                                use_checkpoint=use_checkpoint,
+                            ),
+                            WindowAttnBlock(
+                                in_channels=in_ch,
+                                in_res=to_2tuple(cur_res),
+                                num_heads=num_heads,
+                                num_head_channels=num_head_channels,
+                                window_size=window_size,
+                                shift_size=window_size // 2,
+                                mlp_ratio=mlp_ratio,
+                                qkv_bias=qkv_bias,
+                                proj_bias=bias,
+                                drop=dropout,
+                                attn_drop=attn_dropout,
+                                drop_path=drop_path,
+                                act=act,
+                                use_conv=False,
+                                dim=dim,
+                                use_checkpoint=use_checkpoint,
+                            ),
+                        )
                     )
-                )
 
                 skip_dims.append(in_ch)
                 self.encoder.append(nn.Sequential(*down))
@@ -194,6 +199,8 @@ class EdgeNet(pl.LightningModule):
                 dropout=dropout,
                 act=act,
                 groups=groups,
+                dim=dim,
+                use_checkpoint=use_checkpoint,
             ),
             WindowAttnBlock(
                 in_channels=in_ch,
@@ -210,7 +217,8 @@ class EdgeNet(pl.LightningModule):
                 drop_path=drop_path,
                 act=act,
                 use_conv=False,
-                dim=dim
+                dim=dim,
+                use_checkpoint=use_checkpoint,
             ),
             WindowAttnBlock(
                 in_channels=in_ch,
@@ -227,7 +235,8 @@ class EdgeNet(pl.LightningModule):
                 drop_path=drop_path,
                 act=act,
                 use_conv=False,
-                dim=dim
+                dim=dim,
+                use_checkpoint=use_checkpoint
             ),
             ResidualBlock(
                 in_channels=in_ch,
@@ -235,14 +244,16 @@ class EdgeNet(pl.LightningModule):
                 dropout=dropout,
                 act=act,
                 groups=groups,
+                dim=dim,
+                use_checkpoint=use_checkpoint,
             ),
         )
 
         hidden_dims = hidden_dims[1:]
         hidden_dims.insert(0, embed_dim)
 
-        for i, out_ch in enumerate(reversed(hidden_dims)):
-            if i != 0:
+        for i, out_ch in list(enumerate(hidden_dims))[::-1]:
+            if i != len(hidden_dims) - 1:
                 skip_dim = skip_dims.pop()
                 self.decoder.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
                 cur_res = int(cur_res * 2)
@@ -257,48 +268,53 @@ class EdgeNet(pl.LightningModule):
                         dropout=dropout,
                         act=act,
                         groups=groups,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
                     )
                 )
                 in_ch = out_ch
 
-                up.append(
-                    nn.Sequential(
-                        WindowAttnBlock(
-                            in_channels=in_ch,
-                            in_res=to_2tuple(cur_res),
-                            num_heads=num_heads,
-                            num_head_channels=num_head_channels,
-                            window_size=window_size,
-                            shift_size=0,
-                            mlp_ratio=mlp_ratio,
-                            qkv_bias=qkv_bias,
-                            proj_bias=bias,
-                            drop=dropout,
-                            attn_drop=attn_dropout,
-                            drop_path=drop_path,
-                            act=act,
-                            use_conv=False,
-                            dim=dim
-                        ),
-                        WindowAttnBlock(
-                            in_channels=in_ch,
-                            in_res=to_2tuple(cur_res),
-                            num_heads=num_heads,
-                            num_head_channels=num_head_channels,
-                            window_size=window_size,
-                            shift_size=window_size // 2,
-                            mlp_ratio=mlp_ratio,
-                            qkv_bias=qkv_bias,
-                            proj_bias=bias,
-                            drop=dropout,
-                            attn_drop=attn_dropout,
-                            drop_path=drop_path,
-                            act=act,
-                            use_conv=False,
-                            dim=dim
-                        ),
+                if i in attn_res:
+                    up.append(
+                        nn.Sequential(
+                            WindowAttnBlock(
+                                in_channels=in_ch,
+                                in_res=to_2tuple(cur_res),
+                                num_heads=num_heads,
+                                num_head_channels=num_head_channels,
+                                window_size=window_size,
+                                shift_size=0,
+                                mlp_ratio=mlp_ratio,
+                                qkv_bias=qkv_bias,
+                                proj_bias=bias,
+                                drop=dropout,
+                                attn_drop=attn_dropout,
+                                drop_path=drop_path,
+                                act=act,
+                                use_conv=False,
+                                dim=dim,
+                                use_checkpoint=use_checkpoint,
+                            ),
+                            WindowAttnBlock(
+                                in_channels=in_ch,
+                                in_res=to_2tuple(cur_res),
+                                num_heads=num_heads,
+                                num_head_channels=num_head_channels,
+                                window_size=window_size,
+                                shift_size=window_size // 2,
+                                mlp_ratio=mlp_ratio,
+                                qkv_bias=qkv_bias,
+                                proj_bias=bias,
+                                drop=dropout,
+                                attn_drop=attn_dropout,
+                                drop_path=drop_path,
+                                act=act,
+                                use_conv=False,
+                                dim=dim,
+                                use_checkpoint=use_checkpoint,
+                            ),
+                        )
                     )
-                )
 
                 self.decoder.append(nn.Sequential(*up))
 

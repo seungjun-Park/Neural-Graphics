@@ -8,7 +8,7 @@ from functools import partial
 from timm.models.layers import DropPath
 
 from modules.blocks.mlp import MLP
-from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm
+from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, checkpoint
 
 
 def window_partition(x, window_size):
@@ -268,6 +268,7 @@ class WindowAttnBlock(nn.Module):
                  act: str = 'relu',
                  use_conv: bool = True,
                  dim: int = 2,
+                 use_checkpoint: bool = False,
                  ):
         super().__init__()
 
@@ -280,6 +281,7 @@ class WindowAttnBlock(nn.Module):
         self.mlp_ratio = mlp_ratio
         self.use_conv = use_conv
         self.dim = dim
+        self.use_checkpoint = False
 
         if min(self.in_res) <= self.window_size:
             # if window size is larger than input resolution, we don't partition windows
@@ -331,7 +333,10 @@ class WindowAttnBlock(nn.Module):
 
         self.register_buffer("attn_mask", attn_mask)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return checkpoint(self._forward, (x, ), self.parameters(), self.use_checkpoint)
+
+    def _forward(self, x):
         H, W = self.in_res
         b, c, h, w = x.shape
         assert h * w == H * W, "input feature has wrong size"
