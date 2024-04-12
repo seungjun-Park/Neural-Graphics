@@ -22,7 +22,7 @@ class EdgePerceptualLoss(nn.Module):
         self.contents_weight = contents_weight
 
     def forward(self, inputs, target, cond, split="train"):
-        cats = cats_loss(target, inputs, self.cats_weight)
+        # cats = cats_loss(target, inputs, self.cats_weight)
         rec_loss = F.l1_loss(inputs, target) * self.l1_weight
         loss = rec_loss
         if inputs.shape[1] == 1:
@@ -36,13 +36,13 @@ class EdgePerceptualLoss(nn.Module):
         c_loss = self.perceptual_loss(cond.contiguous(), target.contiguous())
         loss = loss + torch.mean(c_loss) * self.contents_weight
 
-        loss = loss + cats
+        # loss = loss + cats
 
         log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                "{}/rec_loss".format(split): rec_loss.detach().mean(),
                "{}/p_loss".format(split): p_loss.detach().mean(),
                "{}/contents_loss".format(split): c_loss.detach().mean(),
-               "{}/cats_loss".format(split): cats.detach().mean(),
+               # "{}/cats_loss".format(split): cats.detach().mean(),
                }
 
         return loss, log
