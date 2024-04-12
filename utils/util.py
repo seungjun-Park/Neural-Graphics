@@ -237,6 +237,8 @@ def parallel_data_prefetch(
 
 True_set = ('yes', 'true', 't', 'y', '1')
 False_set = ('no', 'false', 'f', 'n', '0')
+
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -244,9 +246,11 @@ def str2bool(v):
         return True
     elif v.lower() in False_set:
         return False
+    elif v.lower == 'none':
+        return None
     else:
         raise ValueError("Boolean value expected.")
-
+    
 
 def to_flattened_numpy(x):
     return x.detach().cpu().numpy().reshape((-1,))
