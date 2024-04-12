@@ -54,18 +54,18 @@ data:
             - target: torchvision.transforms.transforms.Resize
               params:
                 size: [ 512, 512 ]
-    validation:
-      target: modules.datasets.arknights.ArknightsDataset
-      params:
-        root: '/local_datasets/arknights_v2'
-        # root: './datasets/arknights'
-        train: False
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 512, 512 ]
+#    validation:
+#      target: modules.datasets.arknights.ArknightsDataset
+#      params:
+#        root: '/local_datasets/arknights_v2'
+#        # root: './datasets/arknights'
+#        train: False
+#        transform_configs:
+#          transforms:
+#            - target: torchvision.transforms.transforms.ToTensor
+#            - target: torchvision.transforms.transforms.Resize
+#              params:
+#                size: [ 512, 512 ]
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
