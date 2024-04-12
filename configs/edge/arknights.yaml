@@ -9,7 +9,7 @@ module:
         l1_weight: 1.0
         cats_weight: [0.5, 0.05, 1.]
         perceptual_weight: 1.0
-        contents_weight: 1.0
+        contents_weight: 0.8
 
     window_size: 8
     out_channels: 1
