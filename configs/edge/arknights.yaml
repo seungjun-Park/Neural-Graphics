@@ -34,6 +34,7 @@ module:
     lr_decay_epoch: 100
     dim: 2
     use_checkpoint: True
+    log)interval: 50
     # ckpt_path: './checkpoints/edgenet/test3/edgenet.ckpt'
 
 data:

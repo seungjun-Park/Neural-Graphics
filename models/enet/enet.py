@@ -308,10 +308,11 @@ class EdgeNet(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
         edge = self(img)
-        loss, loss_log = self.loss(gt, edge, conds=img, split='train')
 
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
+
+        loss, loss_log = self.loss(gt, edge, conds=img, split='train')
 
         self.log('train/loss', loss, logger=True)
         self.log_dict(loss_log)
@@ -321,9 +322,9 @@ class EdgeNet(pl.LightningModule):
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
         edge = self(img)
-        loss, loss_log = self.loss(gt, edge, conds=img, split='val')
-
         self.log_img(img, gt, edge)
+
+        loss, loss_log = self.loss(gt, edge, conds=img, split='val')
         self.log('val/loss', loss)
         self.log_dict(loss_log)
 
@@ -333,21 +334,21 @@ class EdgeNet(pl.LightningModule):
     def log_img(self, img, gt, edges):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', img[0, ...], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/gt', gt[0, ...], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/img', img[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/gt', gt[0], self.global_step, dataformats='CHW')
         if isinstance(edges, list):
             for i in range(len(edges)):
                 tb.add_image(f'{prefix}/side_edge_{i}', edges[i][0, ...], self.global_step,
                              dataformats='CHW')
         else:
-            tb.add_image(f'{prefix}/edge', edges[0, ...], self.global_step, dataformats='CHW')
+            tb.add_image(f'{prefix}/edge', edges[0], self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.embed.parameters()) +
                                     list(self.encoder.parameters()) +
                                     list(self.middle.parameters()) +
-                                    list((self.decoder.parameters())) +
-                                    list((self.out.parameters())),
+                                    list(self.decoder.parameters()) +
+                                    list(self.out.parameters()),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
                                     betas=(0.5, 0.9)
