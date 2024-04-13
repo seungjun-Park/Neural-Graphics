@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint, checkpoint_sequential
 
 from typing import Union, List, Tuple
-from utils import get_act, conv_nd, norm, group_norm, checkpoint
+from utils import get_act, conv_nd, norm, group_norm
 
 
 class ResidualBlock(nn.Module):
@@ -15,8 +16,7 @@ class ResidualBlock(nn.Module):
                  dim=2,
                  groups: int = 32,
                  use_checkpoint: bool = False,
-                 *args,
-                 **kwargs
+                 use_conv: bool = True,
                  ):
         super().__init__()
 
@@ -26,26 +26,33 @@ class ResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
-        self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
-        self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
+        self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
         self.norm1 = group_norm(in_channels, num_groups=groups)
         self.norm2 = group_norm(out_channels, num_groups=groups)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
 
-        if self.in_channels != self.out_channels:
+        if self.in_channels == self.out_channels:
+            self.shortcut = nn.Identity()
+
+        elif use_conv:
             self.shortcut = conv_nd(dim=dim,
                                     in_channels=in_channels,
                                     out_channels=out_channels,
-                                    kernel_size=1,
-                                    stride=1,
-                                    padding=0)
+                                    kernel_size=3,
+                                    padding=1)
 
         else:
-            self.shortcut = nn.Identity()
+            self.shortcut = conv_nd(dim, in_channels, out_channels, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return checkpoint(self._forward, (x, ), self.parameters(), self.use_checkpoint)
+        if self.use_checkpoint:
+            return checkpoint(self._forward, x)
+
+        return self._forward(x)
+
+        # return checkpoint(self._forward, (x, ), self.parameters(), self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.norm1(x)

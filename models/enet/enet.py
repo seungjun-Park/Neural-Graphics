@@ -6,63 +6,6 @@ import pytorch_lightning as pl
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img
 from modules.blocks import ResidualBlock, DownBlock, UpBlock, AttnBlock, WindowAttnBlock, PatchEmbedding, PatchMerging, PatchExpanding
-from taming.modules.losses.vqperceptual import hinge_d_loss, vanilla_d_loss, weights_init, LPIPS
-from utils.loss import cats_loss, bdcn_loss2
-
-
-class CoFusion(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 embed_dim: int = 32,
-                 out_channels: int = None,
-                 num_groups: int = None,
-                 act: str = 'relu',
-                 dim: int = 2,
-                 ):
-        super().__init__()
-
-        out_channels = in_channels if out_channels is None else out_channels
-
-        self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)  # before 64
-        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=3, stride=1, padding=1)  # before 64  instead of 32
-        self.act = get_act(act)
-        num_groups = embed_dim if num_groups is None else num_groups
-        self.norm = group_norm(embed_dim, num_groups)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        attn = self.act(self.norm(self.conv1(x)))
-        attn = F.softmax(self.conv2(attn), dim=1)
-
-        return ((x * attn).sum(1)).unsqueeze(1)
-
-
-class USBlock(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 embed_dim: int = 16,
-                 num_upscale: int = 1,
-                 mode: str = 'nearest',
-                 dim: int = 2,
-                 ):
-        super().__init__()
-
-        self.blocks = nn.ModuleList()
-        self.mode = mode.lower()
-
-        in_ch = in_channels
-
-        for i in range(num_upscale):
-            out_ch = 1 if i == num_upscale - 1 else embed_dim
-            self.blocks.append(conv_nd(dim, in_ch, embed_dim, kernel_size=1, stride=1, padding=0))
-            self.blocks.append(conv_nd(dim, embed_dim, out_ch, kernel_size=3, stride=1, padding=1))
-            in_ch = out_ch
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for i, module in enumerate(self.blocks):
-            if i % 2 != 0:
-                x = F.interpolate(x, scale_factor=2.0, mode=self.mode)
-            x = module(x)
-        return F.hardtanh(x, 0, 1)
 
 
 class EdgeNet(pl.LightningModule):
@@ -104,7 +47,6 @@ class EdgeNet(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
-        # self.automatic_optimization = False
 
         self.l_weight = l_weight
 
@@ -138,6 +80,7 @@ class EdgeNet(pl.LightningModule):
                         groups=groups,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
+                        use_conv=use_conv,
                     )
                 )
                 in_ch = out_ch
@@ -201,6 +144,7 @@ class EdgeNet(pl.LightningModule):
                 groups=groups,
                 dim=dim,
                 use_checkpoint=use_checkpoint,
+                use_conv=use_conv,
             ),
             WindowAttnBlock(
                 in_channels=in_ch,
@@ -246,6 +190,7 @@ class EdgeNet(pl.LightningModule):
                 groups=groups,
                 dim=dim,
                 use_checkpoint=use_checkpoint,
+                use_conv=use_conv,
             ),
         )
 
@@ -342,32 +287,31 @@ class EdgeNet(pl.LightningModule):
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
         hs = []
-        x = self.embed(x)
-        hs.append(x)
+        h = self.embed(x)
+        hs.append(h)
 
         for i, block in enumerate(self.encoder):
-            x = block(x)
-            hs.append(x)
+            h = block(h)
+            hs.append(h)
 
-        x = self.middle(x)
+        h = self.middle(h)
 
         for i, block in enumerate(self.decoder):
-            x = torch.cat([x, hs.pop()], dim=1)
-            x = block(x)
+            h = torch.cat([h, hs.pop()], dim=1)
+            h = block(h)
 
-        x = torch.cat([x, hs.pop()], dim=1)
-        x = self.out(x)
+        h = torch.cat([h, hs.pop()], dim=1)
+        h = self.out(h)
 
-        return F.sigmoid(x)
+        return F.sigmoid(h)
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
         edge = self(img)
+        loss, loss_log = self.loss(gt, edge, conds=img, split='train')
 
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
-
-        loss, loss_log = self.loss(gt, edge, cond=img, split='train')
 
         self.log('train/loss', loss, logger=True)
         self.log_dict(loss_log)
@@ -377,10 +321,9 @@ class EdgeNet(pl.LightningModule):
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
         edge = self(img)
+        loss, loss_log = self.loss(gt, edge, conds=img, split='val')
 
         self.log_img(img, gt, edge)
-
-        loss, loss_log = self.loss(gt, edge, cond=img, split='val')
         self.log('val/loss', loss)
         self.log_dict(loss_log)
 

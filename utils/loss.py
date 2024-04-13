@@ -60,8 +60,8 @@ def bdrloss(prediction, label, radius):
 
     bdr_pred = prediction * label
     pred_bdr_sum = label * F.conv2d(bdr_pred, filt, bias=None, stride=1, padding=radius)
-    texture_mask = F.conv2d(label.float(), filt, bias=None, stride=1, padding=radius)
-    mask = (texture_mask != 0).float()
+    texture_mask = F.conv2d(label, filt, bias=None, stride=1, padding=radius)
+    mask = (texture_mask != 0).to(prediction.dtype)
     mask[label == 1] = 0
     pred_texture_sum = F.conv2d(prediction * (1-label) * mask, filt, bias=None, stride=1, padding=radius)
 
@@ -69,7 +69,7 @@ def bdrloss(prediction, label, radius):
     cost = -label * torch.log(softmax_map)
     cost[label == 0] = 0
 
-    return cost.mean()
+    return cost
 
 
 def textureloss(prediction, label, mask_radius):
@@ -81,40 +81,37 @@ def textureloss(prediction, label, mask_radius):
     filt2 = torch.ones(1, 1, 2*mask_radius+1, 2*mask_radius+1).to(prediction.device)
     filt2.requires_grad = False
 
-    pred_sums = F.conv2d(prediction.float(), filt1, bias=None, stride=1, padding=1)
-    label_sums = F.conv2d(label.float(), filt2, bias=None, stride=1, padding=mask_radius)
+    pred_sums = F.conv2d(prediction, filt1, bias=None, stride=1, padding=1)
+    label_sums = F.conv2d(label, filt2, bias=None, stride=1, padding=mask_radius)
 
-    mask = 1 - torch.gt(label_sums, 0).float()
+    mask = 1.0 - torch.gt(label_sums, 0).to(prediction.dtype)
 
     loss = -torch.log(torch.clamp(1-pred_sums/9, 1e-10, 1-1e-10))
     loss[mask == 0] = 0
 
-    return torch.mean(loss)
+    return loss
 
 
 def cats_loss(prediction, label, weights=(1., 0., 0.)):
     # tracingLoss
     cost_weight, tex_factor, bdr_factor = weights
     balanced_w = 1.1
-    label = label.float()
-    prediction = prediction.float()
     with torch.no_grad():
         mask = label.clone()
 
-        num_positive = torch.sum((mask == 1).float()).float()
-        num_negative = torch.sum((mask == 0).float()).float()
+        num_positive = torch.sum((mask == 1).float())
+        num_negative = torch.sum((mask == 0).float())
         beta = num_negative / (num_positive + num_negative)
         mask[mask == 1] = beta
         mask[mask == 0] = balanced_w * (1 - beta)
         mask[mask == 2] = 0
-    prediction = torch.sigmoid(prediction)
 
-    cost = torch.mean(torch.nn.functional.binary_cross_entropy(
-        prediction.float(), label.float(), weight=mask, reduce=False))
+    cost = torch.mean(torch.nn.functional.binary_cross_entropy_with_logits(
+        prediction, label, weight=mask, reduce=False))
     label_w = (label != 0).float()
 
-    textcost = textureloss(prediction.float(), label_w.float(), mask_radius=4)
-    bdrcost = bdrloss(prediction.float(), label_w.float(), radius=4)
+    textcost = textureloss(prediction, label_w, mask_radius=4)
+    bdrcost = bdrloss(prediction, label_w, radius=4)
 
     return cost_weight * (cost + bdr_factor * bdrcost + tex_factor * textcost)
 

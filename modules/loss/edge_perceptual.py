@@ -21,28 +21,31 @@ class EdgePerceptualLoss(nn.Module):
         self.cats_weight = tuple(cats_weight)
         self.contents_weight = contents_weight
 
-    def forward(self, inputs, target, cond, split="train"):
-        # cats = cats_loss(target, inputs, self.cats_weight)
-        rec_loss = F.l1_loss(inputs, target) * self.l1_weight
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, split: str = "train") -> torch.Tensor:
+        rec_loss = torch.abs(inputs.contiguous() - targets.contiguous())
         loss = rec_loss
+
+        cats = cats_loss(targets.contiguous(), inputs.contiguous(), self.cats_weight)
+        loss = loss + cats
+
         if inputs.shape[1] == 1:
             inputs = inputs.repeat(1, 3, 1, 1)
-        if target.shape[1] == 1:
-            target = target.repeat(1, 3, 1, 1)
+        if targets.shape[1] == 1:
+            targets = targets.repeat(1, 3, 1, 1)
 
-        p_loss = self.perceptual_loss(inputs.contiguous(), target.contiguous())
-        loss = loss + self.perceptual_weight * torch.mean(p_loss)
+        p_loss = self.perceptual_loss(inputs.contiguous(), targets.contiguous())
+        loss = loss + self.perceptual_weight * p_loss
 
-        c_loss = self.perceptual_loss(cond.contiguous(), target.contiguous())
-        loss = loss + torch.mean(c_loss) * self.contents_weight
+        c_loss = self.perceptual_loss(conds.contiguous(), targets.contiguous())
+        loss = loss + self.contents_weight * c_loss
 
-        # loss = loss + cats
+        loss = torch.sum(loss) / loss.shape[0]
 
         log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                "{}/rec_loss".format(split): rec_loss.detach().mean(),
                "{}/p_loss".format(split): p_loss.detach().mean(),
                "{}/contents_loss".format(split): c_loss.detach().mean(),
-               # "{}/cats_loss".format(split): cats.detach().mean(),
+               "{}/cats_loss".format(split): cats.detach().mean(),
                }
 
         return loss, log

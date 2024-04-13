@@ -6,9 +6,10 @@ import torch.nn.functional as F
 from typing import Union, List, Tuple
 from functools import partial
 from timm.models.layers import DropPath
+from torch.utils.checkpoint import checkpoint
 
 from modules.blocks.mlp import MLP
-from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, checkpoint
+from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm
 
 
 def window_partition(x, window_size):
@@ -303,7 +304,7 @@ class WindowAttnBlock(nn.Module):
         )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = nn.LayerNorm(in_channels) if not use_conv else group_norm(in_channels, 1)
+        self.norm2 = nn.LayerNorm(in_channels)
 
         mlp_embed_dim = int(in_channels * mlp_ratio)
         self.mlp = MLP(in_channels=in_channels, embed_dim=mlp_embed_dim, dropout=drop, act=act, use_conv=use_conv, dim=dim)
@@ -334,7 +335,10 @@ class WindowAttnBlock(nn.Module):
         self.register_buffer("attn_mask", attn_mask)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return checkpoint(self._forward, (x, ), self.parameters(), self.use_checkpoint)
+        if self.use_checkpoint:
+            return checkpoint(self._forward, x)
+        return self._forward(x)
+        # return checkpoint(self._forward, (x, ), self.parameters(), self.use_checkpoint)
 
     def _forward(self, x):
         H, W = self.in_res
@@ -376,13 +380,9 @@ class WindowAttnBlock(nn.Module):
         x = x.reshape(b, h * w, c)
         x = shortcut + self.drop_path(x)
 
-        if self.use_conv:
-            x = x.permute(0, 2, 1).reshape(b, c, h, w)
-
         # FFN
         x = x + self.drop_path(self.mlp(self.norm2(x)))
 
-        if not self.use_conv:
-            x = x.permute(0, 2, 1).reshape(b, c, h, w)
+        x = x.permute(0, 2, 1).reshape(b, c, h, w)
 
         return x

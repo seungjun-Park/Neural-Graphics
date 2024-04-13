@@ -345,3 +345,12 @@ def normalize_img(img):
     norm_x = (img - min_val) / (max_val - min_val)
 
     return norm_x
+
+
+def zero_module(module):
+    """
+    Zero out the parameters of a module and return it.
+    """
+    for p in module.parameters():
+        p.detach().zero_()
+    return module
