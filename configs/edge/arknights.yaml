@@ -2,7 +2,7 @@ module:
   target: models.enet.enet.EdgeNet
   params:
     in_channels: 3
-    in_res: 512
+    in_res: 1024
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
