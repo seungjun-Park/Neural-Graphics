@@ -29,8 +29,6 @@ class EdgePerceptualLoss(nn.Module):
         return contents_weight
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, last_layer, split: str = "train") -> torch.Tensor:
-        l1_loss = torch.abs(inputs.contiguous() - targets.contiguous())
-
         # cats = cats_loss(targets.contiguous(), inputs.contiguous(), self.cats_weight)
         # loss = loss + cats
 
@@ -41,17 +39,22 @@ class EdgePerceptualLoss(nn.Module):
         if conds.shape[1] == 1:
             conds = conds.repeat(1, 3, 1, 1)
 
+        l1_loss = torch.abs(inputs.contiguous() - targets.contiguous())
         p_loss = self.perceptual_loss(inputs.contiguous(), targets.contiguous())
         edge_loss = l1_loss + p_loss
         edge_loss = torch.sum(edge_loss) / edge_loss.shape[0]
+        edge_loss.require_grads_ = True
 
         contents_p_loss = self.perceptual_loss(conds.contiguous(), targets.contiguous())
         contents_l1_loss = torch.abs(conds.contiguous() - targets.contiguous())
         contents_loss = contents_l1_loss + contents_p_loss
         contents_loss = torch.sum(contents_loss) / contents_loss.shape[0]
 
-        contents_weight = self.calculate_adaptive_weight(edge_loss, contents_loss, last_layer)
-
+        if self.training and self.contents_weight > 0:
+            contents_weight = self.calculate_adaptive_weight(edge_loss, contents_loss, last_layer)
+        else:
+            contents_weight = torch.tensor(0.0)
+            
         loss = edge_loss * self.edge_weight + contents_loss * contents_weight
 
         # cats = torch.sum(cats) / cats.shape[0]
