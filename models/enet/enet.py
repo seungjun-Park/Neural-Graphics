@@ -312,7 +312,7 @@ class EdgeNet(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
 
-        loss, loss_log = self.loss(gt, edge, conds=img, split='train')
+        loss, loss_log = self.loss(gt, edge, conds=img, split='train', last_layer=self.get_last_layer())
 
         self.log('train/loss', loss, logger=True)
         self.log_dict(loss_log)
@@ -324,7 +324,7 @@ class EdgeNet(pl.LightningModule):
         edge = self(img)
         self.log_img(img, gt, edge)
 
-        loss, loss_log = self.loss(gt, edge, conds=img, split='val')
+        loss, loss_log = self.loss(gt, edge, conds=img, split='val', last_layer=self.get_last_layer())
         self.log('val/loss', loss)
         self.log_dict(loss_log)
 
@@ -342,6 +342,9 @@ class EdgeNet(pl.LightningModule):
                              dataformats='CHW')
         else:
             tb.add_image(f'{prefix}/edge', edges[0], self.global_step, dataformats='CHW')
+
+    def get_last_layer(self):
+        return self.out[-1].weight
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.embed.parameters()) +

@@ -99,8 +99,8 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
     with torch.no_grad():
         mask = label.clone()
 
-        num_positive = torch.sum((mask == 1).float())
-        num_negative = torch.sum((mask == 0).float())
+        num_positive = torch.sum((mask == 1).to(prediction.dtype))
+        num_negative = torch.sum((mask == 0).to(prediction.dtype))
         beta = num_negative / (num_positive + num_negative)
         mask[mask == 1] = beta
         mask[mask == 0] = balanced_w * (1 - beta)

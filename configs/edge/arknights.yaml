@@ -1,30 +1,29 @@
 module:
   target: models.enet.enet.EdgeNet
   params:
-    in_channels: 3
+    in_channels: 1
     in_res: 1024
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        l1_weight: 1.0
         cats_weight: [1.0, 0.05, 1.]
-        perceptual_weight: 1.0
+        edge_weight: 1.0
         contents_weight: 0.5
 
     window_size: 8
     out_channels: 1
-    hidden_dims: [64, 128, 256]
-    embed_dim: 32
-    attn_res: [0, 1, 2]
+    hidden_dims: [32, 64, 96, 96]
+    embed_dim: 16
+    attn_res: [0, 1, 2, 2]
     num_blocks: 2
-    num_head_channels: 32
+    num_head_channels: 16
     mlp_ratio: 4
     dropout: 0.0
     attn_dropout: 0.0
     drop_path: 0.0
     qkv_bias: True
     bias: True
-    groups: 32
+    groups: 16
     act: 'gelu'
     use_conv: True
     pool_type: 'max'
@@ -35,7 +34,7 @@ module:
     dim: 2
     use_checkpoint: True
     log_interval: 50
-    # ckpt_path: './checkpoints/edgenet/test3/edgenet.ckpt'
+    ckpt_path: './checkpoints/edgenet/arknights/edgenet.ckpt'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
