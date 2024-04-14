@@ -54,7 +54,7 @@ class EdgePerceptualLoss(nn.Module):
             contents_weight = self.calculate_adaptive_weight(edge_loss, contents_loss, last_layer)
         else:
             contents_weight = torch.tensor(0.0)
-            
+
         loss = edge_loss * self.edge_weight + contents_loss * contents_weight
 
         # cats = torch.sum(cats) / cats.shape[0]
