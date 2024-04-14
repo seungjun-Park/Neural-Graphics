@@ -34,7 +34,7 @@ module:
     dim: 2
     use_checkpoint: True
     log_interval: 50
-    ckpt_path: './checkpoints/edgenet/arknights/edgenet.ckpt'
+    # ckpt_path: './checkpoints/edgenet/arknights/edgenet.ckpt'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
