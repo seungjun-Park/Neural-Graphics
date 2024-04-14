@@ -86,7 +86,7 @@ def textureloss(prediction, label, mask_radius):
 
     mask = 1.0 - torch.gt(label_sums, 0).to(prediction.dtype)
 
-    loss = -torch.log(torch.clamp(1-pred_sums/9, 1e-10, 1-1e-10))
+    loss = torch.clamp(1-pred_sums/9, 1e-10, 1-1e-10)
     loss[mask == 0] = 0
 
     return loss
@@ -106,14 +106,13 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
         mask[mask == 0] = balanced_w * (1 - beta)
         mask[mask == 2] = 0
 
-    cost = torch.mean(torch.nn.functional.binary_cross_entropy_with_logits(
-        prediction, label, weight=mask, reduce=False))
-    label_w = (label != 0).float()
+    cost = torch.nn.functional.binary_cross_entropy_with_logits(prediction, label, weight=mask, reduce=False)
+    label_w = (label != 0).to(prediction.dtype)
 
     textcost = textureloss(prediction, label_w, mask_radius=4)
     bdrcost = bdrloss(prediction, label_w, radius=4)
 
-    return cost_weight * (cost + bdr_factor * bdrcost + tex_factor * textcost)
+    return cost_weight * cost + bdr_factor * bdrcost + tex_factor * textcost
 
 
 SHIFT = torch.Tensor([-.030, -.088, -.188])[None, :, None, None]

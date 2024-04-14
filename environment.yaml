@@ -27,7 +27,5 @@ dependencies:
       - transformers
       - configargparse
       - lmdb
-      - tensorboardX
-      - tensorboard
       - timm
       - -e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers

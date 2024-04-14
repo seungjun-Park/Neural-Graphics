@@ -40,9 +40,13 @@ class EdgePerceptualLoss(nn.Module):
         loss = loss + self.contents_weight * c_loss
 
         loss = torch.sum(loss) / loss.shape[0]
+        rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+        cats = torch.sum(cats) / cats.shape[0]
+        c_loss = torch.sum(c_loss) / c_loss.shape[0]
+        p_loss = torch.sum(p_loss) / p_loss.shape[0]
 
-        log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
-               "{}/rec_loss".format(split): rec_loss.detach().mean(),
+        log = {"{}/total_loss".format(split): loss.clone().detach(),
+               "{}/rec_loss".format(split): rec_loss.detach(),
                "{}/p_loss".format(split): p_loss.detach().mean(),
                "{}/contents_loss".format(split): c_loss.detach().mean(),
                "{}/cats_loss".format(split): cats.detach().mean(),
