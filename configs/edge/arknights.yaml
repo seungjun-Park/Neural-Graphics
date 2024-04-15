@@ -72,14 +72,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'edgenet'
-    version: 'test'
+    version: 'arknights'
 
 
 checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/edgenet/test'
+      dirpath: './checkpoints/edgenet/arknights'
       filename: 'edgenet'
       monitor: 'step'
       mode: 'max'
