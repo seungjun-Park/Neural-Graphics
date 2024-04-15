@@ -36,6 +36,6 @@ class UpBlock(nn.Module):
     def forward(self, x):
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         if self.use_conv:
-            self.conv(x)
+            x = self.conv(x)
 
         return x

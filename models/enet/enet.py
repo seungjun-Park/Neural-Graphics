@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+from torch.utils.checkpoint import checkpoint
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img
@@ -47,6 +48,13 @@ class EdgeNet(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
+        self.num_blocks = num_blocks
+        self.dim = dim
+        self.mode = mode
+        self.pool_type = pool_type
+        self.use_conv = use_conv
+        self.act = act
+        self.groups = groups
 
         self.l_weight = l_weight
 
@@ -61,17 +69,16 @@ class EdgeNet(pl.LightningModule):
         self.embed = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
 
         in_ch = embed_dim
-        skip_dims = []
+        self.skip_dims = [embed_dim]
         cur_res = in_res
 
         self.encoder = nn.ModuleList()
-        self.middle = nn.ModuleList()
         self.decoder = nn.ModuleList()
         self.cat_ups = nn.ModuleList()
 
         for i, out_ch in enumerate(hidden_dims):
-            down = list()
             for j in range(num_blocks):
+                down = list()
                 down.append(
                     ResidualBlock(
                         in_channels=in_ch,
@@ -128,122 +135,19 @@ class EdgeNet(pl.LightningModule):
                         )
                     )
 
-            skip_dims.append(in_ch)
-            self.encoder.append(nn.Sequential(*down))
+                self.skip_dims.append(in_ch)
+                self.encoder.append(nn.Sequential(*down))
 
-            self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
-            cur_res //= 2
+            if i != len(hidden_dims) - 1:
+                self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+                self.skip_dims.append(in_ch)
+                cur_res //= 2
 
-        for i in range(num_blocks):
-            self.middle.append(
-                nn.Sequential(
-                    ResidualBlock(
-                        in_channels=in_ch,
-                        out_channels=in_ch,
-                        dropout=dropout,
-                        act=act,
-                        groups=groups,
-                        dim=dim,
-                        use_checkpoint=use_checkpoint,
-                        use_conv=use_conv,
-                    ),
-                    WindowAttnBlock(
-                        in_channels=in_ch,
-                        in_res=to_2tuple(cur_res),
-                        num_heads=num_heads,
-                        num_head_channels=num_head_channels,
-                        window_size=window_size,
-                        shift_size=0,
-                        mlp_ratio=mlp_ratio,
-                        qkv_bias=qkv_bias,
-                        proj_bias=bias,
-                        drop=dropout,
-                        attn_drop=attn_dropout,
-                        drop_path=drop_path,
-                        act=act,
-                        use_conv=False,
-                        dim=dim,
-                        use_checkpoint=use_checkpoint,
-                    ),
-                    WindowAttnBlock(
-                        in_channels=in_ch,
-                        in_res=to_2tuple(cur_res),
-                        num_heads=num_heads,
-                        num_head_channels=num_head_channels,
-                        window_size=window_size,
-                        shift_size=window_size // 2,
-                        mlp_ratio=mlp_ratio,
-                        qkv_bias=qkv_bias,
-                        proj_bias=bias,
-                        drop=dropout,
-                        attn_drop=attn_dropout,
-                        drop_path=drop_path,
-                        act=act,
-                        use_conv=False,
-                        dim=dim,
-                        use_checkpoint=use_checkpoint
-                    ),
-                )
-            )
-
-        hidden_dims = hidden_dims[:-1]
-        hidden_dims.insert(0, embed_dim)
+        skip_dim = sum([i for i in self.skip_dims])
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
-            self.decoder.append(UpBlock(in_ch, in_ch, dim=dim, mode=mode))
-            cur_res = int(cur_res * 2)
-
-            cat_up = nn.ModuleList()
-
-            for j in range(0, len(skip_dims)):
-                skip_dim = skip_dims[j]
-                if j < i:
-                    cat_up.append(
-                        nn.Sequential(
-                            group_norm(skip_dim, num_groups=groups),
-                            get_act(act),
-                            DownBlock(
-                                skip_dim,
-                                scale_factor=2 ** abs(i - j),
-                                dim=dim,
-                                use_conv=use_conv,
-                                pool_type=pool_type
-                            ),
-                            conv_nd(
-                                dim,
-                                skip_dim,
-                                skip_dim,
-                                kernel_size=3,
-                                stride=1,
-                                padding=1,
-                            )
-                        )
-                    )
-
-                elif j > i:
-                    cat_up.append(
-                        nn.Sequential(
-                            group_norm(skip_dim, num_groups=groups),
-                            get_act(act),
-                            UpBlock(
-                                skip_dim,
-                                dim=dim,
-                                scale_factor=2 ** abs(i - j),
-                                mode=mode,
-                                use_conv=use_conv,
-                            ),
-                        )
-                    )
-
-                else:
-                    cat_up.append(nn.Identity())
-
-            self.cat_ups.append(cat_up)
-
-            up = list()
-
             for j in range(num_blocks):
-                skip_dim = sum([i if j == 0 else 0 for i in skip_dims])
+                up = list()
                 up.append(
                     ResidualBlock(
                         in_channels=in_ch + skip_dim,
@@ -299,7 +203,13 @@ class EdgeNet(pl.LightningModule):
                         )
                     )
 
-            self.decoder.append(nn.Sequential(*up))
+                self.decoder.append(nn.Sequential(*up))
+                self.make_cat_up_module(i)
+
+            if i != 0:
+                self.make_cat_up_module(i)
+                self.decoder.append(UpBlock(in_ch + skip_dim, out_channels=in_ch, dim=dim, mode=mode, use_conv=use_conv))
+                cur_res = int(cur_res * 2)
 
         self.out = nn.Sequential(
             group_norm(in_ch, groups),
@@ -321,23 +231,69 @@ class EdgeNet(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
+    def make_cat_up_module(self, i: int):
+        cat_up = nn.ModuleList()
+
+        for k in range(len(self.skip_dims)):
+            sd = self.skip_dims[k]
+            level = k // (self.num_blocks + 1)
+            if level < i:
+                cat_up.append(
+                    nn.Sequential(
+                        group_norm(sd, num_groups=self.groups),
+                        get_act(self.act),
+                        DownBlock(
+                            sd,
+                            scale_factor=2 ** abs(i - level),
+                            dim=self.dim,
+                            use_conv=self.use_conv,
+                            pool_type=self.pool_type
+                        ),
+                        conv_nd(
+                            self.dim,
+                            sd,
+                            sd,
+                            kernel_size=3,
+                            stride=1,
+                            padding=1,
+                        )
+                    )
+                )
+
+            elif level > i:
+                cat_up.append(
+                    nn.Sequential(
+                        group_norm(sd, num_groups=self.groups),
+                        get_act(self.act),
+                        UpBlock(
+                            sd,
+                            dim=self.dim,
+                            scale_factor=2 ** abs(i - level),
+                            mode=self.mode,
+                            use_conv=self.use_conv,
+                        ),
+                    )
+                )
+
+            else:
+                cat_up.append(nn.Identity())
+
+        self.cat_ups.append(cat_up)
+
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
         hs = []
         h = self.embed(x)
+        hs.append(h)
         for i, block in enumerate(self.encoder):
             h = block(h)
-            if not isinstance(block, DownBlock):
-                hs.append(h)
-
-        for i, block in enumerate(self.middle):
-            h = block(h)
+            hs.append(h)
 
         for i, block in enumerate(self.decoder):
-            if i % 2 == 1:
-                h_cats = [h]
-                for h_cat, module in zip(hs, self.cat_ups[i // 2]):
-                    h_cats.append(module(h_cat))
-                h = torch.cat(h_cats, dim=1)
+            h_cats = [h]
+            for h_cat, module in zip(hs, self.cat_ups[i]):
+                h_cats.append(module(h_cat))
+
+            h = torch.cat(h_cats, dim=1)
             h = block(h)
 
         h = self.out(h)
@@ -388,7 +344,6 @@ class EdgeNet(pl.LightningModule):
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.embed.parameters()) +
                                     list(self.encoder.parameters()) +
-                                    list(self.middle.parameters()) +
                                     list(self.decoder.parameters()) +
                                     list(self.cat_ups.parameters()) +
                                     list(self.out.parameters()),
