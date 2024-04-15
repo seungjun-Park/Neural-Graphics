@@ -16,7 +16,7 @@ class EdgeNet(pl.LightningModule):
                  loss_config: dict = None,
                  out_channels: int = None,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
-                 embed_dim: int = 64,
+                 embed_dim: int = 16,
                  attn_res: Union[List[int], Tuple[int]] = (2, 3),
                  num_blocks: int = 2,
                  num_heads: int = -1,
@@ -57,20 +57,21 @@ class EdgeNet(pl.LightningModule):
         self.in_res = in_res
         self.out_channels = out_channels
         self.hidden_dims = hidden_dims
-        self.embed_dim = embed_dim
 
         self.embed = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
 
         in_ch = embed_dim
-        skip_dims = [embed_dim]
+        skip_dims = []
         cur_res = in_res
 
         self.encoder = nn.ModuleList()
+        self.middle = nn.ModuleList()
         self.decoder = nn.ModuleList()
+        self.cat_ups = nn.ModuleList()
 
         for i, out_ch in enumerate(hidden_dims):
+            down = list()
             for j in range(num_blocks):
-                down = list()
                 down.append(
                     ResidualBlock(
                         in_channels=in_ch,
@@ -127,85 +128,116 @@ class EdgeNet(pl.LightningModule):
                         )
                     )
 
-                skip_dims.append(in_ch)
-                self.encoder.append(nn.Sequential(*down))
+            skip_dims.append(in_ch)
+            self.encoder.append(nn.Sequential(*down))
 
-            if i != len(hidden_dims) - 1:
-                self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
-                skip_dims.append(in_ch)
-                cur_res //= 2
+            self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+            cur_res //= 2
 
-        self.middle = nn.Sequential(
-            ResidualBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                dropout=dropout,
-                act=act,
-                groups=groups,
-                dim=dim,
-                use_checkpoint=use_checkpoint,
-                use_conv=use_conv,
-            ),
-            WindowAttnBlock(
-                in_channels=in_ch,
-                in_res=to_2tuple(cur_res),
-                num_heads=num_heads,
-                num_head_channels=num_head_channels,
-                window_size=window_size,
-                shift_size=0,
-                mlp_ratio=mlp_ratio,
-                qkv_bias=qkv_bias,
-                proj_bias=bias,
-                drop=dropout,
-                attn_drop=attn_dropout,
-                drop_path=drop_path,
-                act=act,
-                use_conv=False,
-                dim=dim,
-                use_checkpoint=use_checkpoint,
-            ),
-            WindowAttnBlock(
-                in_channels=in_ch,
-                in_res=to_2tuple(cur_res),
-                num_heads=num_heads,
-                num_head_channels=num_head_channels,
-                window_size=window_size,
-                shift_size=window_size // 2,
-                mlp_ratio=mlp_ratio,
-                qkv_bias=qkv_bias,
-                proj_bias=bias,
-                drop=dropout,
-                attn_drop=attn_dropout,
-                drop_path=drop_path,
-                act=act,
-                use_conv=False,
-                dim=dim,
-                use_checkpoint=use_checkpoint
-            ),
-            ResidualBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                dropout=dropout,
-                act=act,
-                groups=groups,
-                dim=dim,
-                use_checkpoint=use_checkpoint,
-                use_conv=use_conv,
-            ),
-        )
+        for i in range(num_blocks):
+            self.middle.append(
+                nn.Sequential(
+                    ResidualBlock(
+                        in_channels=in_ch,
+                        out_channels=in_ch,
+                        dropout=dropout,
+                        act=act,
+                        groups=groups,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
+                        use_conv=use_conv,
+                    ),
+                    WindowAttnBlock(
+                        in_channels=in_ch,
+                        in_res=to_2tuple(cur_res),
+                        num_heads=num_heads,
+                        num_head_channels=num_head_channels,
+                        window_size=window_size,
+                        shift_size=0,
+                        mlp_ratio=mlp_ratio,
+                        qkv_bias=qkv_bias,
+                        proj_bias=bias,
+                        drop=dropout,
+                        attn_drop=attn_dropout,
+                        drop_path=drop_path,
+                        act=act,
+                        use_conv=False,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
+                    ),
+                    WindowAttnBlock(
+                        in_channels=in_ch,
+                        in_res=to_2tuple(cur_res),
+                        num_heads=num_heads,
+                        num_head_channels=num_head_channels,
+                        window_size=window_size,
+                        shift_size=window_size // 2,
+                        mlp_ratio=mlp_ratio,
+                        qkv_bias=qkv_bias,
+                        proj_bias=bias,
+                        drop=dropout,
+                        attn_drop=attn_dropout,
+                        drop_path=drop_path,
+                        act=act,
+                        use_conv=False,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint
+                    ),
+                )
+            )
 
-        hidden_dims = hidden_dims[1:]
+        hidden_dims = hidden_dims[:-1]
         hidden_dims.insert(0, embed_dim)
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
-            if i != len(hidden_dims) - 1:
-                skip_dim = skip_dims.pop()
-                self.decoder.append(UpBlock(in_ch + skip_dim, in_ch, dim=dim, mode=mode))
-                cur_res = int(cur_res * 2)
+            self.decoder.append(UpBlock(in_ch, in_ch, dim=dim, mode=mode))
+            cur_res = int(cur_res * 2)
+
+            cat_up = nn.ModuleList()
+
+            for j in range(0, len(skip_dims)):
+                skip_dim = skip_dims[j]
+                if j < i:
+                    cat_up.append(
+                        nn.Sequential(
+                            DownBlock(
+                                skip_dim,
+                                scale_factor=2 ** abs(i - j),
+                                dim=dim,
+                                use_conv=use_conv,
+                                pool_type=pool_type
+                            ),
+                            conv_nd(
+                                dim,
+                                skip_dim,
+                                skip_dim,
+                                kernel_size=3,
+                                stride=1,
+                                padding=1,
+                            )
+                        )
+                    )
+
+                elif j > i:
+                    cat_up.append(
+                        UpBlock(
+                            skip_dim,
+                            dim=dim,
+                            scale_factor=2 ** abs(i - j),
+                            mode=mode,
+                            use_conv=use_conv,
+                        )
+                    )
+
+                else:
+                    cat_up.append(nn.Identity())
+
+            self.cat_ups.append(cat_up)
+
+            up = list()
 
             for j in range(num_blocks):
-                up = list()
-                skip_dim = skip_dims.pop()
+                skip_dim = sum([i if j == 0 else 0 for i in skip_dims])
                 up.append(
                     ResidualBlock(
                         in_channels=in_ch + skip_dim,
@@ -261,10 +293,8 @@ class EdgeNet(pl.LightningModule):
                         )
                     )
 
-                self.decoder.append(nn.Sequential(*up))
+            self.decoder.append(nn.Sequential(*up))
 
-        skip_dim = skip_dims.pop()
-        in_ch = in_ch + skip_dim
         self.out = nn.Sequential(
             group_norm(in_ch, groups),
             get_act(act),
@@ -288,22 +318,25 @@ class EdgeNet(pl.LightningModule):
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
         hs = []
         h = self.embed(x)
-        hs.append(h)
-
         for i, block in enumerate(self.encoder):
             h = block(h)
-            hs.append(h)
+            if not isinstance(block, DownBlock):
+                hs.append(h)
 
-        h = self.middle(h)
-
-        for i, block in enumerate(self.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
+        for i, block in enumerate(self.middle):
             h = block(h)
 
-        h = torch.cat([h, hs.pop()], dim=1)
+        for i, block in enumerate(self.decoder):
+            if i % 2 == 1:
+                h_cats = [h]
+                for h_cat, module in zip(hs, self.cat_ups[i // 2]):
+                    h_cats.append(module(h_cat))
+                h = torch.cat(h_cats, dim=1)
+            h = block(h)
+
         h = self.out(h)
 
-        return F.sigmoid(h)
+        return F.hardtanh(h, 0, 1)
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
@@ -351,6 +384,7 @@ class EdgeNet(pl.LightningModule):
                                     list(self.encoder.parameters()) +
                                     list(self.middle.parameters()) +
                                     list(self.decoder.parameters()) +
+                                    list(self.cat_ups.parameters()) +
                                     list(self.out.parameters()),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,

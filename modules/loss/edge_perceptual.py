@@ -44,7 +44,6 @@ class EdgePerceptualLoss(nn.Module):
         p_loss = self.perceptual_loss(inputs.contiguous(), targets.contiguous())
         edge_loss = l1_loss + p_loss
         edge_loss = torch.sum(edge_loss) / edge_loss.shape[0]
-        edge_loss.require_grads_ = True
 
         contents_p_loss = self.perceptual_loss(conds.contiguous(), targets.contiguous())
         contents_l1_loss = torch.abs(conds.contiguous() - targets.contiguous())
