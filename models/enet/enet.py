@@ -200,6 +200,8 @@ class EdgeNet(pl.LightningModule):
                 if j < i:
                     cat_up.append(
                         nn.Sequential(
+                            group_norm(skip_dim, num_groups=groups),
+                            get_act(act),
                             DownBlock(
                                 skip_dim,
                                 scale_factor=2 ** abs(i - j),
@@ -220,12 +222,16 @@ class EdgeNet(pl.LightningModule):
 
                 elif j > i:
                     cat_up.append(
-                        UpBlock(
-                            skip_dim,
-                            dim=dim,
-                            scale_factor=2 ** abs(i - j),
-                            mode=mode,
-                            use_conv=use_conv,
+                        nn.Sequential(
+                            group_norm(skip_dim, num_groups=groups),
+                            get_act(act),
+                            UpBlock(
+                                skip_dim,
+                                dim=dim,
+                                scale_factor=2 ** abs(i - j),
+                                mode=mode,
+                                use_conv=use_conv,
+                            ),
                         )
                     )
 
