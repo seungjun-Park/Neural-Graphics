@@ -6,9 +6,9 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        cats_weight: [0.0, 0.0, 0.0]
+        cats_weight: [1.0, 0.05, 1.0]
         edge_weight: 1.0
-        contents_weight: 0.2
+        contents_weight: 0.1
 
     window_size: 8
     out_channels: 1
