@@ -1,0 +1,92 @@
+module:
+  target: models.enet.enet.EdgeNet
+  params:
+    in_channels: 3
+    in_res: 1024
+    loss_config:
+      target: modules.loss.edge_perceptual.EdgePerceptualLoss
+      params:
+        cats_weight: [1.0, 0.05, 1.]
+        edge_weight: 0.0
+        contents_weight: 0.0
+
+    window_size: 8
+    out_channels: 1
+    hidden_dims: [32, 64, 96, 96]
+    embed_dim: 16
+    attn_res: [0, 1, 2, 3]
+    num_blocks: 2
+    num_head_channels: 16
+    mlp_ratio: 4
+    dropout: 0.0
+    attn_dropout: 0.0
+    drop_path: 0.0
+    qkv_bias: True
+    bias: True
+    groups: 16
+    act: 'gelu'
+    use_conv: True
+    pool_type: 'max'
+    mode: 'nearest'
+    lr: 2e-5
+    weight_decay: 0.
+    lr_decay_epoch: 100
+    dim: 2
+    use_checkpoint: True
+    log_interval: 10
+    # ckpt_path: './checkpoints/edgenet/arknights/edgenet.ckpt'
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 4
+    batch_size: 1
+    wrap: True
+    train:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: '/local_datasets/arknights'
+        # root: './datasets/arknights'
+        train: True
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 1024, 1024 ]
+    validation:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: '/local_datasets/arknights'
+        # root: './datasets/arknights'
+        train: False
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 1024, 1024 ]
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'edgenet'
+    version: 'arknights_cats'
+
+
+checkpoints:
+  latest_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/edgenet/arknights_cats'
+      filename: 'edgenet'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  accumulate_grad_batches: 5
+  max_epochs: 50
+  precision: 32

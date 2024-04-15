@@ -53,7 +53,8 @@ class ArknightsDataset(Dataset):
         img_name = self.img_names[index]
         tag_name = self.tag_names[index]
 
-        img = cv2.imread(f'{img_name}', cv2.IMREAD_GRAYSCALE)
+        img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
 
         with open(f'{tag_name}', 'r') as f:
