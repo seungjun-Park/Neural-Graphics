@@ -342,7 +342,7 @@ class EdgeNet(pl.LightningModule):
 
         h = self.out(h)
 
-        return F.hardtanh(h, 0, 1)
+        return F.sigmoid(h)
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
