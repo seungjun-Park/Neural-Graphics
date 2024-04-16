@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# from torch.utils.checkpoint import checkpoint
+from torch.utils.checkpoint import checkpoint
 from typing import Union, List, Tuple
 
 from modules.blocks import DownBlock, UpBlock
-from utils import get_act, group_norm, conv_nd, checkpoint
+from utils import get_act, group_norm, conv_nd
 
 
 class ScaledSkipBlock(nn.Module):
@@ -75,7 +75,8 @@ class ScaledSkipBlock(nn.Module):
                 self.blocks.append(nn.Identity())
 
     def forward(self, hs: Union[List[torch.Tensor], Tuple]) -> Union[List[torch.Tensor], Tuple[torch.Tensor]]:
-        # return checkpoint(self._forward, (hs, ), self.parameters(), self.use_checkpoint)
+        if self.use_checkpoint:
+            return checkpoint(self._forward, hs)
         return self._forward(hs)
 
     def _forward(self, hs: Union[List[torch.Tensor], Tuple]) -> Union[List[torch.Tensor], Tuple[torch.Tensor]]:

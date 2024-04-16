@@ -48,14 +48,14 @@ class EdgePerceptualLoss(nn.Module):
         edge_loss = torch.sum(edge_loss) / edge_loss.shape[0]
 
         logits_fake = self.disc(torch.cat([targets.contiguous(), conds], dim=1))
-        g_loss = -torch.mean(logits_fake)
+        g_loss = -torch.sum(logits_fake) / logits_fake.shape[0]
 
-        if self.training and self.g_weight > 0:
-            g_weight = self.calculate_adaptive_weight(edge_loss, g_loss, last_layer)
-        else:
-            g_weight = torch.tensor(0.0)
+        # if self.training and self.g_weight > 0:
+        #     g_weight = self.calculate_adaptive_weight(edge_loss, g_loss, last_layer)
+        # else:
+        #     g_weight = torch.tensor(0.0)
 
-        g_weight = adopt_weight(g_weight, global_step, threshold=self.disc_iter_start)
+        g_weight = adopt_weight(self.g_weight, global_step, threshold=self.disc_iter_start)
         loss = edge_loss + g_loss * g_weight
 
         logits_real = self.disc(torch.cat([inputs.contiguous().detach(), conds], dim=1))

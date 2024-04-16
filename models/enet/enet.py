@@ -275,7 +275,7 @@ class EdgeNet(pl.LightningModule):
         opt_net, opt_disc = self.optimizers()
 
         edge = self(img)
-        loss, d_loss, loss_log = self.loss(gt, edge, img, self.global_step, split='train',
+        loss, d_loss, loss_log = self.loss(gt, edge.contiguous(), img, self.global_step, split='train',
                                            last_layer=self.get_last_layer())
         loss = loss / self.accum_grad_batches
         d_loss = d_loss / self.accum_grad_batches

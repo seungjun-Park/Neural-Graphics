@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# from torch.utils.checkpoint import checkpoint, checkpoint_sequential
+from torch.utils.checkpoint import checkpoint
 
 from typing import Union, List, Tuple
-from utils import get_act, conv_nd, norm, group_norm, checkpoint
+from utils import get_act, conv_nd, norm, group_norm
 
 
 class ResidualBlock(nn.Module):
@@ -47,11 +47,10 @@ class ResidualBlock(nn.Module):
             self.shortcut = conv_nd(dim, in_channels, out_channels, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return checkpoint(self._forward, (x,), self.parameters(), self.use_checkpoint)
-        # if self.use_checkpoint:
-        #     return checkpoint(self._forward, x)
-        #
-        # return self._forward(x)
+        if self.use_checkpoint:
+            return checkpoint(self._forward, x)
+
+        return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.norm1(x)
