@@ -102,6 +102,12 @@ def group_norm(num_channels, num_groups=32, eps=1e-5, affine=True):
     return nn.GroupNorm(num_groups=num_groups, num_channels=num_channels, eps=eps, affine=affine)
 
 
+# to allow mixed-precision training
+class CustomGroupNorm(nn.GroupNorm):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return super().forward(x.float()).type(x.dtype)
+
+
 def norm(norm_type='group', groups=32, *args, **kwargs):
     norm_type = norm_type.lower()
     if norm_type == 'group':

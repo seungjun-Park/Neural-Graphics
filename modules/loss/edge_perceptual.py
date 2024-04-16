@@ -35,46 +35,40 @@ class EdgePerceptualLoss(nn.Module):
         g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
 
         g_weight = torch.norm(edge_grads) / (torch.norm(g_grads) + 1e-4)
-        g_weight = torch.clamp(g_weight, 0.0, self.g_weight).detach()
-        return g_weight
+        g_weight = torch.clamp(g_weight, 0.0, 1e4).detach()
+        return g_weight * self.g_weight
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, global_step: int,
-                optimizer_idx: int, last_layer, split: str = "train") -> torch.Tensor:
+                last_layer, split: str = "train") -> torch.Tensor:
 
-        if optimizer_idx == 0:
-            l1_loss = torch.abs(inputs.contiguous() - targets.contiguous())
-            p_loss = self.perceptual_loss(inputs.contiguous(), targets.contiguous())
+        l1_loss = torch.abs(inputs.contiguous() - targets.contiguous())
+        p_loss = self.perceptual_loss(inputs.contiguous(), targets.contiguous())
 
-            edge_loss = l1_loss * self.l1_weight + p_loss * self.perceptual_weight
-            edge_loss = torch.sum(edge_loss) / edge_loss.shape[0]
+        edge_loss = l1_loss * self.l1_weight + p_loss * self.perceptual_weight
+        edge_loss = torch.sum(edge_loss) / edge_loss.shape[0]
 
-            logits_fake = self.disc(torch.cat([targets.contiguous(), conds], dim=1))
-            g_loss = -torch.sum(logits_fake) / logits_fake.shape[0]
+        logits_fake = self.disc(torch.cat([targets.contiguous(), conds], dim=1))
+        g_loss = -torch.mean(logits_fake)
 
-            if self.training and self.g_weight > 0:
-                g_weight = self.calculate_adaptive_weight(edge_loss, g_loss, last_layer)
-            else:
-                g_weight = torch.tensor(0.0)
+        if self.training and self.g_weight > 0:
+            g_weight = self.calculate_adaptive_weight(edge_loss, g_loss, last_layer)
+        else:
+            g_weight = torch.tensor(0.0)
 
-            g_weight = adopt_weight(g_weight, global_step, threshold=self.disc_iter_start)
-            loss = edge_loss + g_loss * g_weight
+        g_weight = adopt_weight(g_weight, global_step, threshold=self.disc_iter_start)
+        loss = edge_loss + g_loss * g_weight
 
-            log = {"{}/total_loss".format(split): loss.clone().detach(),
-                   "{}/edge_loss".format(split): edge_loss.detach(),
-                   "{}/g_loss".format(split): g_loss.detach(),
-                   }
+        logits_real = self.disc(torch.cat([inputs.contiguous().detach(), conds], dim=1))
+        logits_fake = self.disc(torch.cat([targets.contiguous().detach(), conds], dim=1))
 
-            return loss, log
+        d_loss = self.d_weight * self.disc_loss(logits_real, logits_fake)
 
-        if optimizer_idx == 1:
-            logits_real = self.disc(torch.cat([inputs.contiguous().detach(), conds], dim=1))
-            logits_fake = self.disc(torch.cat([targets.contiguous().detach(), conds], dim=1))
+        log = {"{}/total_loss".format(split): loss.clone().detach(),
+               "{}/edge_loss".format(split): edge_loss.detach(),
+               "{}/g_loss".format(split): g_loss.detach(),
+               "{}/logits_real".format(split): logits_real.detach().mean(),
+               "{}/logits_fake".format(split): logits_fake.detach().mean(),
+               "{}/d_loss".format(split): d_loss.detach().mean(),
+               }
 
-            d_loss = self.d_weight * self.disc_loss(logits_real, logits_fake)
-
-            log = {"{}/logits_real".format(split): logits_real.detach().mean(),
-                   "{}/logits_fake".format(split): logits_fake.detach().mean(),
-                   "{}/d_loss".format(split): d_loss.detach().mean(),
-                   }
-
-            return d_loss, log
+        return loss, d_loss, log

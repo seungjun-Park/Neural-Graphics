@@ -49,7 +49,6 @@ class EdgeNet(pl.LightningModule):
         super().__init__()
 
         self.automatic_optimization = False
-
         self.accum_grad_batches = accum_grad_batches
 
         self.lr = to_2tuple(lr)
@@ -63,6 +62,7 @@ class EdgeNet(pl.LightningModule):
         self.use_conv = use_conv
         self.act = act
         self.groups = groups
+        self._dtype = torch.float16 if use_fp16 else torch.float32
 
         if loss_config is not None:
             self.loss = instantiate_from_config(loss_config)
@@ -252,7 +252,7 @@ class EdgeNet(pl.LightningModule):
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
         hs = []
-        h = self.embed(x)
+        h = self.embed(x.type(self.dtype))
         hs.append(h)
         for i, block in enumerate(self.encoder):
             h = block(h)
@@ -266,27 +266,23 @@ class EdgeNet(pl.LightningModule):
             h = torch.cat([h, ] + h_cats[i // (self.num_blocks + 1)], dim=1)
             h = block(h)
 
-        h = self.out(h)
+        h = self.out(h).type(x.dtype)
 
         return F.sigmoid(h)
 
     def training_step(self, batch, batch_idx):
         img, gt, cond = batch
-        edge = self(img)
-
-        if self.global_step % self.log_interval == 0:
-            self.log_img(img, gt, edge)
-
         opt_net, opt_disc = self.optimizers()
 
-        loss, loss_log = self.loss(gt, edge, img, self.global_step, 0, split='train', last_layer=self.get_last_layer())
-        loss = loss / self.accum_grad_batches
+        with torch.cuda.amp.autocast(dtype=self.dtype):
+            edge = self(img)
+            loss, d_loss, loss_log = self.loss(gt, edge, img, self.global_step, split='train',
+                                               last_layer=self.get_last_layer())
+            loss = loss / self.accum_grad_batches
+            d_loss = d_loss / self.accum_grad_batches
 
-        d_loss, d_loss_log = self.loss(gt, edge, img, self.global_step, 1, split='train', last_layer=self.get_last_layer())
-        d_loss = d_loss / self.accum_grad_batches
-
-        self.manual_backward(loss)
-        self.manual_backward(d_loss)
+            self.manual_backward(loss)
+            self.manual_backward(d_loss)
 
         if (batch_idx + 1) % self.accum_grad_batches == 0:
             opt_net.step()
@@ -294,19 +290,19 @@ class EdgeNet(pl.LightningModule):
             opt_disc.step()
             opt_disc.zero_grad()
 
-        self.log_dict(d_loss_log)
+        if self.global_step % self.log_interval == 0:
+            self.log_img(img, gt, edge)
         self.log_dict(loss_log)
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
-        edge = self(img)
-        self.log_img(img, gt, edge)
 
-        loss, loss_log = self.loss(gt, edge, img, self.global_step, 0, split='train', last_layer=self.get_last_layer())
-        d_loss, d_loss_log = self.loss(gt, edge, img, self.global_step, 1, split='train',
-                                       last_layer=self.get_last_layer())
+        edge = self(img)
+        loss, d_loss, loss_log = self.loss(gt, edge, img, self.global_step, split='train',
+                                           last_layer=self.get_last_layer())
+
+        self.log_img(img, gt, edge)
         self.log_dict(loss_log)
-        self.log_dict(d_loss_log)
 
         return self.log_dict
 
