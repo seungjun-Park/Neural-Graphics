@@ -16,7 +16,7 @@ module:
     embed_dim: 8
     attn_res: [0, 1, 2, 3]
     num_blocks: 3
-    num_head_channels: 16
+    num_heads: 8
     mlp_ratio: 4
     dropout: 0.0
     attn_dropout: 0.0
