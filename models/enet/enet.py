@@ -274,12 +274,11 @@ class EdgeNet(pl.LightningModule):
         img, gt, cond = batch
         opt_net, opt_disc = self.optimizers()
 
-        with torch.cuda.amp.autocast(dtype=self.dtype):
-            edge = self(img)
-            loss, d_loss, loss_log = self.loss(gt, edge, img, self.global_step, split='train',
-                                               last_layer=self.get_last_layer())
-            loss = loss / self.accum_grad_batches
-            d_loss = d_loss / self.accum_grad_batches
+        edge = self(img)
+        loss, d_loss, loss_log = self.loss(gt, edge, img, self.global_step, split='train',
+                                           last_layer=self.get_last_layer())
+        loss = loss / self.accum_grad_batches
+        d_loss = d_loss / self.accum_grad_batches
 
         self.manual_backward(loss)
         self.manual_backward(d_loss)
