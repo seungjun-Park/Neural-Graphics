@@ -283,7 +283,7 @@ class EdgeNet(pl.LightningModule):
         self.manual_backward(loss)
         self.manual_backward(d_loss)
 
-        if (batch_idx + 1) % self.accum_grad_batches == 0:
+        if (self.global_step + 1) % self.accum_grad_batches == 0:
             opt_net.step()
             opt_net.zero_grad()
             opt_disc.step()
