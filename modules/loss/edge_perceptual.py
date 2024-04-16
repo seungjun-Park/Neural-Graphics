@@ -24,7 +24,7 @@ class EdgePerceptualLoss(nn.Module):
         edge_grads = torch.autograd.grad(edge_loss, last_layer, retain_graph=True)[0]
         contents_grads = torch.autograd.grad(content_loss, last_layer, retain_graph=True)[0]
 
-        contents_weight = torch.norm(edge_grads) / (torch.norm(contents_grads) + 1e-4)
+        contents_weight = torch.norm(contents_grads) / (torch.norm(edge_grads) + 1e-5)
         contents_weight = torch.clamp(contents_weight, 0.0, self.contents_weight).detach()
         return contents_weight
 

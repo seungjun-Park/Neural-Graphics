@@ -8,13 +8,13 @@ module:
       params:
         cats_weight: [1.0, 0.05, 1.0]
         edge_weight: 1.0
-        contents_weight: 0.05
+        contents_weight: 0.1
 
     window_size: 8
     out_channels: 1
     hidden_dims: [16, 32, 64, 96]
     embed_dim: 8
-    attn_res: [0, 1, 2]
+    attn_res: [0, 1, 2, 3]
     num_blocks: 3
     num_head_channels: 8
     mlp_ratio: 4
@@ -88,6 +88,5 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   accumulate_grad_batches: 5
-  max_epochs: 100
+  max_epochs: 200
   precision: 32
-  enable_checkpointing: True
