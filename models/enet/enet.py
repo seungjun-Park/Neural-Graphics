@@ -2,11 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
-from torch.utils.checkpoint import checkpoint
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img
-from modules.blocks import ResidualBlock, DownBlock, UpBlock, AttnBlock, WindowAttnBlock, PatchEmbedding, PatchMerging, PatchExpanding
+from modules.blocks import (
+    ResidualBlock, DownBlock, UpBlock, AttnBlock,
+    WindowAttnBlock, PatchEmbedding, PatchMerging, PatchExpanding,
+    ScaledSkipBlock
+)
 
 
 class EdgeNet(pl.LightningModule):
@@ -33,19 +36,24 @@ class EdgeNet(pl.LightningModule):
                  use_conv: bool = True,
                  pool_type: str = 'max',
                  mode: str = 'nearest',
-                 lr: float = 2e-5,
-                 weight_decay: float = 0.,
+                 lr: Union[float, List[float], Tuple[float]] = 2e-5,
+                 weight_decay: Union[float, List[float], Tuple[float]] = 1e-4,
                  lr_decay_epoch: int = 100,
-                 l_weight: Union[float, List[float], Tuple[float]] = 0.,
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  dim: int = 2,
                  use_checkpoint: bool = True,
+                 use_fp16: bool = False,
+                 accum_grad_batches: int = 1,
                  ):
         super().__init__()
 
-        self.lr = lr
-        self.weight_decay = weight_decay
+        self.automatic_optimization = False
+
+        self.accum_grad_batches = accum_grad_batches
+
+        self.lr = to_2tuple(lr)
+        self.weight_decay = to_2tuple(weight_decay)
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
         self.num_blocks = num_blocks
@@ -55,8 +63,6 @@ class EdgeNet(pl.LightningModule):
         self.use_conv = use_conv
         self.act = act
         self.groups = groups
-
-        self.l_weight = l_weight
 
         if loss_config is not None:
             self.loss = instantiate_from_config(loss_config)
@@ -69,12 +75,12 @@ class EdgeNet(pl.LightningModule):
         self.embed = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
 
         in_ch = embed_dim
-        self.skip_dims = [embed_dim]
+        skip_dims = [embed_dim]
         cur_res = in_res
 
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
-        self.cat_ups = nn.ModuleList()
+        self.scaled_skip_blocks = nn.ModuleList()
 
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks):
@@ -135,17 +141,32 @@ class EdgeNet(pl.LightningModule):
                         )
                     )
 
-                self.skip_dims.append(in_ch)
+                skip_dims.append(in_ch)
                 self.encoder.append(nn.Sequential(*down))
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
-                self.skip_dims.append(in_ch)
+                skip_dims.append(in_ch)
                 cur_res //= 2
 
-        skip_dim = sum([i for i in self.skip_dims])
+        skip_dim = sum([i for i in skip_dims])
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
+            self.scaled_skip_blocks.append(
+                ScaledSkipBlock(
+                    level=i,
+                    skip_dims=skip_dims,
+                    num_blocks=num_blocks,
+                    act=act,
+                    num_groups=groups,
+                    dim=dim,
+                    use_conv=use_conv,
+                    pool_type=pool_type,
+                    mode=mode,
+                    use_checkpoint=use_checkpoint
+                )
+            )
+
             for j in range(num_blocks):
                 up = list()
                 up.append(
@@ -204,10 +225,8 @@ class EdgeNet(pl.LightningModule):
                     )
 
                 self.decoder.append(nn.Sequential(*up))
-                self.make_cat_up_module(i)
 
             if i != 0:
-                self.make_cat_up_module(i)
                 self.decoder.append(UpBlock(in_ch + skip_dim, out_channels=in_ch, dim=dim, mode=mode, use_conv=use_conv))
                 cur_res = int(cur_res * 2)
 
@@ -231,55 +250,6 @@ class EdgeNet(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def make_cat_up_module(self, i: int):
-        cat_up = nn.ModuleList()
-
-        for k in range(len(self.skip_dims)):
-            sd = self.skip_dims[k]
-            level = k // (self.num_blocks + 1)
-            if level < i:
-                cat_up.append(
-                    nn.Sequential(
-                        group_norm(sd, num_groups=self.groups),
-                        get_act(self.act),
-                        DownBlock(
-                            sd,
-                            scale_factor=2 ** abs(i - level),
-                            dim=self.dim,
-                            use_conv=self.use_conv,
-                            pool_type=self.pool_type
-                        ),
-                        conv_nd(
-                            self.dim,
-                            sd,
-                            sd,
-                            kernel_size=3,
-                            stride=1,
-                            padding=1,
-                        )
-                    )
-                )
-
-            elif level > i:
-                cat_up.append(
-                    nn.Sequential(
-                        group_norm(sd, num_groups=self.groups),
-                        get_act(self.act),
-                        UpBlock(
-                            sd,
-                            dim=self.dim,
-                            scale_factor=2 ** abs(i - level),
-                            mode=self.mode,
-                            use_conv=self.use_conv,
-                        ),
-                    )
-                )
-
-            else:
-                cat_up.append(nn.Identity())
-
-        self.cat_ups.append(cat_up)
-
     def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
         hs = []
         h = self.embed(x)
@@ -288,12 +258,12 @@ class EdgeNet(pl.LightningModule):
             h = block(h)
             hs.append(h)
 
-        for i, block in enumerate(self.decoder):
-            h_cats = [h]
-            for h_cat, module in zip(hs, self.cat_ups[i]):
-                h_cats.append(module(h_cat))
+        h_cats = []
+        for i, block in enumerate(self.scaled_skip_blocks):
+            h_cats.append(block(hs))
 
-            h = torch.cat(h_cats, dim=1)
+        for i, block in enumerate(self.decoder):
+            h = torch.cat([h, ] + h_cats[i // (self.num_blocks + 1)], dim=1)
             h = block(h)
 
         h = self.out(h)
@@ -307,21 +277,36 @@ class EdgeNet(pl.LightningModule):
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, edge)
 
-        loss, loss_log = self.loss(gt, edge, conds=img, split='train', last_layer=self.get_last_layer())
+        opt_net, opt_disc = self.optimizers()
 
-        self.log('train/loss', loss, logger=True)
+        loss, loss_log = self.loss(gt, edge, img, self.global_step, 0, split='train', last_layer=self.get_last_layer())
+        loss = loss / self.accum_grad_batches
+
+        d_loss, d_loss_log = self.loss(gt, edge, img, self.global_step, 1, split='train', last_layer=self.get_last_layer())
+        d_loss = d_loss / self.accum_grad_batches
+
+        self.manual_backward(loss)
+        self.manual_backward(d_loss)
+
+        if (batch_idx + 1) % self.accum_grad_batches == 0:
+            opt_net.step()
+            opt_net.zero_grad()
+            opt_disc.step()
+            opt_disc.zero_grad()
+
+        self.log_dict(d_loss_log)
         self.log_dict(loss_log)
-
-        return loss
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
         edge = self(img)
         self.log_img(img, gt, edge)
 
-        loss, loss_log = self.loss(gt, edge, conds=img, split='val', last_layer=self.get_last_layer())
-        self.log('val/loss', loss)
+        loss, loss_log = self.loss(gt, edge, img, self.global_step, 0, split='train', last_layer=self.get_last_layer())
+        d_loss, d_loss_log = self.loss(gt, edge, img, self.global_step, 1, split='train',
+                                       last_layer=self.get_last_layer())
         self.log_dict(loss_log)
+        self.log_dict(d_loss_log)
 
         return self.log_dict
 
@@ -345,16 +330,22 @@ class EdgeNet(pl.LightningModule):
         opt_net = torch.optim.AdamW(list(self.embed.parameters()) +
                                     list(self.encoder.parameters()) +
                                     list(self.decoder.parameters()) +
-                                    list(self.cat_ups.parameters()) +
+                                    list(self.scaled_skip_blocks.parameters()) +
                                     list(self.out.parameters()),
-                                    lr=self.lr,
-                                    weight_decay=self.weight_decay,
+                                    lr=self.lr[0],
+                                    weight_decay=self.weight_decay[0],
                                     betas=(0.5, 0.9)
                                     )
+
+        opt_disc = torch.optim.AdamW(list(self.loss.disc.parameters()),
+                                     lr=self.lr[1],
+                                     weight_decay=self.weight_decay[1],
+                                     betas=(0.5, 0.9)
+                                     )
 
         # lr_net = torch.optim.lr_scheduler.LambdaLR(
         #     optimizer=opt_net,
         #     lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_epoch))
         # )
 
-        return [opt_net]#, [{"scheduler": lr_net, "interval": "epoch"}]
+        return [opt_net, opt_disc]#, [{"scheduler": lr_net, "interval": "epoch"}]

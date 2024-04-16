@@ -6,10 +6,10 @@ import torch.nn.functional as F
 from typing import Union, List, Tuple
 from functools import partial
 from timm.models.layers import DropPath
-from torch.utils.checkpoint import checkpoint
+# from torch.utils.checkpoint import checkpoint
 
 from modules.blocks.mlp import MLP
-from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm
+from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, checkpoint
 
 
 def window_partition(x, window_size):
@@ -335,10 +335,10 @@ class WindowAttnBlock(nn.Module):
         self.register_buffer("attn_mask", attn_mask)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x)
-        return self._forward(x)
-        # return checkpoint(self._forward, (x, ), self.parameters(), self.use_checkpoint)
+        return checkpoint(self._forward, (x,), self.parameters(), self.use_checkpoint)
+        # if self.use_checkpoint:
+        #     return checkpoint(self._forward, x)
+        # return self._forward(x)
 
     def _forward(self, x):
         H, W = self.in_res

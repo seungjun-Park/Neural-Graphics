@@ -9,59 +9,72 @@ from utils import cats_loss, bdcn_loss2
 
 class EdgePerceptualLoss(nn.Module):
     def __init__(self,
-                 cats_weight=(1., 0, 0),
-                 edge_weight=1.0,
-                 contents_weight=1.0,
+                 disc_config,
+                 l1_weight: float = 1.0,
+                 perceptual_weight: float = 1.0,
+                 disc_iter_start: int = 0,
+                 d_weight: float = 1.0,
+                 g_weight: float = 1.0,
+                 disc_loss: str = 'hinge'
                  ):
 
         super().__init__()
-        self.edge_weight = edge_weight
+        self.l1_weight = l1_weight
+        self.perceptual_weight = perceptual_weight
         self.perceptual_loss = LPIPS().eval()
-        self.cats_weight = tuple(cats_weight)
-        self.contents_weight = contents_weight
+        self.disc = Discriminator(**disc_config)
+        self.disc_iter_start = disc_iter_start
+        self.d_weight = d_weight
+        self.g_weight = g_weight
 
-    def calculate_adaptive_weight(self, edge_loss, content_loss, last_layer):
+        disc_loss = disc_loss.lower()
+        self.disc_loss = hinge_d_loss if disc_loss == "hinge" else vanilla_d_loss
+
+    def calculate_adaptive_weight(self, edge_loss, g_loss, last_layer):
         edge_grads = torch.autograd.grad(edge_loss, last_layer, retain_graph=True)[0]
-        contents_grads = torch.autograd.grad(content_loss, last_layer, retain_graph=True)[0]
+        g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
 
-        contents_weight = torch.norm(contents_grads) / (torch.norm(edge_grads) + 1e-5)
-        contents_weight = torch.clamp(contents_weight, 0.0, self.contents_weight).detach()
-        return contents_weight
+        g_weight = torch.norm(edge_grads) / (torch.norm(g_grads) + 1e-4)
+        g_weight = torch.clamp(g_weight, 0.0, self.g_weight).detach()
+        return g_weight
 
-    def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, last_layer, split: str = "train") -> torch.Tensor:
-        cats = cats_loss(targets.contiguous(), inputs.contiguous(), self.cats_weight)
-        cats = torch.sum(cats) / cats.shape[0]
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, global_step: int,
+                optimizer_idx: int, last_layer, split: str = "train") -> torch.Tensor:
 
-        if inputs.shape[1] == 1:
-            inputs = inputs.repeat(1, 3, 1, 1)
-        if targets.shape[1] == 1:
-            targets = targets.repeat(1, 3, 1, 1)
-        if conds.shape[1] == 3:
-            conds = 0.299 * conds[:, 0, :, :] + 0.587 * conds[:, 1, :, :] + 0.114 + conds[:, 2, :, :] # RGB to Grayscale
-            conds = conds.unsqueeze(1).repeat(1, 3, 1, 1)
+        if optimizer_idx == 0:
+            l1_loss = torch.abs(inputs.contiguous() - targets.contiguous())
+            p_loss = self.perceptual_loss(inputs.contiguous(), targets.contiguous())
 
-        l1_loss = torch.abs(inputs.contiguous() - targets.contiguous())
-        p_loss = self.perceptual_loss(inputs.contiguous(), targets.contiguous())
-        edge_loss = l1_loss + p_loss
-        edge_loss = torch.sum(edge_loss) / edge_loss.shape[0]
+            edge_loss = l1_loss * self.l1_weight + p_loss * self.perceptual_weight
+            edge_loss = torch.sum(edge_loss) / edge_loss.shape[0]
 
-        contents_p_loss = self.perceptual_loss(conds.contiguous(), targets.contiguous())
-        contents_l1_loss = torch.abs(conds.contiguous() - targets.contiguous())
-        contents_loss = contents_l1_loss + contents_p_loss
-        contents_loss = torch.sum(contents_loss) / contents_loss.shape[0]
+            logits_fake = self.disc(torch.cat([targets.contiguous(), conds], dim=1))
+            g_loss = -torch.sum(logits_fake) / logits_fake.shape[0]
 
-        if self.training and self.contents_weight > 0:
-            contents_weight = self.calculate_adaptive_weight(edge_loss, contents_loss, last_layer)
-        else:
-            contents_weight = torch.tensor(0.0)
+            if self.training and self.g_weight > 0:
+                g_weight = self.calculate_adaptive_weight(edge_loss, g_loss, last_layer)
+            else:
+                g_weight = torch.tensor(0.0)
 
-        loss = edge_loss * self.edge_weight + contents_loss * contents_weight + cats
+            g_weight = adopt_weight(g_weight, global_step, threshold=self.disc_iter_start)
+            loss = edge_loss + g_loss * g_weight
 
-        log = {"{}/total_loss".format(split): loss.clone().detach(),
-               "{}/edge_loss".format(split): edge_loss.detach(),
-               "{}/contents_loss".format(split): contents_loss.detach(),
-               "{}/cats_loss".format(split): cats.detach(),
-               "{}/contents_weight".format(split): contents_weight.detach()
-               }
+            log = {"{}/total_loss".format(split): loss.clone().detach(),
+                   "{}/edge_loss".format(split): edge_loss.detach(),
+                   "{}/g_loss".format(split): g_loss.detach(),
+                   }
 
-        return loss, log
+            return loss, log
+
+        if optimizer_idx == 1:
+            logits_real = self.disc(torch.cat([inputs.contiguous().detach(), conds], dim=1))
+            logits_fake = self.disc(torch.cat([targets.contiguous().detach(), conds], dim=1))
+
+            d_loss = self.d_weight * self.disc_loss(logits_real, logits_fake)
+
+            log = {"{}/logits_real".format(split): logits_real.detach().mean(),
+                   "{}/logits_fake".format(split): logits_fake.detach().mean(),
+                   "{}/d_loss".format(split): d_loss.detach().mean(),
+                   }
+
+            return d_loss, log
