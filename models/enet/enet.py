@@ -281,8 +281,8 @@ class EdgeNet(pl.LightningModule):
             loss = loss / self.accum_grad_batches
             d_loss = d_loss / self.accum_grad_batches
 
-            self.manual_backward(loss)
-            self.manual_backward(d_loss)
+        self.manual_backward(loss)
+        self.manual_backward(d_loss)
 
         if (batch_idx + 1) % self.accum_grad_batches == 0:
             opt_net.step()
