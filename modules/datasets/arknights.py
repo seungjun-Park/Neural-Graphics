@@ -121,6 +121,10 @@ class ArknightsClassificationDataset(Dataset):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
 
+        if self.transform is not None:
+            img = self.transform(img)
+            edge = self.transform(edge)
+
         return img, edge, label
 
     def __len__(self):
