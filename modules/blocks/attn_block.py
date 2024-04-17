@@ -344,8 +344,6 @@ class WindowAttnBlock(nn.Module):
         self.pretrained_window_size = pretrained_windows_size
         self.shift_size = shift_size
         self.mlp_ratio = mlp_ratio
-        self.use_conv = use_conv
-        self.dim = dim
         self.use_checkpoint = use_checkpoint
 
         if min(self.in_res) <= self.window_size:
