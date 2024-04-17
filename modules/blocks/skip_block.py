@@ -50,9 +50,6 @@ class ScaledSkipBlock(nn.Module):
                             stride=1,
                             padding=1,
                         ),
-                        *[
-
-                        ]
                     )
                 )
 

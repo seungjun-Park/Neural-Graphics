@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -22,8 +23,8 @@ def window_partition(x, window_size):
         windows: (num_windows*B, window_size, window_size, C)
     """
     B, H, W, C = x.shape
-    x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
-    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
+    x = x.reshape(B, H // window_size, window_size, W // window_size, window_size, C)
+    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().reshape(-1, window_size, window_size, C)
     return windows
 
 
@@ -39,8 +40,8 @@ def window_reverse(windows, window_size, H, W):
         x: (B, H, W, C)
     """
     B = int(windows.shape[0] / (H * W / window_size / window_size))
-    x = windows.view(B, H // window_size, W // window_size, window_size, window_size, -1)
-    x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, -1)
+    x = windows.reshape(B, H // window_size, W // window_size, window_size, window_size, -1)
+    x = x.permute(0, 1, 3, 2, 4, 5).contiguous().reshape(B, H, W, -1)
     return x
 
 
@@ -174,6 +175,7 @@ class WindowAttention(nn.Module):
     def __init__(self,
                  in_channels: int,
                  window_size: Union[List[int], Tuple[int]],
+                 pretrained_window_size: Union[List[int], Tuple[int]] = (0, 0),
                  num_heads: int = -1,
                  num_head_channels: int = -1,
                  qkv_bias: bool = True,
@@ -181,9 +183,13 @@ class WindowAttention(nn.Module):
                  proj_bias: bool = True,
                  attn_drop: float = 0.0,
                  drop: float = 0.0,
-                 *args,
-                 **kwargs):
-        super().__init__(*args, **kwargs)
+                 attn_mode: str = 'vanilla',
+                 ):
+        super().__init__()
+
+        attn_mode = attn_mode.lower()
+        assert attn_mode in ['vanilla', 'cosine']
+        self.attn_mode = attn_mode
 
         assert num_heads != -1 or num_head_channels != -1
         if num_heads != -1:
@@ -194,12 +200,40 @@ class WindowAttention(nn.Module):
 
         self.in_channels = in_channels
         self.window_size = window_size
-        head_dim = in_channels // self.num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        self.pretrained_window_size = pretrained_window_size
+        if attn_mode == 'vanilla':
+            head_dim = in_channels // self.num_heads
+            self.scale = qk_scale or head_dim ** -0.5
 
-        self.relative_position_bias_table = nn.Parameter(
-            torch.zeros((2 * self.window_size[0] - 1) * (2 * self.window_size[1] - 1), self.num_heads)
-        )  # 2*Wh-1 * 2*Ww-1, nH
+            self.relative_position_bias_table = nn.Parameter(
+                torch.zeros((2 * self.window_size[0] - 1) * (2 * self.window_size[1] - 1), self.num_heads)
+            )  # 2*Wh-1 * 2*Ww-1, nH
+
+        else:
+            self.scale = nn.Parameter(torch.log(10 * torch.ones((self.num_heads, 1, 1))), requires_grad=True)
+
+            # mlp to generate continuous relative position bias
+            self.cpb_mlp = nn.Sequential(nn.Linear(2, 512, bias=True),
+                                         nn.ReLU(inplace=True),
+                                         nn.Linear(512, num_heads, bias=False))
+
+            # get relative_coords_table
+            relative_coords_h = torch.arange(-(self.window_size[0] - 1), self.window_size[0], dtype=torch.float32)
+            relative_coords_w = torch.arange(-(self.window_size[1] - 1), self.window_size[1], dtype=torch.float32)
+            relative_coords_table = torch.stack(
+                torch.meshgrid([relative_coords_h,
+                                relative_coords_w])).permute(1, 2, 0).contiguous().unsqueeze(0)  # 1, 2*Wh-1, 2*Ww-1, 2
+            if pretrained_window_size[0] > 0:
+                relative_coords_table[:, :, :, 0] /= (pretrained_window_size[0] - 1)
+                relative_coords_table[:, :, :, 1] /= (pretrained_window_size[1] - 1)
+            else:
+                relative_coords_table[:, :, :, 0] /= (self.window_size[0] - 1)
+                relative_coords_table[:, :, :, 1] /= (self.window_size[1] - 1)
+            relative_coords_table *= 8  # normalize to -8, 8
+            relative_coords_table = torch.sign(relative_coords_table) * torch.log2(
+                torch.abs(relative_coords_table) + 1.0) / np.log2(8)
+
+            self.register_buffer("relative_position_bias_table", relative_coords_table)
 
         # get pair-wise relative position index for each token inside the window
         coords_h = torch.arange(self.window_size[0])
@@ -214,7 +248,14 @@ class WindowAttention(nn.Module):
         relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
         self.register_buffer("relative_position_index", relative_position_index)
 
-        self.qkv = nn.Linear(in_channels, in_channels * 3, bias=qkv_bias)
+        self.qkv = nn.Linear(in_channels, in_channels * 3, bias=False)
+        if qkv_bias:
+            self.q_bias = nn.Parameter(torch.zeros(in_channels))
+            self.v_bias = nn.Parameter(torch.zeros(in_channels))
+        else:
+            self.q_bias = None
+            self.v_bias = None
+
         self.proj = nn.Linear(in_channels, in_channels, bias=proj_bias)
 
         self.attn_drop = nn.Dropout(attn_drop)
@@ -224,15 +265,36 @@ class WindowAttention(nn.Module):
 
     def forward(self, x, mask=None):
         B_, N, C = x.shape
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv_bias = None
+        if self.q_bias is not None:
+            qkv_bias = torch.cat((self.q_bias, torch.zeros_like(self.v_bias, requires_grad=False), self.v_bias))
+        qkv = F.linear(input=x, weight=self.qkv.weight, bias=qkv_bias)
+        qkv = qkv.reshape(B_, N, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
-        q = q * self.scale
-        attn = (q @ k.transpose(-2, -1))
+        # scaled dot attention
+        if self.attn_mode == 'vanilla':
+            q = q * self.scale
+            attn = (q @ k.transpose(-2, -1))
 
-        relative_position_bias = self.relative_position_bias_table[self.relative_position_index.reshape(-1)].reshape(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)  # Wh*Ww,Wh*Ww,nH
-        relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+            relative_position_bias = self.relative_position_bias_table[self.relative_position_index.reshape(-1)].reshape(
+                self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1],
+                -1)  # Wh*Ww,Wh*Ww,nH
+            relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+
+        # scaled cosine attention
+        else:
+            attn = (F.normalize(q, dim=-1) @ F.normalize(k, dim=-1).transpose(-2, -1))
+            scale = torch.clamp(self.scale, max=torch.log(torch.tensor(1. / 0.01))).exp()
+            attn = attn * scale
+
+            relative_position_bias_table = self.cpb_mlp(self.relative_position_bias_table).reshape(-1, self.num_heads)
+            relative_position_bias = relative_position_bias_table[self.relative_position_index.reshape(-1)].reshape(
+                self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1],
+                -1)  # Wh*Ww,Wh*Ww,nH
+            relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+            relative_position_bias = 16 * torch.sigmoid(relative_position_bias)
+
         attn = attn + relative_position_bias.unsqueeze(0)
 
         if mask is not None:
@@ -240,6 +302,7 @@ class WindowAttention(nn.Module):
             attn = attn.reshape(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.reshape(-1, self.num_heads, N, N)
             attn = self.softmax(attn)
+
         else:
             attn = self.softmax(attn)
 
@@ -258,6 +321,7 @@ class WindowAttnBlock(nn.Module):
                  num_heads: int = -1,
                  num_head_channels: int = -1,
                  window_size: int = 7,
+                 pretrained_windows_size: int = 0,
                  shift_size: int = 0,
                  mlp_ratio=4.,
                  qkv_bias=True,
@@ -267,9 +331,8 @@ class WindowAttnBlock(nn.Module):
                  attn_drop: float = 0.,
                  drop_path: float = 0.,
                  act: str = 'relu',
-                 use_conv: bool = True,
-                 dim: int = 2,
                  use_checkpoint: bool = False,
+                 attn_mode: str = 'vanilla',
                  ):
         super().__init__()
 
@@ -278,6 +341,7 @@ class WindowAttnBlock(nn.Module):
         self.num_heads = num_heads
         self.num_head_channels = num_head_channels
         self.window_size = window_size
+        self.pretrained_window_size = pretrained_windows_size
         self.shift_size = shift_size
         self.mlp_ratio = mlp_ratio
         self.use_conv = use_conv
@@ -294,6 +358,7 @@ class WindowAttnBlock(nn.Module):
         self.attn = WindowAttention(
             in_channels,
             window_size=to_2tuple(self.window_size),
+            pretrained_window_size=to_2tuple(self.pretrained_window_size),
             num_heads=num_heads,
             num_head_channels=num_head_channels,
             qkv_bias=qkv_bias,
@@ -301,13 +366,14 @@ class WindowAttnBlock(nn.Module):
             attn_drop=attn_drop,
             drop=drop,
             proj_bias=proj_bias,
+            attn_mode=attn_mode,
         )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = nn.LayerNorm(in_channels)
 
         mlp_embed_dim = int(in_channels * mlp_ratio)
-        self.mlp = MLP(in_channels=in_channels, embed_dim=mlp_embed_dim, dropout=drop, act=act, use_conv=use_conv, dim=dim)
+        self.mlp = MLP(in_channels=in_channels, embed_dim=mlp_embed_dim, dropout=drop, act=act)
 
         if self.shift_size > 0:
             # calculate attention mask for SW-MSA
@@ -344,22 +410,19 @@ class WindowAttnBlock(nn.Module):
         b, c, h, w = x.shape
         assert h * w == H * W, "input feature has wrong size"
 
-        x = x.reshape(b, c, -1).permute(0, 2, 1) # B, N, C
+        x = x.reshape(b, c, -1).permute(0, 2, 1) # B, C, H, W => B, N(H * W), C
 
         shortcut = x
-        x = self.norm1(x)
         x = x.reshape(b, h, w, c)
 
         # cyclic shift
         if self.shift_size > 0:
             shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
-            # partition windows
-            x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
         else:
             shifted_x = x
-            # partition windows
-            x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
 
+        # partition windows
+        x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
         x_windows = x_windows.reshape(-1, self.window_size * self.window_size, c)  # nW*B, window_size*window_size, C
 
         # W-MSA/SW-MSA
@@ -367,21 +430,21 @@ class WindowAttnBlock(nn.Module):
 
         # merge windows
         attn_windows = attn_windows.reshape(-1, self.window_size, self.window_size, c)
+        shifted_x = window_reverse(attn_windows, self.window_size, h, w)  # B H' W' C
 
         # reverse cyclic shift
         if self.shift_size > 0:
-            shifted_x = window_reverse(attn_windows, self.window_size, h, w)  # B H' W' C
             x = torch.roll(shifted_x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
         else:
-            shifted_x = window_reverse(attn_windows, self.window_size, h, w)  # B H' W' C
             x = shifted_x
 
         x = x.reshape(b, h * w, c)
-        x = shortcut + self.drop_path(x)
+        x = shortcut + self.drop_path(self.norm1(x))
 
         # FFN
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        x = x + self.drop_path(self.norm2(self.mlp(x)))
 
-        x = x.permute(0, 2, 1).reshape(b, c, h, w)
+        x = x.permute(0, 2, 1).reshape(b, -1, h, w)
 
         return x
+

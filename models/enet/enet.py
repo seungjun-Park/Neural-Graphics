@@ -297,7 +297,7 @@ class EdgeNet(pl.LightningModule):
         img, gt, cond = batch
 
         edge = self(img)
-        loss, d_loss, loss_log = self.loss(gt, edge, img, self.global_step, split='train',
+        loss, d_loss, loss_log = self.loss(gt, edge, img, self.global_step, split='val',
                                            last_layer=self.get_last_layer())
 
         self.log_img(img, gt, edge)

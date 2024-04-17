@@ -1,0 +1,82 @@
+module:
+  target: models.classification.EIPS
+  params:
+    in_channels: 3
+    in_res: 224
+    window_size: 7
+    out_channels: 1
+    hidden_dims: [16, 32, 64, 96]
+    embed_dim: 8
+    attn_res: [0, 1, 2, 3]
+    num_blocks: 4
+    num_heads: 8
+    mlp_ratio: 4
+    dropout: 0.0
+    attn_dropout: 0.0
+    drop_path: 0.0
+    qkv_bias: True
+    bias: True
+    attn_mode: 'cosine'
+    groups: 8
+    act: 'gelu'
+    use_conv: True
+    pool_type: 'max'
+    lr: 2e-5
+    weight_decay: 0.
+    lr_decay_epoch: 100
+    dim: 2
+    use_checkpoint: True
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 16
+    batch_size: 4
+    wrap: True
+    train:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: '/local_datasets/arknights_v2'
+        # root: './datasets/arknights'
+        train: True
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 224, 224 ]
+    validation:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: '/local_datasets/arknights_v2'
+        # root: './datasets/arknights'
+        train: False
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 224, 224 ]
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'eips'
+    version: 'arknights_v2'
+
+
+checkpoints:
+  latest_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/eips/'
+      filename: 'arknights_v2'
+      monitor: 'val/loss'
+      mode: 'min'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 100
+  accumulate_grad_batches: 5

@@ -28,7 +28,7 @@ class ResidualBlock(nn.Module):
 
         self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
         self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
-        self.norm1 = group_norm(in_channels, num_groups=groups)
+        self.norm1 = group_norm(out_channels, num_groups=groups)
         self.norm2 = group_norm(out_channels, num_groups=groups)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
@@ -53,14 +53,14 @@ class ResidualBlock(nn.Module):
         return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.norm1(x)
+        h = self.conv1(x)
+        h = self.norm1(h)
         h = self.act(h)
-        h = self.conv1(h)
 
-        h = self.norm2(h)
-        h = self.act(h)
         h = self.dropout(h)
         h = self.conv2(h)
+        h = self.norm2(h)
+        h = h + self.shortcut(x)
 
-        return h + self.shortcut(x)
+        return self.act(h)
 
