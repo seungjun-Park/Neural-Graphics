@@ -17,7 +17,7 @@ module:
     qkv_bias: True
     bias: True
     attn_mode: 'cosine'
-    groups: 32
+    num_groups: 32
     act: 'gelu'
     use_conv: True
     pool_type: 'max'
@@ -34,7 +34,7 @@ data:
     batch_size: 4
     wrap: True
     train:
-      target: modules.datasets.arknights.ArknightsDataset
+      target: modules.datasets.arknights.ArknightsClassificationDataset
       params:
         root: '/local_datasets/arknights_v2'
         # root: './datasets/arknights'
@@ -46,7 +46,7 @@ data:
               params:
                 size: [ 224, 224 ]
     validation:
-      target: modules.datasets.arknights.ArknightsDataset
+      target: modules.datasets.arknights.ArknightsClassificationDataset
       params:
         root: '/local_datasets/arknights_v2'
         # root: './datasets/arknights'
