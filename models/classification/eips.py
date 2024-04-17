@@ -154,7 +154,7 @@ class EIPS(pl.LightningModule):
         for i, block in enumerate(self.encoder):
             h = block(h)
 
-        b, c, h, w = h.shape
+        b, c, *_ = h.shape
         h = h.reshape(b, c, -1)
         h = self.norm(h)
         h = self.avgpool(h)
