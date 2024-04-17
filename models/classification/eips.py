@@ -178,7 +178,7 @@ class EIPS(pl.LightningModule):
         logit = self(torch.cat([img, edge], dim=1))
         loss = F.binary_cross_entropy_with_logits(logit, label)  # To stable training, when fp16 used.
 
-        self.log('train/val', loss, logger=True, rank_zero_only=True)
+        self.log('val/loss', loss, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.embed.parameters()) +
