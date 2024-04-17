@@ -6,9 +6,8 @@ import pytorch_lightning as pl
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img
 from modules.blocks import (
-    ResidualBlock, DownBlock, UpBlock, AttnBlock,
+    ResidualBlock, DownBlock,
     WindowAttnBlock,
-    ScaledSkipBlock
 )
 
 
@@ -18,7 +17,6 @@ class EIPS(pl.LightningModule):
                  in_res: Union[int, List[int], Tuple[int]],
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  pretrained_window_size: Union[int, List[int], Tuple[int]] = 0,
-                 out_channels: int = None,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  embed_dim: int = 16,
                  attn_res: Union[List[int], Tuple[int]] = (2, 3),
@@ -59,7 +57,6 @@ class EIPS(pl.LightningModule):
 
         self.in_channels = in_channels
         self.in_res = in_res
-        self.out_channels = out_channels
         self.hidden_dims = hidden_dims
 
         self.embed = conv_nd(dim, in_channels, embed_dim, kernel_size=1, stride=1)

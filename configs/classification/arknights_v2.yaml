@@ -1,10 +1,9 @@
 module:
   target: models.classification.EIPS
   params:
-    in_channels: 3
+    in_channels: 4
     in_res: 224
     window_size: 7
-    out_channels: 1
     hidden_dims: [32, 64, 128, 256]
     embed_dim: 16
     attn_res: [0, 1, 2, 3]
