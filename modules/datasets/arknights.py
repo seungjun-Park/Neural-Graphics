@@ -106,14 +106,14 @@ class ArknightsClassificationDataset(Dataset):
         tp = random.random() < 0.5
         if tp:
             edge_name = self.edge_names[index]
-            label = torch.tensor([1])
+            label = torch.tensor([1.0])
         else:
             while True:
                 new_idx = random.randrange(0, len(self))
                 if new_idx != index:
                     break
             edge_name = self.edge_names[new_idx]
-            label = torch.tensor([0])
+            label = torch.tensor([0.0])
 
         img_name = self.img_names[index]
 
