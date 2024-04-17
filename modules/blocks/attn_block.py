@@ -285,7 +285,7 @@ class WindowAttention(nn.Module):
         # scaled cosine attention
         else:
             attn = (F.normalize(q, dim=-1) @ F.normalize(k, dim=-1).transpose(-2, -1))
-            scale = torch.clamp(self.scale, max=torch.log(torch.tensor(1. / 0.01))).exp()
+            scale = torch.clamp(self.scale, max=torch.log(torch.tensor(1. / 0.01, device=self.scale.device))).exp()
             attn = attn * scale
 
             relative_position_bias_table = self.cpb_mlp(self.relative_position_bias_table).reshape(-1, self.num_heads)
