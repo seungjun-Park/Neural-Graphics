@@ -131,7 +131,9 @@ class EIPS(pl.LightningModule):
                 self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
                 cur_res //= 2
 
-        self.out = conv_nd(dim, in_ch, 1, kernel_size=3, stride=1, padding=1)
+        self.norm = group_norm(in_ch, num_groups=1)
+        self.avgpool = nn.AdaptiveAvgPool1d(1)
+        self.out = nn.Linear(in_ch, 1)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -152,9 +154,13 @@ class EIPS(pl.LightningModule):
         for i, block in enumerate(self.encoder):
             h = block(h)
 
-        h = self.out(h).type(x.dtype)
+        b, c, h, w = h.shape
+        h = h.reshape(b, c, -1)
+        h = self.norm(h)
+        h = self.avgpool(h)
+        h = torch.flatten(h, 1)
 
-        return h
+        return self.out(h)
 
     def training_step(self, batch, batch_idx):
         img, edge, label = batch
