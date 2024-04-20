@@ -48,16 +48,16 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsTripletDataset
       params:
-        # root: '/local_datasets/arknights_v2'
-        root: './datasets/arknights_v2'
+        root: '/local_datasets/arknights_v2'
+        # root: './datasets/arknights_v2'
         train: True
         size: 224
 
     validation:
       target: modules.datasets.arknights.ArknightsTripletDataset
       params:
-        # root: '/local_datasets/arknights_v2'
-        root: './datasets/arknights_v2'
+        root: '/local_datasets/arknights_v2'
+        # root: './datasets/arknights_v2'
         train: False
         size: 224
 
@@ -81,5 +81,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 10
+  max_epochs: 20
   accumulate_grad_batches: 5
