@@ -57,10 +57,10 @@ class ResidualBlock(nn.Module):
         h = self.norm1(h)
         h = self.act(h)
 
-        h = self.dropout(h)
-        h = self.conv2(h)
-        h = self.norm2(h)
-        h = h + self.shortcut(x)
+        z = self.dropout(h)
+        z = self.conv2(z)
+        z = self.norm2(z)
+        z = self.act(z)
 
-        return self.act(h)
+        return z + self.shortcut(x)
 

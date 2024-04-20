@@ -3,11 +3,13 @@ module:
   params:
     in_channels: 4
     in_res: 224
+    patch_size: 4
     window_size: 7
     hidden_dims: [32, 64, 128, 256]
     embed_dim: 16
     attn_res: [0, 1, 2, 3]
-    num_blocks: 4
+    num_blocks: 2
+    num_mlp_blocks: 4
     num_heads: 8
     mlp_ratio: 4
     dropout: 0.0
@@ -16,7 +18,7 @@ module:
     qkv_bias: True
     bias: True
     attn_mode: 'cosine'
-    num_groups: 32
+    num_groups: 16
     act: 'gelu'
     use_conv: True
     pool_type: 'max'
@@ -25,6 +27,17 @@ module:
     lr_decay_epoch: 100
     dim: 2
     use_checkpoint: True
+    # ckpt_path: './checkpoints/eips/arknights_v2.ckpt'
+    criterion_config:
+      target: utils.loss.EuclideanDistanceWithCosineDistance
+      params:
+        use_square: True
+        use_normalize: True
+        ed_weight: 1.0
+        cd_weight: 1.0
+        cd_dim: 1
+        reduction: 'mean'
+        reduction_dim: [0, 1, 2, 3]
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -35,27 +48,18 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsClassificationDataset
       params:
-        root: '/local_datasets/arknights_v2'
-        # root: './datasets/arknights'
+        # root: '/local_datasets/arknights_v2'
+        root: './datasets/arknights_v2'
         train: True
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 224, 224 ]
+        size: 224
+
     validation:
       target: modules.datasets.arknights.ArknightsClassificationDataset
       params:
-        root: '/local_datasets/arknights_v2'
-        # root: './datasets/arknights'
+        # root: '/local_datasets/arknights_v2'
+        root: './datasets/arknights_v2'
         train: False
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 224, 224 ]
+        size: 224
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger

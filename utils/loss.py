@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Union, List, Tuple
+
 from torch.fft import rfftn, ifftn
 
 
@@ -28,6 +30,93 @@ def LFD(target, pred, dim=2, type='l1'):
     lfd = torch.log(fd + 1)
 
     return lfd
+
+
+class EuclideanDistanceWithCosineDistance(nn.Module):
+    def __init__(self,
+                 use_square: bool = False,
+                 use_normalize: bool = False,
+                 ed_weight: float = 1.0,
+                 cd_weight: float = 1.0,
+                 cd_dim: int = 1,
+                 reduction: str = 'none',
+                 reduction_dim: Union[int, List[int], Tuple[int]] = None,
+                 ):
+        super().__init__()
+
+        self.use_square = use_square
+        self.use_normalize = use_normalize
+        self.ed_weight = ed_weight
+        self.cd_weight = cd_weight
+        self.cd_dim = cd_dim
+        self.reduction = reduction
+        self.reduction_dim = reduction_dim
+
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        if not self.use_normalize:
+            euclidean_dist = (inputs.contiguous() - targets.contiguous()) ** 2
+            if not self.use_square:
+                euclidean_dist = torch.sqrt(euclidean_dist)
+        else:
+            euclidean_dist = normalized_euclidean_distance(inputs,
+                                                           targets,
+                                                           reduction_dim=self.reduction_dim,
+                                                           reduction=self.reduction,
+                                                           use_square=self.use_square)
+
+        cos_dist = cosine_distance(inputs,
+                                   targets,
+                                   dim=self.cd_dim,
+                                   reduction=self.reduction,
+                                   reduction_dim=self.reduction_dim)
+
+        return euclidean_dist * self.ed_weight + cos_dist * self.cd_weight
+
+
+def jaccard_distance(inputs: torch.Tensor, targets: torch.Tensor):
+    return
+
+
+def normalized_euclidean_distance(inputs: torch.Tensor, targets: torch.Tensor, reduction_dim: Union[int, List[int], Tuple[int]] = None,
+                                  eps: float = 1e-5, reduction: str = 'mean', use_square: bool = False
+                                  ) -> torch.Tensor:
+    reduction = reduction.lower()
+
+    std_dist = 0.5 * (torch.std(inputs - targets, keepdim=True) /
+                      (torch.std(inputs, keepdim=True) + torch.std(targets, keepdim=True) + eps))
+
+    if reduction == 'mean':
+        std_dist = torch.mean(std_dist, dim=reduction_dim)
+    elif reduction == 'sum':
+        std_dist = torch.sum(std_dist, dim=reduction_dim) / std_dist.shape[0]
+    elif reduction == 'none':
+        pass
+    else:
+        raise NotImplementedError(f'reduction: "{reduction}" is not implemented.')
+
+    if use_square:
+        return std_dist
+
+    return torch.sqrt(std_dist)
+
+
+def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
+                    reduction: str = 'mean', reduction_dim: Union[int, List[int], Tuple[int]] = None,
+                    ) -> torch.Tensor:
+    cos_dist = 1.0 - F.cosine_similarity(inputs, targets, dim=dim)
+
+    reduction = reduction.lower()
+
+    if reduction == 'mean':
+        cos_dist = torch.mean(cos_dist, dim=reduction_dim)
+    elif reduction == 'sum':
+        cos_dist = torch.sum(cos_dist, dim=reduction_dim) / cos_dist.shape[0]
+    elif reduction == 'none':
+        pass
+    else:
+        raise NotImplementedError(f'reduction: "{reduction}" is not implemented.')
+
+    return cos_dist
 
 
 def bdcn_loss2(inputs, targets, l_weight=1.1):

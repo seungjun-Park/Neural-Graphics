@@ -20,16 +20,21 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(self.in_channels, self.embed_dim)
         self.fc2 = nn.Linear(self.embed_dim, self.in_channels)
 
+        self.norm1 = nn.LayerNorm(self.embed_dim)
+        self.norm2 = nn.LayerNorm(self.in_channels)
+
         self.act = get_act(act)
         self.drop = nn.Dropout(dropout)
 
     def forward(self, x):
         h = self.fc1(x)
+        h = self.norm1(h)
         h = self.act(h)
+
         h = self.drop(h)
         h = self.fc2(h)
+        h = self.norm2(h)
         h = self.act(h)
-        h = self.drop(h)
 
         return h
 

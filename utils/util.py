@@ -246,7 +246,7 @@ def str2bool(v):
         return True
     elif v.lower() in False_set:
         return False
-    elif v.lower == 'none':
+    elif v.lower() == 'none':
         return None
     else:
         raise ValueError("Boolean value expected.")
