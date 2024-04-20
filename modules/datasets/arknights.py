@@ -90,9 +90,6 @@ class ArknightsTripletDataset(Dataset):
         ])
 
         self.augmentation_transform = transforms.RandomOrder([
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
-            transforms.RandomRotation((-10, 10)),
             transforms.RandomResizedCrop([size, size], scale=(0.7, 1.0), ratio=(1.0, 1.0)),
         ])
 

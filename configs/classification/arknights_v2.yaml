@@ -2,9 +2,9 @@ module:
   target: models.classification.EIPS
   params:
     in_channels: 3
-    in_res: 224
+    in_res: 512
     patch_size: 4
-    window_size: 7
+    window_size: 8
     hidden_dims: [64, 128, 256, 256]
     embed_dim: 32
     attn_res: [0, 1, 2, 3]
@@ -51,7 +51,7 @@ data:
         root: '/local_datasets/arknights_v2'
         # root: './datasets/arknights_v2'
         train: True
-        size: 224
+        size: 512
 
     validation:
       target: modules.datasets.arknights.ArknightsTripletDataset
@@ -59,7 +59,7 @@ data:
         root: '/local_datasets/arknights_v2'
         # root: './datasets/arknights_v2'
         train: False
-        size: 224
+        size: 512
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
