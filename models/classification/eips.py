@@ -147,8 +147,7 @@ class EIPS(pl.LightningModule):
         dense_layers = []
 
         for i in range(num_dense_blocks):
-            dense_layers.append(MLP(in_channels=in_ch, embed_dim=in_ch // 2, act=act, dropout=dropout))
-            in_ch //= 2
+            dense_layers.append(MLP(in_channels=in_ch, embed_dim=in_ch, act=act, dropout=dropout))
 
         self.dense_layers = nn.Sequential(*dense_layers)
 
@@ -199,14 +198,17 @@ class EIPS(pl.LightningModule):
         self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
         self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
+        if self.global_step % self.log_interval == 0:
+            self.log_img(img, edge_pos, edge_neg)
+
         return loss
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, edge_pos, edge_neg = batch
 
-        feat_anc = self.encoder(img)
-        feat_pos = self.encoder(edge_pos)
-        feat_neg = self.encoder(edge_neg)
+        feat_anc = self(img)
+        feat_pos = self(edge_pos)
+        feat_neg = self(edge_neg)
 
         dist_pos = self.criterion(feat_anc, feat_pos)
         dist_neg = self.criterion(feat_anc, feat_neg)
@@ -216,6 +218,17 @@ class EIPS(pl.LightningModule):
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
         self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
         self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
+
+        if self.global_step % self.log_interval == 0:
+            self.log_img(img, edge_pos, edge_neg)
+
+    @torch.no_grad()
+    def log_img(self, img, edge_pos, edge_neg):
+        prefix = 'train' if self.training else 'val'
+        tb = self.logger.experiment
+        tb.add_image(f'{prefix}/img', img[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/edge_pos', edge_pos[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/edge_neg', edge_neg[0], self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
         opt = torch.optim.AdamW(list(self.encoder.parameters()) +

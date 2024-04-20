@@ -37,38 +37,45 @@ class EuclideanDistanceWithCosineDistance(nn.Module):
                  use_square: bool = False,
                  use_normalize: bool = False,
                  ed_weight: float = 1.0,
+                 ed_dim: Union[int, List[int], Tuple[int]] = (2, 3),
                  cd_weight: float = 1.0,
                  cd_dim: int = 1,
                  reduction: str = 'none',
-                 reduction_dim: Union[int, List[int], Tuple[int]] = None,
                  ):
         super().__init__()
 
         self.use_square = use_square
         self.use_normalize = use_normalize
         self.ed_weight = ed_weight
+        self.ed_dim = tuple(ed_dim)
         self.cd_weight = cd_weight
         self.cd_dim = cd_dim
-        self.reduction = reduction
-        self.reduction_dim = reduction_dim
+        self.reduction = reduction.lower()
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         if not self.use_normalize:
             euclidean_dist = (inputs.contiguous() - targets.contiguous()) ** 2
+            if self.reduction == 'mean':
+                euclidean_dist = torch.mean(euclidean_dist)
+            elif self.reduction == 'sum':
+                euclidean_dist = torch.sum(euclidean_dist) / euclidean_dist.shape[0]
+            elif self.reduction == 'none':
+                pass
+            else:
+                raise NotImplementedError(f'reduction: "{self.reduction}" is not implemented.')
             if not self.use_square:
                 euclidean_dist = torch.sqrt(euclidean_dist)
         else:
             euclidean_dist = normalized_euclidean_distance(inputs,
                                                            targets,
-                                                           reduction_dim=self.reduction_dim,
+                                                           dim=self.ed_dim,
                                                            reduction=self.reduction,
                                                            use_square=self.use_square)
 
         cos_dist = cosine_distance(inputs,
                                    targets,
                                    dim=self.cd_dim,
-                                   reduction=self.reduction,
-                                   reduction_dim=self.reduction_dim)
+                                   reduction=self.reduction)
 
         return euclidean_dist * self.ed_weight + cos_dist * self.cd_weight
 
@@ -77,18 +84,18 @@ def jaccard_distance(inputs: torch.Tensor, targets: torch.Tensor):
     return
 
 
-def normalized_euclidean_distance(inputs: torch.Tensor, targets: torch.Tensor, reduction_dim: Union[int, List[int], Tuple[int]] = None,
+def normalized_euclidean_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: Union[int, List[int], Tuple[int]] = 1,
                                   eps: float = 1e-5, reduction: str = 'mean', use_square: bool = False
                                   ) -> torch.Tensor:
     reduction = reduction.lower()
 
-    std_dist = 0.5 * (torch.std(inputs - targets, keepdim=True) /
-                      (torch.std(inputs, keepdim=True) + torch.std(targets, keepdim=True) + eps))
+    std_dist = 0.5 * (torch.std(inputs - targets, dim=dim, keepdim=True) /
+                      (torch.std(inputs, dim=dim, keepdim=True) + torch.std(targets, dim=dim, keepdim=True) + eps))
 
     if reduction == 'mean':
-        std_dist = torch.mean(std_dist, dim=reduction_dim)
+        std_dist = torch.mean(std_dist)
     elif reduction == 'sum':
-        std_dist = torch.sum(std_dist, dim=reduction_dim) / std_dist.shape[0]
+        std_dist = torch.sum(std_dist) / std_dist.shape[0]
     elif reduction == 'none':
         pass
     else:
@@ -101,16 +108,16 @@ def normalized_euclidean_distance(inputs: torch.Tensor, targets: torch.Tensor, r
 
 
 def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
-                    reduction: str = 'mean', reduction_dim: Union[int, List[int], Tuple[int]] = None,
+                    reduction: str = 'mean',
                     ) -> torch.Tensor:
     cos_dist = 1.0 - F.cosine_similarity(inputs, targets, dim=dim)
 
     reduction = reduction.lower()
 
     if reduction == 'mean':
-        cos_dist = torch.mean(cos_dist, dim=reduction_dim)
+        cos_dist = torch.mean(cos_dist)
     elif reduction == 'sum':
-        cos_dist = torch.sum(cos_dist, dim=reduction_dim) / cos_dist.shape[0]
+        cos_dist = torch.sum(cos_dist) / cos_dist.shape[0]
     elif reduction == 'none':
         pass
     else:

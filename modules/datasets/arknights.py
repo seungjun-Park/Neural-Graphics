@@ -127,6 +127,9 @@ class ArknightsTripletDataset(Dataset):
         edge_pos = self.augmentation_transform(edge_pos)
         edge_neg = self.augmentation_transform(edge_neg)
 
+        edge_pos = edge_pos.repeat(3, 1, 1)
+        edge_neg = edge_neg.repeat(3, 1, 1)
+
         return img, edge_pos, edge_neg
 
     def __len__(self):
