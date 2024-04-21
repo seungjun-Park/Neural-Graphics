@@ -81,5 +81,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 200
+  max_epochs: 20
   accumulate_grad_batches: 5

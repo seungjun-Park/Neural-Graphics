@@ -219,8 +219,7 @@ class EIPS(pl.LightningModule):
         self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
         self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
-        if self.global_step % self.log_interval == 0:
-            self.log_img(img, edge_pos, edge_neg)
+        self.log_img(img, edge_pos, edge_neg)
 
     @torch.no_grad()
     def log_img(self, img, edge_pos, edge_neg):
