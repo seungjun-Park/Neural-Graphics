@@ -56,7 +56,7 @@ class EDNSE(pl.LightningModule):
 
         pred = self(img)
 
-        loss, loss_log = self.loss(gt, pred, img)
+        loss, loss_log = self.loss(gt, pred, img, split='train')
 
         if self.global_step % self.log_interval == 0:
             self.log_img(img, gt, pred)
@@ -69,7 +69,7 @@ class EDNSE(pl.LightningModule):
         img, gt, cond = batch
 
         pred = self(img)
-        loss, loss_log = self.loss(gt, pred, img)
+        loss, loss_log = self.loss(gt, pred, img, split='val')
 
         self.log_img(img, gt, pred)
         self.log_dict(loss_log)

@@ -38,11 +38,11 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        bdcn_weight: 1.1
+        bdcn_weight: 1.0
         cats_weight: [ 1.0, 0.05, 1. ]
         l1_weight: 1.0
         perceptual_weight: 1.0
-        contents_weight: 0.8
+        contents_weight: 0.75
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
