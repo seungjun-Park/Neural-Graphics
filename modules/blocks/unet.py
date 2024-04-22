@@ -142,13 +142,12 @@ class UNet(nn.Module):
                 )
             )
 
-        hidden_dims.pop()
-        hidden_dims.insert(0, embed_dim)
-
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             skip_dim = skip_dims.pop()
-            self.decoder.append(UpBlock(in_ch + skip_dim, out_channels=in_ch, dim=dim, mode=mode, use_conv=use_conv))
+            self.decoder.append(UpBlock(in_ch + skip_dim, out_channels=out_ch, dim=dim, mode=mode, use_conv=use_conv))
             cur_res = int(cur_res * 2)
+
+            in_ch = out_ch
 
             for j in range(num_blocks):
                 up = list()
@@ -156,7 +155,7 @@ class UNet(nn.Module):
                 up.append(
                     ResidualBlock(
                         in_channels=in_ch + skip_dim,
-                        out_channels=in_ch if j != (num_blocks - 1) else out_ch,
+                        out_channels=in_ch,
                         dropout=dropout,
                         act=act,
                         num_groups=num_groups,
@@ -164,8 +163,6 @@ class UNet(nn.Module):
                         use_checkpoint=use_checkpoint,
                     )
                 )
-
-                in_ch = in_ch if j != (num_blocks - 1) else out_ch
 
                 if i in attn_res:
                     for k in range(2):
@@ -193,10 +190,7 @@ class UNet(nn.Module):
 
         skip_dim = skip_dims.pop()
 
-        self.out = nn.Sequential(
-            conv_nd(dim, in_ch + skip_dim, out_channels, kernel_size=3, stride=1, padding=1),
-            group_norm(out_channels, num_groups=1),
-        )
+        self.out = nn.Sequential(conv_nd(dim, in_ch + skip_dim, out_channels, kernel_size=3, stride=1, padding=1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = []

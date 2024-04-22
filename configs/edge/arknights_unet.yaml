@@ -5,7 +5,7 @@ module:
     weight_decay: 1e-4
     lr_decay_epoch: 100
     use_fp16: False
-    log_interval: 20
+    log_interval: 50
     # ckpt_path: './checkpoints/edgenet/arknights/edgenet.ckpt'
 
     net_config:
@@ -30,7 +30,7 @@ module:
         act: 'gelu'
         use_conv: True
         pool_type: 'max'
-        mode: 'nearest'
+        mode: 'bilinear'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
@@ -94,4 +94,4 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   max_epochs: 200
-  accumulate_grad_batches: 5
+  accumulate_grad_batches: 2
