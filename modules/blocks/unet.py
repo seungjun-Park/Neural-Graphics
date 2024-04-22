@@ -192,10 +192,8 @@ class UNet(nn.Module):
 
                 self.decoder.append(nn.Sequential(*up))
 
-        skip_dim = skip_dims.pop()
-
         self.out = nn.Sequential(
-            conv_nd(dim, in_ch + skip_dim, out_channels, kernel_size=3, stride=1, padding=1),
+            conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1),
             group_norm(in_ch, num_groups=1),
         )
 
