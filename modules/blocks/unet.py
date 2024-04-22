@@ -108,7 +108,7 @@ class UNet(nn.Module):
             skip_dims.append(in_ch)
             cur_res //= 2
 
-        for i in range(num_blocks):
+        for i in range(num_blocks * 2):
             self.middle.append(
                 nn.Sequential(
                     ResidualBlock(
@@ -320,7 +320,7 @@ class UNet3Plus(nn.Module):
             skip_dims.append(in_ch)
             cur_res //= 2
 
-        for i in range(num_blocks):
+        for i in range(num_blocks * 2):
             self.middle.append(
                 nn.Sequential(
                     ResidualBlock(
