@@ -195,7 +195,7 @@ class UNet(nn.Module):
 
         self.out = nn.Sequential(
             conv_nd(dim, in_ch + skip_dim, out_channels, kernel_size=3, stride=1, padding=1),
-            group_norm(in_ch, num_groups=1),
+            group_norm(out_channels, num_groups=1),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
