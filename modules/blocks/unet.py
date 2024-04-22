@@ -104,10 +104,9 @@ class UNet(nn.Module):
                 skip_dims.append(in_ch)
                 self.encoder.append(nn.Sequential(*down))
 
-            if i != len(hidden_dims) - 1:
-                self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
-                skip_dims.append(in_ch)
-                cur_res //= 2
+            self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+            skip_dims.append(in_ch)
+            cur_res //= 2
 
         for i in range(num_blocks):
             self.middle.append(
@@ -192,8 +191,10 @@ class UNet(nn.Module):
 
                 self.decoder.append(nn.Sequential(*up))
 
+        skip_dim = skip_dims.pop()
+
         self.out = nn.Sequential(
-            conv_nd(dim, in_ch, out_channels, kernel_size=3, stride=1, padding=1),
+            conv_nd(dim, in_ch + skip_dim, out_channels, kernel_size=3, stride=1, padding=1),
             group_norm(in_ch, num_groups=1),
         )
 
