@@ -85,8 +85,8 @@ checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/'
-      filename: 'arknights_unet'
+      dirpath: './checkpoints/ednse/arknights_unet'
+      filename: 'ednse'
       monitor: 'step'
       mode: 'max'
       save_top_k: 1
