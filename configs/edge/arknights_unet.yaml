@@ -57,7 +57,7 @@ data:
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.RandomCrop
+            - target: torchvision.transforms.transforms.Resize
               params:
                 size: [ 512, 512 ]
 
@@ -69,7 +69,7 @@ data:
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.RandomCrop
+            - target: torchvision.transforms.transforms.Resize
               params:
                 size: [ 512, 512 ]
 

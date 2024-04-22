@@ -71,7 +71,6 @@ class ArknightsDataset(Dataset):
         tag = torch.zeros(img.shape)
 
         return img, edge, tag
-        # return img, edge, tag
 
     def __len__(self):
         return len(self.img_names)
