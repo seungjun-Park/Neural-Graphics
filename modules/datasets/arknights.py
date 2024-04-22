@@ -89,10 +89,6 @@ class ArknightsTripletDataset(Dataset):
             transforms.Resize([size, size])
         ])
 
-        self.augmentation_transform = transforms.RandomOrder([
-            transforms.RandomResizedCrop([size, size], scale=(0.9, 1.0), ratio=(1.0, 1.0)),
-        ])
-
         if train:
             root = os.path.join(root, 'train')
         else:
@@ -120,9 +116,6 @@ class ArknightsTripletDataset(Dataset):
         img = self.transform(img)
         edge_pos = self.transform(edge_pos)
         edge_neg = self.transform(edge_neg)
-
-        edge_pos = self.augmentation_transform(edge_pos)
-        edge_neg = self.augmentation_transform(edge_neg)
 
         edge_pos = edge_pos.repeat(3, 1, 1)
         edge_neg = edge_neg.repeat(3, 1, 1)

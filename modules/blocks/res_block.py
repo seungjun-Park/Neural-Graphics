@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
 from typing import Union, List, Tuple
-from utils import get_act, conv_nd, norm, group_norm
+from utils import get_act, conv_nd, group_norm
 
 
 class ResidualBlock(nn.Module):
@@ -14,7 +14,7 @@ class ResidualBlock(nn.Module):
                  dropout=0.1,
                  act='relu',
                  dim=2,
-                 groups: int = 32,
+                 num_groups: int = 32,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
                  ):
@@ -28,8 +28,8 @@ class ResidualBlock(nn.Module):
 
         self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
         self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
-        self.norm1 = group_norm(out_channels, num_groups=groups)
-        self.norm2 = group_norm(out_channels, num_groups=groups)
+        self.norm1 = group_norm(out_channels, num_groups=num_groups)
+        self.norm2 = group_norm(out_channels, num_groups=num_groups)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
 

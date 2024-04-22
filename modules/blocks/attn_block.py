@@ -146,7 +146,7 @@ class AttnBlock(nn.Module):
                                        bias=bias,
                                        use_conv=use_conv)
 
-        self.mlp = MLP(in_channels, int(in_channels * mlp_ratio), dropout=dropout, act=act, use_conv=use_conv)
+        self.mlp = MLP(in_channels, int(in_channels * mlp_ratio), dropout=dropout, act=act)
 
         self.norm1 = group_norm(in_channels, groups)
         self.norm2 = group_norm(in_channels, groups)
@@ -321,7 +321,7 @@ class WindowAttnBlock(nn.Module):
                  num_heads: int = -1,
                  num_head_channels: int = -1,
                  window_size: int = 7,
-                 pretrained_windows_size: int = 0,
+                 pretrained_window_size: int = 0,
                  shift_size: int = 0,
                  mlp_ratio=4.,
                  qkv_bias=True,
@@ -341,7 +341,7 @@ class WindowAttnBlock(nn.Module):
         self.num_heads = num_heads
         self.num_head_channels = num_head_channels
         self.window_size = window_size
-        self.pretrained_window_size = pretrained_windows_size
+        self.pretrained_window_size = pretrained_window_size
         self.shift_size = shift_size
         self.mlp_ratio = mlp_ratio
         self.use_checkpoint = use_checkpoint
