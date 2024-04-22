@@ -28,7 +28,7 @@ class EdgePerceptualLoss(nn.Module):
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, split: str = "train") -> torch.Tensor:
 
         l1_loss = F.l1_loss(inputs.contiguous(), targets.contiguous(), reduction='mean')
-        p_loss = self.perceptual_loss(inputs.contiguous(), targets.contiguous()).mean()
+        p_loss = self.lpips(inputs.contiguous(), targets.contiguous()).mean()
 
         edge_loss = l1_loss * self.l1_weight + p_loss * self.perceptual_weight
 
