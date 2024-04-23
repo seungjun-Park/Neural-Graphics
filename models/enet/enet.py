@@ -48,7 +48,7 @@ class EDNSE(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def forward(self, x: torch.Tensor, cond: torch.Tensor = None) -> List[torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         return F.sigmoid(self.net(x))
 
     def training_step(self, batch, batch_idx) -> Optional[Any]:

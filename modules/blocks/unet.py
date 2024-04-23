@@ -229,13 +229,13 @@ class UNet(nn.Module):
 
         for i, block in enumerate(self.decoder):
             if self.use_addition_skip:
-                h = (h + hs.pop()).norm()
+                h = (h + hs.pop()) * 0.5
             else:
                 h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
         if self.use_addition_skip:
-            h = (h + hs.pop()).norm()
+            h = (h + hs.pop()) * 0.5
         else:
             h = torch.cat([h, hs.pop()], dim=1)
         h = self.out(h)
