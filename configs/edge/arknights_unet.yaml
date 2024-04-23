@@ -5,7 +5,7 @@ module:
     weight_decay: 1e-4
     lr_decay_epoch: 100
     use_fp16: False
-    log_interval: 50
+    log_interval: 25
     # ckpt_path: './checkpoints/edgenet/arknights/edgenet.ckpt'
 
     net_config:
@@ -15,10 +15,10 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 32, 64, 96]
-        embed_dim: 16
-        attn_res: [ 0, 1, 2 ]
-        num_blocks: 3
+        hidden_dims: [ 64, 96, 128, 160 ]
+        embed_dim: 32
+        attn_res: [ 0, 1, 2, 3]
+        num_blocks: 4
         num_heads: 8
         mlp_ratio: 4
         dropout: 0.0
@@ -34,15 +34,16 @@ module:
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
+        use_addition_skip: True
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        bdcn_weight: 1.0
-        cats_weight: [ 1.0, 0.05, 1. ]
+        bdcn_weight: 0.5
+        cats_weight: [ 0.5, 0.05, 1. ]
         l1_weight: 1.0
         perceptual_weight: 1.0
-        contents_weight: 0.75
+        contents_weight: 1.0
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
@@ -87,8 +88,8 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/arknights_unet'
       filename: 'ednse'
-      monitor: 'step'
-      mode: 'max'
+      monitor: 'val/contents_loss'
+      mode: 'min'
       save_top_k: 1
 
 trainer:
