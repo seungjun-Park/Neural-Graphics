@@ -64,7 +64,7 @@ def pool_nd(pool_type: str = 'max', dim: int = 2, *args, **kwargs):
     pool_type = pool_type.lower()
     if pool_type == 'max':
         return max_pool_nd(dim=dim, *args, **kwargs)
-    elif pool_type == 'avg':
+    elif pool_type in ['avg', 'average']:
         return avg_pool_nd(dim=dim, *args, **kwargs)
     else:
         NotImplementedError('current version should be supported max and avg pooling')

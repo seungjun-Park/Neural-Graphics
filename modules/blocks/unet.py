@@ -257,8 +257,8 @@ class UNet3Plus(nn.Module):
                  in_res: Union[int, List[int], Tuple[int]],
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  out_channels: int = None,
-                 hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  embed_dim: int = 16,
+                 hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  attn_res: Union[List[int], Tuple[int]] = (2, 3),
                  num_blocks: int = 2,
                  num_heads: int = -1,
@@ -276,8 +276,7 @@ class UNet3Plus(nn.Module):
                  mode: str = 'nearest',
                  dim: int = 2,
                  use_checkpoint: bool = True,
-                 use_deep_supervision: bool = False,
-                 use_addition_skip: bool = False,
+                 attn_mode: str = 'cosine',
                  ):
         super().__init__()
 
@@ -288,21 +287,23 @@ class UNet3Plus(nn.Module):
         self.use_conv = use_conv
         self.act = act
         self.num_groups = num_groups
-        self.use_deep_supervision = use_deep_supervision
-        self.use_addition_skip = use_addition_skip
 
         self.in_channels = in_channels
         self.in_res = in_res
         self.out_channels = out_channels
         self.hidden_dims = hidden_dims
 
-        self.embed = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
+        self.embed = nn.Sequential(
+            conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
+            group_norm(embed_dim, embed_dim)
+        )
 
         in_ch = embed_dim
         skip_dims = [embed_dim]
         cur_res = in_res
 
         self.encoder = nn.ModuleList()
+        self.middle = nn.ModuleList()
         self.decoder = nn.ModuleList()
         self.scaled_skip_blocks = nn.ModuleList()
 
@@ -341,36 +342,70 @@ class UNet3Plus(nn.Module):
                                 drop_path=drop_path,
                                 act=act,
                                 use_checkpoint=use_checkpoint,
+                                attn_mode=attn_mode,
                             )
                         )
 
                 skip_dims.append(in_ch)
                 self.encoder.append(nn.Sequential(*down))
 
-            if i != len(hidden_dims) - 1:
+            if i != len(self.hidden_dims) - 1:
                 self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
                 skip_dims.append(in_ch)
                 cur_res //= 2
 
-        skip_dim = sum([i for i in skip_dims])
-
-        for i, out_ch in list(enumerate(hidden_dims))[::-1]:
-            for j in range(num_blocks):
-                self.scaled_skip_blocks.append(
-                    ScaledSkipBlock(
-                        level=i,
-                        skip_dims=skip_dims,
-                        num_blocks=num_blocks,
+        for i in range(num_blocks):
+            self.middle.append(
+                nn.Sequential(
+                    ResidualBlock(
+                        in_channels=in_ch,
+                        out_channels=in_ch,
+                        dropout=dropout,
                         act=act,
                         num_groups=num_groups,
                         dim=dim,
+                        use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
-                        pool_type=pool_type,
-                        mode=mode,
-                        use_checkpoint=use_checkpoint
-                    )
+                    ),
+                    *[
+                        WindowAttnBlock(
+                            in_channels=in_ch,
+                            in_res=to_2tuple(cur_res),
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            window_size=window_size,
+                            shift_size=0 if k % 2 == 0 else window_size // 2,
+                            mlp_ratio=mlp_ratio,
+                            qkv_bias=qkv_bias,
+                            proj_bias=bias,
+                            drop=dropout,
+                            attn_drop=attn_dropout,
+                            drop_path=drop_path,
+                            act=act,
+                            use_checkpoint=use_checkpoint,
+                            attn_mode=attn_mode,
+                        )
+                        for k in range(2)
+                    ]
                 )
+            )
 
+        skip_dim = sum([i for i in skip_dims])
+
+        for i, out_ch in list(enumerate(hidden_dims))[::-1]:
+            self.scaled_skip_blocks.append(
+                ScaledSkipBlock(
+                    level=i,
+                    skip_dims=skip_dims,
+                    unit=num_blocks,
+                    dim=dim,
+                    pool_type=pool_type,
+                    mode=mode,
+                    use_checkpoint=use_checkpoint,
+                )
+            )
+
+            for j in range(num_blocks):
                 up = list()
                 up.append(
                     ResidualBlock(
@@ -383,7 +418,6 @@ class UNet3Plus(nn.Module):
                         use_checkpoint=use_checkpoint,
                     )
                 )
-                in_ch = out_ch
 
                 if i in attn_res:
                     for k in range(2):
@@ -403,57 +437,23 @@ class UNet3Plus(nn.Module):
                                 drop_path=drop_path,
                                 act=act,
                                 use_checkpoint=use_checkpoint,
+                                attn_mode=attn_mode,
                             )
                         )
 
-                self.scaled_skip_blocks.append(
-                    ScaledSkipBlock(
-                        level=i,
-                        skip_dims=skip_dims,
-                        num_blocks=num_blocks,
-                        act=act,
-                        num_groups=num_groups,
-                        dim=dim,
-                        use_conv=use_conv,
-                        pool_type=pool_type,
-                        mode=mode,
-                        use_checkpoint=use_checkpoint
-                    )
-                )
-
                 self.decoder.append(nn.Sequential(*up))
 
-            if i != len(hidden_dims) - 1:
-                self.scaled_skip_blocks.append(
-                    ScaledSkipBlock(
-                        level=i,
-                        skip_dims=skip_dims,
-                        num_blocks=num_blocks,
-                        act=act,
-                        num_groups=num_groups,
-                        dim=dim,
-                        use_conv=use_conv,
-                        pool_type=pool_type,
-                        mode=mode,
-                        use_checkpoint=use_checkpoint
-                    )
+            if i != 0:
+                skip_dim = skip_dims.pop()
+                self.decoder.append(
+                    UpBlock(in_ch + skip_dim,
+                            out_channels=out_ch,
+                            dim=dim,
+                            mode=mode,
+                            use_conv=use_conv
+                            )
                 )
-                self.decoder.append(UpBlock(in_ch + skip_dim, out_channels=in_ch, dim=dim, mode=mode, use_conv=use_conv))
                 cur_res = int(cur_res * 2)
-
-        if use_deep_supervision:
-            self.deep_supervision_blocks = ScaledSkipBlock(
-                level=-1,
-                skip_dims=skip_dims,
-                num_blocks=num_blocks,
-                act=act,
-                num_groups=num_groups,
-                dim=dim,
-                use_conv=use_conv,
-                pool_type=pool_type,
-                mode=mode,
-                use_checkpoint=use_checkpoint
-            )
 
         self.out = nn.Sequential(
             conv_nd(dim, in_ch + skip_dim, out_channels, kernel_size=3, stride=1, padding=1),
@@ -467,20 +467,18 @@ class UNet3Plus(nn.Module):
             h = block(h)
             hs.append(h)
 
+        for i, block in enumerate(self.middle):
+            h = block(h)
+
         h_cats = []
         for i, block in enumerate(self.scaled_skip_blocks):
             h_cats.append(block(hs))
-        h_cats.reverse()
 
         for i, block in enumerate(self.decoder):
-            h = torch.cat([h, ] + h_cats.pop(), dim=1)
+            h = torch.cat([h, h_cats[i // (self.num_blocks + 1)]], dim=1)
             h = block(h)
 
-        h = torch.cat([h, ] + h_cats.pop(), dim=1)
+        h = torch.cat([h, h_cats[0]], dim=1)
         h = self.out(h)
-
-        if self.use_deep_supervision:
-            hs = self.deep_supervision_blocks(hs)
-            return hs + [h, ]
 
         return h
