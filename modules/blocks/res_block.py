@@ -5,6 +5,7 @@ from torch.utils.checkpoint import checkpoint
 
 from typing import Union, List, Tuple
 from utils import get_act, conv_nd, group_norm
+from modules.blocks.conv_block import LargePerceptionFieldConv
 
 
 class ResidualBlock(nn.Module):
@@ -17,6 +18,8 @@ class ResidualBlock(nn.Module):
                  num_groups: int = 32,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
+                 use_lpf_conv: bool = True,
+                 **ignored_kwargs,
                  ):
         super().__init__()
 
@@ -26,10 +29,12 @@ class ResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
-        self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
-        self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
-        self.norm1 = group_norm(out_channels, num_groups=num_groups)
-        self.norm2 = group_norm(out_channels, num_groups=num_groups)
+        make_conv = LargePerceptionFieldConv if use_lpf_conv else conv_nd
+
+        self.conv1 = make_conv(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
+        self.conv2 = make_conv(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
+        self.norm1 = group_norm(out_channels, num_groups=out_channels)
+        self.norm2 = group_norm(out_channels, num_groups=out_channels)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
 
@@ -59,8 +64,9 @@ class ResidualBlock(nn.Module):
 
         z = self.dropout(h)
         z = self.conv2(z)
+        z = z + self.shortcut(x)
         z = self.norm2(z)
         z = self.act(z)
 
-        return z + self.shortcut(x)
+        return z
 

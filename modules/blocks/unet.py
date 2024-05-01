@@ -277,6 +277,7 @@ class UNet3Plus(nn.Module):
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
+                 use_lpf_conv: bool = True,
                  ):
         super().__init__()
 
@@ -320,6 +321,7 @@ class UNet3Plus(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
+                        use_lpf_conv=use_lpf_conv,
                     )
                 )
                 in_ch = out_ch
@@ -419,6 +421,8 @@ class UNet3Plus(nn.Module):
                     )
                 )
 
+                in_ch = out_ch
+
                 if i in attn_res:
                     for k in range(2):
                         up.append(
@@ -444,10 +448,9 @@ class UNet3Plus(nn.Module):
                 self.decoder.append(nn.Sequential(*up))
 
             if i != 0:
-                skip_dim = skip_dims.pop()
                 self.decoder.append(
                     UpBlock(in_ch + skip_dim,
-                            out_channels=out_ch,
+                            out_channels=in_ch,
                             dim=dim,
                             mode=mode,
                             use_conv=use_conv
@@ -478,7 +481,7 @@ class UNet3Plus(nn.Module):
             h = torch.cat([h, h_cats[i // (self.num_blocks + 1)]], dim=1)
             h = block(h)
 
-        h = torch.cat([h, h_cats[0]], dim=1)
+        h = torch.cat([h, h_cats[-1]], dim=1)
         h = self.out(h)
 
         return h

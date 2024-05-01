@@ -20,14 +20,12 @@ class ScaledSkipBlock(nn.Module):
                  ):
         super().__init__()
 
-        self.use_checkpoint = use_checkpoint
-
         self.blocks = nn.ModuleList()
-        self.units = unit
+        self.units = unit + 1
 
-        for i in range(len(skip_dims) // unit):
+        for i in range(len(skip_dims) // self.units):
             blocks = list()
-            sd = sum(skip_dims[i * unit: (i + 1) * unit])
+            sd = sum(skip_dims[i * self.units: (i + 1) * self.units])
             scale_factor = 2 ** abs(level - i)
             if i < level:
                 blocks.append(
@@ -58,14 +56,18 @@ class ScaledSkipBlock(nn.Module):
                     dim,
                     sd,
                     sd,
-                    kernel_size=1,
+                    kernel_size=3,
                     stride=1,
                     bias=False,
+                    groups=sd,
+                    padding=1,
                 ),
             )
             blocks.append(group_norm(sd, sd))
 
             self.blocks.append(nn.Sequential(*blocks))
+
+        self.use_checkpoint = use_checkpoint
 
     def forward(self, hs: Union[List[torch.Tensor], Tuple]) -> Union[List[torch.Tensor], Tuple[torch.Tensor]]:
         if self.use_checkpoint:

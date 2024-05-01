@@ -5,7 +5,7 @@ module:
     weight_decay: 1e-4
     lr_decay_epoch: 100
     use_fp16: False
-    log_interval: 25
+    log_interval: 50
     # ckpt_path: './checkpoints/edgenet/arknights/edgenet.ckpt'
 
     net_config:
@@ -13,12 +13,12 @@ module:
       params:
         in_channels: 3
         in_res: 512
-        window_size: 16
+        window_size: 8
         out_channels: 1
-        hidden_dims: [ 32, 64, 96 ]
-        embed_dim: 16
-        attn_res: [ 0, 1, 2]
-        num_blocks: 3
+        hidden_dims: [ 48, 72, 96, 96]
+        embed_dim: 24
+        attn_res: [ 0, 1, 2, 3 ]
+        num_blocks: 2
         num_heads: 8
         mlp_ratio: 4
         dropout: 0.0
@@ -26,14 +26,15 @@ module:
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 32
+        num_groups: 16
         act: 'gelu'
         use_conv: True
-        pool_type: 'avg'
-        mode: 'bilinear'
+        pool_type: 'max'
+        mode: 'nearest'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
+        use_lpf_conv: True
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
@@ -42,7 +43,7 @@ module:
         cats_weight: [ 1.0, 0.05, 1. ]
         l1_weight: 1.0
         perceptual_weight: 1.0
-        contents_weight: 0.9
+        contents_weight: 0.5
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
@@ -93,5 +94,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 200
+  max_epochs: 100
   accumulate_grad_batches: 2
