@@ -29,12 +29,14 @@ class ScaledSkipBlock(nn.Module):
             scale_factor = 2 ** abs(level - i)
             if i < level:
                 blocks.append(
-                    pool_nd(
-                        pool_type,
+                    conv_nd(
                         dim,
+                        sd,
+                        sd,
                         kernel_size=scale_factor,
                         stride=scale_factor,
-                    ),
+                        groups=sd,
+                    )
                 )
 
             elif i > level:
@@ -47,22 +49,21 @@ class ScaledSkipBlock(nn.Module):
                         use_conv=False,
                     ),
                 )
+                blocks.append(
+                    conv_nd(
+                        dim,
+                        sd,
+                        sd,
+                        kernel_size=3,
+                        stride=1,
+                        groups=sd,
+                        padding=1,
+                    ),
+                )
 
             else:
                 blocks.append(nn.Identity())
 
-            blocks.append(
-                conv_nd(
-                    dim,
-                    sd,
-                    sd,
-                    kernel_size=3,
-                    stride=1,
-                    bias=False,
-                    groups=sd,
-                    padding=1,
-                ),
-            )
             blocks.append(group_norm(sd, sd))
 
             self.blocks.append(nn.Sequential(*blocks))

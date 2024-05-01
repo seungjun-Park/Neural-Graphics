@@ -34,6 +34,7 @@ class UNet(nn.Module):
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
                  use_addition_skip: bool = False,
+                 use_lpf_conv: bool = False,
                  ):
         super().__init__()
 
@@ -77,6 +78,7 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
+                        use_lpf_conv=use_lpf_conv,
                     )
                 )
                 in_ch = out_ch
