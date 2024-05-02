@@ -7,13 +7,12 @@ from modules.blocks import ResidualBlock, WindowAttnBlock, DownBlock, UpBlock
 from utils import conv_nd, group_norm, to_2tuple
 
 
-class SwinResidualEncoder(nn.Module):
+class SwinEncoder(nn.Module):
     def __init__(self,
                  in_channels: int,
                  in_res: Union[int, List[int], Tuple[int]],
-                 patch_size: Union[int, List[int], Tuple[int]] = 4,
                  window_size: Union[int, List[int], Tuple[int]] = 7,
-                 pretrained_window_size: Union[int, List[int], Tuple[int]] = 0,
+                 patch_size: Union[int, List[int], Tuple[int]] = 4,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  embed_dim: int = 16,
                  attn_res: Union[List[int], Tuple[int]] = (2, 3),
@@ -26,32 +25,30 @@ class SwinResidualEncoder(nn.Module):
                  drop_path: float = 0.0,
                  qkv_bias: bool = True,
                  bias: bool = True,
-                 attn_mode: str = 'cosine',  # 'cosine' is swin-v2 attn block, 'vanilla' is swin-v1 attn block
                  num_groups: int = 32,
                  act: str = 'relu',
                  use_conv: bool = True,
                  pool_type: str = 'max',
                  dim: int = 2,
                  use_checkpoint: bool = True,
-                 use_deep_supervision: bool = True
+                 attn_mode: str = 'cosine',
                  ):
         super().__init__()
-
-        self.use_deep_supervision = use_deep_supervision
 
         self.embed = nn.Sequential(
                 conv_nd(dim, in_channels, embed_dim, kernel_size=patch_size, stride=patch_size),
                 group_norm(embed_dim, num_groups=1),  # equal to layer norm
             )
         self.encoder = nn.ModuleList()
+        self.middle = nn.ModuleList()
 
         in_ch = embed_dim
         cur_res = in_res // patch_size
 
         for i, out_ch in enumerate(hidden_dims):
-            encoder = list()
             for j in range(num_blocks):
-                encoder.append(
+                down = list()
+                down.append(
                     ResidualBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
@@ -67,14 +64,13 @@ class SwinResidualEncoder(nn.Module):
 
                 if i in attn_res:
                     for k in range(2):
-                        encoder.append(
+                        down.append(
                             WindowAttnBlock(
                                 in_channels=in_ch,
                                 in_res=to_2tuple(cur_res),
                                 num_heads=num_heads,
                                 num_head_channels=num_head_channels,
                                 window_size=window_size,
-                                pretrained_window_size=pretrained_window_size,
                                 shift_size=0 if k % 2 == 0 else window_size // 2,
                                 mlp_ratio=mlp_ratio,
                                 qkv_bias=qkv_bias,
@@ -88,13 +84,49 @@ class SwinResidualEncoder(nn.Module):
                             )
                         )
 
-                self.encoder.append(nn.Sequential(*encoder))
+                self.encoder.append(nn.Sequential(*down))
 
-            if i != len(hidden_dims) - 1:
+            if i != len(self.hidden_dims) - 1:
                 self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
                 cur_res //= 2
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for i in range(num_blocks):
+            self.middle.append(
+                nn.Sequential(
+                    ResidualBlock(
+                        in_channels=in_ch,
+                        out_channels=in_ch,
+                        dropout=dropout,
+                        act=act,
+                        num_groups=num_groups,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
+                        use_conv=use_conv,
+                    ),
+                    *[
+                        WindowAttnBlock(
+                            in_channels=in_ch,
+                            in_res=to_2tuple(cur_res),
+                            num_heads=num_heads,
+                            num_head_channels=num_head_channels,
+                            window_size=window_size,
+                            shift_size=0 if k % 2 == 0 else window_size // 2,
+                            mlp_ratio=mlp_ratio,
+                            qkv_bias=qkv_bias,
+                            proj_bias=bias,
+                            drop=dropout,
+                            attn_drop=attn_dropout,
+                            drop_path=drop_path,
+                            act=act,
+                            use_checkpoint=use_checkpoint,
+                            attn_mode=attn_mode,
+                        )
+                        for k in range(2)
+                    ]
+                )
+            )
+
+    def forward(self, x: torch.Tensor, use_deep_supervision: bool = False, **ignored_kwargs) -> torch.Tensor:
         hs = []
         h = self.embed(x)
         hs.append(h)
@@ -104,6 +136,11 @@ class SwinResidualEncoder(nn.Module):
             if i % 2 == 0:
                 hs.append(h)
 
-        if self.use_deep_supervision:
+        for i, module in enumerate(self.middle):
+            h = module(h)
+
+        if use_deep_supervision:
+            hs.append(h)
             return hs
+
         return h

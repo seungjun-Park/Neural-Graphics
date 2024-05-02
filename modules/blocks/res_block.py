@@ -39,8 +39,8 @@ class ResidualBlock(nn.Module):
             self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
             self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
 
-        self.norm1 = group_norm(out_channels, num_groups=out_channels)
-        self.norm2 = group_norm(out_channels, num_groups=out_channels)
+        self.norm1 = group_norm(out_channels, num_groups=num_groups)
+        self.norm2 = group_norm(out_channels, num_groups=num_groups)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
 

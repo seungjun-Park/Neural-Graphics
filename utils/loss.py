@@ -52,36 +52,59 @@ class EuclideanDistanceWithCosineDistance(nn.Module):
         self.cd_dim = cd_dim
         self.reduction = reduction.lower()
 
-    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        if not self.use_normalize:
-            euclidean_dist = (inputs.contiguous() - targets.contiguous()) ** 2
-            if self.reduction == 'mean':
-                euclidean_dist = torch.mean(euclidean_dist)
-            elif self.reduction == 'sum':
-                euclidean_dist = torch.sum(euclidean_dist) / euclidean_dist.shape[0]
-            elif self.reduction == 'none':
-                pass
+    def forward(self,
+                inputs: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]],
+                targets: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]]) -> torch.Tensor:
+        if isinstance(inputs, torch.Tensor):
+            inputs = [inputs]
+        if isinstance(targets, torch.Tensor):
+            targets = [targets]
+
+        euclidean_dists = 0
+        cos_dists = 0
+
+        for ips, tgs in zip(inputs, targets):
+            if self.use_normalize:
+                euclidean_dist = normalized_euclidean_distance(ips,
+                                                               tgs,
+                                                               dim=self.ed_dim,
+                                                               reduction=self.reduction,
+                                                               use_square=self.use_square)
+
             else:
-                raise NotImplementedError(f'reduction: "{self.reduction}" is not implemented.')
-            if not self.use_square:
-                euclidean_dist = torch.sqrt(euclidean_dist)
-        else:
-            euclidean_dist = normalized_euclidean_distance(inputs,
-                                                           targets,
-                                                           dim=self.ed_dim,
-                                                           reduction=self.reduction,
-                                                           use_square=self.use_square)
+                euclidean_dist = euclidean_distance(ips, tgs, reduction=self.reduction, use_square=self.use_square)
 
-        cos_dist = cosine_distance(inputs,
-                                   targets,
-                                   dim=self.cd_dim,
-                                   reduction=self.reduction)
+            euclidean_dists += euclidean_dist
 
-        return euclidean_dist * self.ed_weight + cos_dist * self.cd_weight
+            cos_dist = cosine_distance(ips,
+                                       tgs,
+                                       dim=self.cd_dim,
+                                       reduction=self.reduction)
+
+            cos_dists += cos_dist
+
+        return euclidean_dists * self.ed_weight + cos_dists * self.cd_weight
 
 
 def jaccard_distance(inputs: torch.Tensor, targets: torch.Tensor):
     return
+
+
+def euclidean_distance(inputs: torch.Tensor, targets: torch.Tensor,
+                       reduction: str = 'mean', use_square: bool = False):
+    euclidean_dist = (inputs.contiguous() - targets.contiguous()) ** 2
+    if reduction == 'mean':
+        euclidean_dist = torch.mean(euclidean_dist)
+    elif reduction == 'sum':
+        euclidean_dist = torch.sum(euclidean_dist) / euclidean_dist.shape[0]
+    elif reduction == 'none':
+        pass
+    else:
+        raise NotImplementedError(f'reduction: "{reduction}" is not implemented.')
+    if not use_square:
+        return torch.sqrt(euclidean_dist)
+
+    return euclidean_dist
 
 
 def normalized_euclidean_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: Union[int, List[int], Tuple[int]] = 1,

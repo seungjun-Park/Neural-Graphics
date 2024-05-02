@@ -1,0 +1,90 @@
+module:
+  target: models.classification.EIPS
+  params:
+    lr: 2e-5
+    weight_decay: 1e-4
+    lr_decay_epoch: 100
+    use_fp16: False
+    log_interval: 10
+    margin: 1.0
+
+    net_config:
+      target: modules.encoder.SwinEncoder
+      params:
+        in_channels: 3
+        in_res: 512
+        window_size: 8
+        hidden_dims: [ 64, 128, 256, 512 ]
+        embed_dim: 32
+        attn_res: [ 0, 1, 2, 3 ]
+        num_blocks: 3
+        num_heads: 8
+        num_head_channels: -1
+        mlp_ratio: 4
+        dropout: 0.0
+        attn_dropout: 0.0
+        drop_path: 0.0
+        qkv_bias: True
+        bias: True
+        num_groups: 32
+        act: 'gelu'
+        use_conv: True
+        pool_type: 'max'
+        dim: 2
+        use_checkpoint: True
+        attn_mode: 'cosine'
+        use_deep_supervision: True
+
+    criterion_config:
+      target: utils.loss.EuclideanDistanceWithCosineDistance
+      params:
+        use_square: True
+        use_normalize: True
+        ed_weight: 1.0
+        ed_dim: [2, 3]
+        cd_weight: 1.0
+        cd_dim: 1
+        reduction: 'mean'
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 4
+    batch_size: 2
+    wrap: True
+    train:
+      target: modules.datasets.arknights.ArknightsTripletDataset
+      params:
+        root: '/local_datasets/arknights'
+        train: True
+        size: 512
+
+    validation:
+      target: modules.datasets.arknights.ArknightsTripletDataset
+      params:
+        root: '/local_datasets/arknights_v2'
+        train: False
+        size: 512
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'eips'
+    version: 'arknights'
+
+
+checkpoints:
+  latest_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/eips/'
+      filename: 'arknights'
+      monitor: 'val/loss'
+      mode: 'min'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 100
+  accumulate_grad_batches: 5

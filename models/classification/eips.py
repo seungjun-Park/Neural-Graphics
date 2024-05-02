@@ -5,11 +5,6 @@ import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img
-from utils.loss import normalized_euclidean_distance, cosine_distance
-from modules.blocks import (
-    ResidualBlock, DownBlock,
-    WindowAttnBlock, MLP
-)
 
 
 class EIPS(pl.LightningModule):
@@ -22,6 +17,8 @@ class EIPS(pl.LightningModule):
                  lr_decay_epoch: int = 100,
                  log_interval: int = 100,
                  ckpt_path: str = None,
+                 use_fp16: bool = False,
+                 use_deep_supervision: bool = False,
                  ):
         super().__init__()
 
@@ -29,6 +26,8 @@ class EIPS(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
+        self.use_deep_supervision = use_deep_supervision
+        self.use_fp16 = use_fp16
 
         self.net = instantiate_from_config(net_config)
         self.criterion = instantiate_from_config(criterion_config)
@@ -64,9 +63,9 @@ class EIPS(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         img, edge_pos, edge_neg = batch
 
-        feat_anc = self.net(img)
-        feat_pos = self.net(edge_pos)
-        feat_neg = self.net(edge_neg)
+        feat_anc = self.net(img, self.use_deep_supervision)
+        feat_pos = self.net(edge_pos, self.use_deep_supervision)
+        feat_neg = self.net(edge_neg, self.use_deep_supervision)
 
         loss = self.loss(feat_anc, feat_pos, feat_neg)
         dist_pos = self.criterion(feat_anc, feat_pos).detach().mean()
@@ -76,17 +75,14 @@ class EIPS(pl.LightningModule):
         self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
         self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
-        if self.global_step % self.log_interval == 0:
-            self.log_img(img, edge_pos, edge_neg)
-
         return loss
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, edge_pos, edge_neg = batch
 
-        feat_anc = self(img)
-        feat_pos = self(edge_pos)
-        feat_neg = self(edge_neg)
+        feat_anc = self(img, self.use_deep_supervision)
+        feat_pos = self(edge_pos, self.use_deep_supervision)
+        feat_neg = self(edge_neg, self.use_deep_supervision)
 
         dist_pos = self.criterion(feat_anc, feat_pos)
         dist_neg = self.criterion(feat_anc, feat_neg)
@@ -97,27 +93,11 @@ class EIPS(pl.LightningModule):
         self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
         self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
-        self.log_img(img, edge_pos, edge_neg)
-
-    @torch.no_grad()
-    def log_img(self, img, edge_pos, edge_neg):
-        prefix = 'train' if self.training else 'val'
-        tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', img[0], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/edge_pos', edge_pos[0], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/edge_neg', edge_neg[0], self.global_step, dataformats='CHW')
-
     def configure_optimizers(self) -> Any:
-        opt = torch.optim.AdamW(list(self.encoder.parameters()) +
-                                list(self.dense_layers.parameters()),
+        opt = torch.optim.AdamW(list(self.encoder.parameters()),
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
                                 betas=(0.5, 0.9)
                                 )
 
-        # lr_net = torch.optim.lr_scheduler.LambdaLR(
-        #     optimizer=opt_net,
-        #     lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_epoch))
-        # )
-
-        return [opt]#, [{"scheduler": lr_net, "interval": "epoch"}]
+        return [opt]
