@@ -9,7 +9,7 @@ module:
     margin: 1.0
 
     net_config:
-      target: modules.encoder.SwinEncoder
+      target: modules.blocks.SwinEncoder
       params:
         in_channels: 3
         in_res: 512
