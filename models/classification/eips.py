@@ -28,12 +28,10 @@ class EIPS(pl.LightningModule):
         self.log_interval = log_interval
         self.use_deep_supervision = use_deep_supervision
         self.use_fp16 = use_fp16
+        self.margin = margin
 
         self.net = instantiate_from_config(net_config)
         self.criterion = instantiate_from_config(criterion_config)
-
-        self.loss = nn.TripletMarginWithDistanceLoss(distance_function=self.criterion,
-                                                     margin=margin)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -67,13 +65,14 @@ class EIPS(pl.LightningModule):
         feat_pos = self.net(edge_pos, self.use_deep_supervision)
         feat_neg = self.net(edge_neg, self.use_deep_supervision)
 
-        loss = self.loss(feat_anc, feat_pos, feat_neg)
-        dist_pos = self.criterion(feat_anc, feat_pos).detach().mean()
-        dist_neg = self.criterion(feat_anc, feat_neg).detach().mean()
+        dist_pos = self.criterion(feat_anc, feat_pos)
+        dist_neg = self.criterion(feat_anc, feat_neg)
 
-        self.log('train/loss', loss, logger=True, rank_zero_only=True)
-        self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
-        self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
+        loss = torch.clamp(self.margin + dist_pos - dist_neg, min=0.0)
+
+        self.log('train/loss', loss.clone().detach(), logger=True, rank_zero_only=True)
+        self.log('train/dist_pos', dist_pos.detach(), logger=True, rank_zero_only=True)
+        self.log('train/dist_neg', dist_neg.detach(), logger=True, rank_zero_only=True)
 
         return loss
 
@@ -87,11 +86,11 @@ class EIPS(pl.LightningModule):
         dist_pos = self.criterion(feat_anc, feat_pos)
         dist_neg = self.criterion(feat_anc, feat_neg)
 
-        loss = self.loss(feat_anc, feat_pos, feat_neg)
+        loss = torch.clamp(self.margin + dist_pos - dist_neg, min=0.0)
 
-        self.log('val/loss', loss, logger=True, rank_zero_only=True)
-        self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
-        self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
+        self.log('val/loss', loss.clone().detach(), logger=True, rank_zero_only=True)
+        self.log('val/dist_pos', dist_pos.detach(), logger=True, rank_zero_only=True)
+        self.log('val/dist_neg', dist_neg.detach(), logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
         opt = torch.optim.AdamW(list(self.net.parameters()),
