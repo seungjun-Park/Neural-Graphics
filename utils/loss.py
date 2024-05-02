@@ -74,14 +74,14 @@ class EuclideanDistanceWithCosineDistance(nn.Module):
             else:
                 euclidean_dist = euclidean_distance(ips, tgs, reduction=self.reduction, use_square=self.use_square)
 
-            euclidean_dists += euclidean_dist
+            euclidean_dists = euclidean_dists + euclidean_dist
 
             cos_dist = cosine_distance(ips,
                                        tgs,
                                        dim=self.cd_dim,
                                        reduction=self.reduction)
 
-            cos_dists += cos_dist
+            cos_dists = cos_dists + cos_dist
 
         return euclidean_dists * self.ed_weight + cos_dists * self.cd_weight
 

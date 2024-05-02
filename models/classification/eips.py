@@ -68,11 +68,11 @@ class EIPS(pl.LightningModule):
         dist_pos = self.criterion(feat_anc, feat_pos)
         dist_neg = self.criterion(feat_anc, feat_neg)
 
-        loss = torch.clamp(self.margin + dist_pos - dist_neg, min=0.0)
+        loss = self.margin + dist_pos - dist_neg
 
-        self.log('train/loss', loss.clone().detach(), logger=True, rank_zero_only=True)
-        self.log('train/dist_pos', dist_pos.detach(), logger=True, rank_zero_only=True)
-        self.log('train/dist_neg', dist_neg.detach(), logger=True, rank_zero_only=True)
+        self.log('train/loss', loss, logger=True, rank_zero_only=True)
+        self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
+        self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
         return loss
 
@@ -88,9 +88,9 @@ class EIPS(pl.LightningModule):
 
         loss = torch.clamp(self.margin + dist_pos - dist_neg, min=0.0)
 
-        self.log('val/loss', loss.clone().detach(), logger=True, rank_zero_only=True)
-        self.log('val/dist_pos', dist_pos.detach(), logger=True, rank_zero_only=True)
-        self.log('val/dist_neg', dist_neg.detach(), logger=True, rank_zero_only=True)
+        self.log('val/loss', loss, logger=True, rank_zero_only=True)
+        self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
+        self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
         opt = torch.optim.AdamW(list(self.net.parameters()),
