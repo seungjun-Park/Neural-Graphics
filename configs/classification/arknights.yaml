@@ -7,6 +7,7 @@ module:
     use_fp16: False
     log_interval: 10
     margin: 1.0
+    use_deep_supervision: True
 
     net_config:
       target: modules.blocks.SwinEncoder
@@ -33,7 +34,6 @@ module:
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
-        use_deep_supervision: True
 
     criterion_config:
       target: utils.loss.EuclideanDistanceWithCosineDistance
