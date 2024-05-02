@@ -36,7 +36,7 @@ class SwinEncoder(nn.Module):
         super().__init__()
 
         self.embed = nn.Sequential(
-                conv_nd(dim, in_channels, embed_dim, kernel_size=patch_size, stride=patch_size),
+                conv_nd(dim, in_channels=in_channels, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size),
                 group_norm(embed_dim, num_groups=1),  # equal to layer norm
             )
         self.encoder = nn.ModuleList()

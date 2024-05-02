@@ -15,10 +15,11 @@ module:
         in_channels: 3
         in_res: 512
         window_size: 8
-        hidden_dims: [ 64, 128, 256, 512 ]
+        patch_size: 4
+        hidden_dims: [ 64, 128, 256, 256 ]
         embed_dim: 32
         attn_res: [ 0, 1, 2, 3 ]
-        num_blocks: 3
+        num_blocks: 2
         num_heads: 8
         num_head_channels: -1
         mlp_ratio: 4
@@ -57,14 +58,14 @@ data:
       params:
         root: '/local_datasets/arknights'
         train: True
-        size: 512
+        size: 256
 
     validation:
       target: modules.datasets.arknights.ArknightsTripletDataset
       params:
         root: '/local_datasets/arknights'
         train: False
-        size: 512
+        size: 256
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
