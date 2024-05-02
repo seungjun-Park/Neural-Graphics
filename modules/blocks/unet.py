@@ -126,6 +126,8 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
+                        use_lpf_conv=use_lpf_conv,
+                        perception_level=perception_level,
                     ),
                     *[
                         WindowAttnBlock(
@@ -160,16 +162,19 @@ class UNet(nn.Module):
                 up.append(
                     ResidualBlock(
                         in_channels=in_ch + skip_dim if not use_addition_skip else in_ch,
-                        out_channels=in_ch if j != num_blocks - 1 else out_ch,
+                        out_channels=out_ch,
                         dropout=dropout,
                         act=act,
                         num_groups=num_groups,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
+                        use_cond=use_conv,
+                        use_lpf_conv=use_lpf_conv,
+                        perception_level=perception_level,
                     )
                 )
 
-                in_ch = in_ch if j != num_blocks - 1 else out_ch
+                in_ch = out_ch
 
                 if i in attn_res:
                     for k in range(2):
@@ -199,7 +204,7 @@ class UNet(nn.Module):
                 skip_dim = skip_dims.pop()
                 self.decoder.append(
                     UpBlock(in_ch + skip_dim if not use_addition_skip else in_ch,
-                            out_channels=out_ch,
+                            out_channels=in_ch,
                             dim=dim,
                             mode=mode,
                             use_conv=use_conv
