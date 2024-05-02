@@ -215,7 +215,7 @@ class WindowAttention(nn.Module):
             # mlp to generate continuous relative position bias
             self.cpb_mlp = nn.Sequential(nn.Linear(2, 512, bias=True),
                                          nn.ReLU(inplace=True),
-                                         nn.Linear(512, num_heads, bias=False))
+                                         nn.Linear(512, self.num_heads, bias=False))
 
             # get relative_coords_table
             relative_coords_h = torch.arange(-(self.window_size[0] - 1), self.window_size[0], dtype=torch.float32)
