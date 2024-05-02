@@ -86,7 +86,7 @@ class SwinEncoder(nn.Module):
 
                 self.encoder.append(nn.Sequential(*down))
 
-            if i != len(self.hidden_dims) - 1:
+            if i != len(hidden_dims) - 1:
                 self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
                 cur_res //= 2
 
