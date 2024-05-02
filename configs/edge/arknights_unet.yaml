@@ -63,7 +63,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 256, 256 ]
+                size: [ 512, 512 ]
 
     validation:
       target: modules.datasets.arknights.ArknightsDataset
@@ -75,7 +75,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 256, 256 ]
+                size: [ 512, 512 ]
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
