@@ -80,9 +80,9 @@ class EIPS(pl.LightningModule):
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, edge_pos, edge_neg = batch
 
-        feat_anc = self(img, self.use_deep_supervision)
-        feat_pos = self(edge_pos, self.use_deep_supervision)
-        feat_neg = self(edge_neg, self.use_deep_supervision)
+        feat_anc = self.net(img, self.use_deep_supervision)
+        feat_pos = self.net(edge_pos, self.use_deep_supervision)
+        feat_neg = self.net(edge_neg, self.use_deep_supervision)
 
         dist_pos = self.criterion(feat_anc, feat_pos)
         dist_neg = self.criterion(feat_anc, feat_neg)
