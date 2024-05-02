@@ -20,7 +20,7 @@ module:
         attn_res: [ 0, 1, 2, 3]
         num_blocks: 2
         # num_heads: -1
-        num_head_channels: 32
+        num_head_channels: 16
         mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
