@@ -13,7 +13,7 @@ module:
       target: modules.blocks.SwinEncoder
       params:
         in_channels: 3
-        in_res: 512
+        in_res: 256
         window_size: 8
         patch_size: 4
         hidden_dims: [ 64, 128, 256, 256 ]
