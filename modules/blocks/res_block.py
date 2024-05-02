@@ -33,7 +33,7 @@ class ResidualBlock(nn.Module):
         if use_lpf_conv:
             self.conv1 = LargePerceptionFieldConv(in_channels=in_channels, out_channels=out_channels, dim=dim,
                                                   perception_level=perception_level)
-            self.conv1 = LargePerceptionFieldConv(in_channels=out_channels, out_channels=out_channels, dim=dim,
+            self.conv2 = LargePerceptionFieldConv(in_channels=out_channels, out_channels=out_channels, dim=dim,
                                                   perception_level=perception_level)
         else:
             self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)

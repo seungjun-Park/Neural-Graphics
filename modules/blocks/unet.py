@@ -152,9 +152,6 @@ class UNet(nn.Module):
                 )
             )
 
-        hidden_dims.pop()
-        hidden_dims.insert(0, embed_dim)
-
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks):
                 up = list()
