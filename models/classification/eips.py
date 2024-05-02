@@ -47,11 +47,6 @@ class EIPS(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def eval(self):
-        super().eval()
-        for param in self.parameters():
-            param.requires_grad = False
-
     def forward(self, in0: torch.Tensor, in1: torch.Tensor) -> torch.Tensor:
         feat0 = self.net(in0)
         feat1 = self.net(in1)
@@ -68,7 +63,7 @@ class EIPS(pl.LightningModule):
         dist_pos = self.criterion(feat_anc, feat_pos)
         dist_neg = self.criterion(feat_anc, feat_neg)
 
-        loss = self.margin + dist_pos - dist_neg
+        loss = torch.clamp(self.margin + dist_pos - dist_neg, min=0.0)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
         self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
@@ -86,7 +81,7 @@ class EIPS(pl.LightningModule):
         dist_pos = self.criterion(feat_anc, feat_pos)
         dist_neg = self.criterion(feat_anc, feat_neg)
 
-        loss = self.margin + dist_pos - dist_neg
+        loss = torch.clamp(self.margin + dist_pos - dist_neg, min=0.0)
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
         self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
