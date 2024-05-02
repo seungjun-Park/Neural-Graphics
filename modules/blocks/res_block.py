@@ -18,7 +18,7 @@ class ResidualBlock(nn.Module):
                  num_groups: int = 32,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
-                 use_lpf_conv: bool = True,
+                 use_lpf_conv: bool = False,
                  **ignored_kwargs,
                  ):
         super().__init__()
