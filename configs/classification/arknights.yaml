@@ -62,7 +62,7 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsTripletDataset
       params:
-        root: '/local_datasets/arknights_v2'
+        root: '/local_datasets/arknights'
         train: False
         size: 512
 
