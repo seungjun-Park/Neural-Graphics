@@ -35,6 +35,7 @@ class UNet(nn.Module):
                  attn_mode: str = 'cosine',
                  use_addition_skip: bool = False,
                  use_lpf_conv: bool = False,
+                 perception_level: int = 2,
                  ):
         super().__init__()
 
@@ -54,7 +55,6 @@ class UNet(nn.Module):
 
         self.embed = nn.Sequential(
             conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
-            group_norm(embed_dim, num_groups=1)
         )
 
         in_ch = embed_dim
@@ -79,6 +79,7 @@ class UNet(nn.Module):
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         use_lpf_conv=use_lpf_conv,
+                        perception_level=perception_level
                     )
                 )
                 in_ch = out_ch

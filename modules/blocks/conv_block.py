@@ -11,48 +11,34 @@ class LargePerceptionFieldConv(nn.Module):
                  in_channels: int,
                  out_channels: int,
                  dim: int = 2,
+                 perception_level: int = 2,
                  **ignored_kwargs,
                  ):
         super().__init__()
 
-        assert out_channels % 3 == 0
+        assert out_channels % perception_level == 0
 
-        self.out_channels = out_channels // 3
+        self.out_channels = out_channels // perception_level
+        self.perception_level = perception_level
 
-        self.conv3 = conv_nd(
-            dim,
-            in_channels=in_channels,
-            out_channels=self.out_channels,
-            kernel_size=3,
-            stride=1,
-            padding=1,
-            dilation=1,
-        )
+        self.conv_blocks = nn.ModuleList()
 
-        self.conv5 = conv_nd(
-            dim,
-            in_channels=in_channels,
-            out_channels=self.out_channels,
-            kernel_size=3,
-            stride=1,
-            padding=2,
-            dilation=2,
-        )
-
-        self.conv7 = conv_nd(
-            dim,
-            in_channels=in_channels,
-            out_channels=self.out_channels,
-            kernel_size=3,
-            stride=1,
-            padding=3,
-            dilation=3,
-        )
+        for i in range(1, perception_level + 1):
+            self.conv_blocks.append(
+                conv_nd(
+                    dim,
+                    in_channels=in_channels,
+                    out_channels=self.out_channels,
+                    kernel_size=3,
+                    stride=1,
+                    padding=i,
+                    dilation=i,
+                )
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = list()
-        hs.append(self.conv3(x))
-        hs.append(self.conv5(x))
-        hs.append(self.conv7(x))
+        for i, block in enumerate(self.conv_blocks):
+            hs.append(block(x))
 
         return torch.cat(hs, dim=1)

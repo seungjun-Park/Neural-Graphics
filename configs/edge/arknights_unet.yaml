@@ -19,14 +19,15 @@ module:
         embed_dim: 32
         attn_res: [ 0, 1, 2, 3]
         num_blocks: 2
-        num_heads: 8
+        num_heads: -1
+        num_head_channels: 32
         mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 8
+        num_groups: 24
         act: 'gelu'
         use_conv: True
         pool_type: 'max'
@@ -35,7 +36,8 @@ module:
         use_checkpoint: True
         attn_mode: 'cosine'
         use_addition_skip: False
-        use_lpf_conv: False
+        use_lpf_conv: True
+        perception_level: 2
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
