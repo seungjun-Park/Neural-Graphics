@@ -46,8 +46,8 @@ class SwinEncoder(nn.Module):
         cur_res = in_res // patch_size
 
         for i, out_ch in enumerate(hidden_dims):
+            down = list()
             for j in range(num_blocks):
-                down = list()
                 down.append(
                     ResidualBlock(
                         in_channels=in_ch,
@@ -84,7 +84,7 @@ class SwinEncoder(nn.Module):
                             )
                         )
 
-                self.encoder.append(nn.Sequential(*down))
+            self.encoder.append(nn.Sequential(*down))
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
@@ -126,7 +126,7 @@ class SwinEncoder(nn.Module):
                 )
             )
 
-    def forward(self, x: torch.Tensor, use_deep_supervision: bool = False, **ignored_kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, use_deep_supervision: bool = False, **ignored_kwargs) -> Union[torch.Tensor, List[torch.Tensor]]:
         hs = []
         h = self.embed(x)
         hs.append(h)

@@ -2,18 +2,18 @@ module:
   target: models.classification.EIPS
   params:
     lr: 2e-5
-    weight_decay: 1e-4
+    weight_decay: 0.0
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    margin: 1.0
+    margin: 2.0
     use_deep_supervision: True
 
     net_config:
       target: modules.blocks.SwinEncoder
       params:
         in_channels: 3
-        in_res: 256
+        in_res: 512
         window_size: 8
         patch_size: 4
         hidden_dims: [ 64, 128, 256, 256 ]
@@ -58,14 +58,19 @@ data:
       params:
         root: '/local_datasets/arknights'
         train: True
-        size: 256
+        size: 512
+        scale: [0.5, 1.0]
+        ratio: [1.0, 1.0]
 
     validation:
       target: modules.datasets.arknights.ArknightsTripletDataset
       params:
         root: '/local_datasets/arknights'
         train: False
-        size: 256
+        size: 512
+        scale: [ 0.5, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
+
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
@@ -87,5 +92,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 100
+  max_epochs: 200
   accumulate_grad_batches: 5

@@ -7,7 +7,10 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
-from utils import instantiate_from_config
+import torchvision.transforms.functional as tf
+from typing import Union, List, Tuple
+
+from utils import instantiate_from_config, to_2tuple
 
 IMG_FORMATS = ['png', 'jpg']
 STR_FORMATS = ['txt', 'csv']
@@ -78,15 +81,20 @@ class ArknightsDataset(Dataset):
 
 class ArknightsTripletDataset(Dataset):
     def __init__(self,
-                 root,
-                 train=True,
-                 size=224,
+                 root: str,
+                 train: bool = True,
+                 size: Union[int, List[int], Tuple[int]] = 224,
+                 scale: Union[List[float], Tuple[float]] = (0.08, 1.0),
+                 ratio: Union[List[float], Tuple[float]] = (0.75, 1.3333333333333333)
                  ):
 
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Resize([size, size])
-        ])
+        self.to_tensor = transforms.ToTensor()
+
+        self.size = list(to_2tuple(size))
+        self.scale = list(to_2tuple(scale))
+        self.ratio = list(to_2tuple(ratio))
+
+        self.resize = transforms.Resize(self.size)
 
         if train:
             root = os.path.join(root, 'train')
@@ -112,9 +120,15 @@ class ArknightsTripletDataset(Dataset):
         edge_pos = cv2.imread(f'{edge_pos_name}', cv2.IMREAD_GRAYSCALE)
         edge_neg = cv2.imread(f'{edge_neg_name}', cv2.IMREAD_GRAYSCALE)
 
-        img = self.transform(img)
-        edge_pos = self.transform(edge_pos)
-        edge_neg = self.transform(edge_neg)
+        img = self.to_tensor(img)
+        edge_pos = self.to_tensor(edge_pos)
+        edge_neg = self.to_tensor(edge_neg)
+
+        i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
+
+        img = tf.resized_crop(img, i, j, h, w, size=self.size)
+        edge_pos = tf.resized_crop(edge_pos, i, j, h, w, size=self.size)
+        edge_neg = tf.resized_crop(edge_neg, i, j, h, w, size=self.size)
 
         edge_pos = edge_pos.repeat(3, 1, 1)
         edge_neg = edge_neg.repeat(3, 1, 1)
