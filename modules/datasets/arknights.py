@@ -98,8 +98,13 @@ class ArknightsTripletDataset(Dataset):
 
         if train:
             root = os.path.join(root, 'train')
+            self.normalize_img = transforms.Normalize((0.5965, 0.5498, 0.5482), (0.2738, 0.2722, 0.2641))
+            self.normalize_edge = transforms.Normalize(0.9085, 0.2184)
+
         else:
             root = os.path.join(root, 'val')
+            self.normalize_img = transforms.Normalize((0.6947, 0.6346, 0.6376), (0.2986, 0.3072, 0.2990))
+            self.normalize_edge = transforms.Normalize(0.8805, 0.2600)
 
         self.edge_names = glob.glob(f'{root}/*/edges/*.*')
         self.img_names = glob.glob(f'{root}/*/images/*.*')
@@ -120,9 +125,9 @@ class ArknightsTripletDataset(Dataset):
         edge_pos = cv2.imread(f'{edge_pos_name}', cv2.IMREAD_GRAYSCALE)
         edge_neg = cv2.imread(f'{edge_neg_name}', cv2.IMREAD_GRAYSCALE)
 
-        img = self.to_tensor(img)
-        edge_pos = self.to_tensor(edge_pos)
-        edge_neg = self.to_tensor(edge_neg)
+        img = self.normalize_img(self.to_tensor(img))
+        edge_pos = self.normalize_edge(self.to_tensor(edge_pos))
+        edge_neg = self.normalize_edge(self.to_tensor(edge_neg))
 
         i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
 

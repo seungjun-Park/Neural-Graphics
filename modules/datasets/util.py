@@ -1,6 +1,9 @@
+import glob
+import cv2
 import numpy as np
 import torch
 import pytorch_lightning as pl
+import torchvision.transforms as tf
 from torch.utils.data import Dataset, DataLoader, IterableDataset
 
 from utils import partial, instantiate_from_config
@@ -100,6 +103,8 @@ class DataModuleFromConfig(pl.LightningDataModule):
             init_fn = None
         return DataLoader(self.datasets["predict"], batch_size=self.batch_size,
                           num_workers=self.num_workers, worker_init_fn=init_fn)
+
+
 class WrappedDataset(Dataset):
     """Wraps an arbitrary object with __len__ and __getitem__ into a pytorch dataset"""
 
@@ -111,3 +116,40 @@ class WrappedDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx]
+
+
+def calculate_mean_std(root: str, use_color: bool = True):
+    img_names = glob.glob(f'{root}/*.*')
+    to_tensor = tf.ToTensor()
+    means = []
+    stds = []
+    if use_color:
+        option = cv2.IMREAD_COLOR
+    else:
+        option = cv2.IMREAD_GRAYSCALE
+
+    for name in img_names:
+        img = cv2.imread(f'{name}', option)
+        if use_color:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = to_tensor(img)
+        means.append(torch.mean(img, dim=[-2, -1]))
+        stds.append(torch.std(img, dim=[-2, -1]))
+
+    if use_color:
+        mean_r = np.mean([m[0] for m in means])
+        mean_g = np.mean([m[1] for m in means])
+        mean_b = np.mean([m[2] for m in means])
+
+        std_r = np.mean([s[0] for s in stds])
+        std_g = np.mean([s[1] for s in stds])
+        std_b = np.mean([s[2] for s in stds])
+
+        mean = [mean_r, mean_g, mean_b]
+        std = [std_r, std_g, std_b]
+
+    else:
+        mean = np.mean([m[0] for m in means])
+        std = np.mean([s[0] for s in stds])
+
+    return mean, std
