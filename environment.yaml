@@ -21,6 +21,7 @@ dependencies:
       - imageio
       - imageio-ffmpeg
       - pytorch-lightning==2.0.0
+      - tensorboard
       - omegaconf
       - einops
       - torch-fidelity
