@@ -52,7 +52,7 @@ class EDNSE(pl.LightningModule):
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         pred = F.hardtanh(self.net(x), min_val=0.0, max_val=1.0)
-        pred[pred >= self.threshold] = 1.0
+        # pred[pred >= self.threshold] = 1.0
         return pred
 
     def training_step(self, batch, batch_idx) -> Optional[Any]:
