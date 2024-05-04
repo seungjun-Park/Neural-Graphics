@@ -56,6 +56,19 @@ class EIPS(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
+    def train(self, mode: bool = True):
+        super().train(mode)
+        for param in self.parameters():
+            param.requires_grad = True
+
+        return self
+
+    def eval(self):
+        super().eval()
+        for param in self.parameters():
+            param.requires_grad = False
+        return self
+
     def normalize_img(self, img: torch.Tensor) -> torch.Tensor:
         img = (img - self.mean_img[None, :, None, None]) / self.std_img[None, :, None, None]
 
