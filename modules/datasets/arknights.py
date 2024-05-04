@@ -125,9 +125,9 @@ class ArknightsTripletDataset(Dataset):
         edge_pos = cv2.imread(f'{edge_pos_name}', cv2.IMREAD_GRAYSCALE)
         edge_neg = cv2.imread(f'{edge_neg_name}', cv2.IMREAD_GRAYSCALE)
 
-        img = self.normalize_img(self.to_tensor(img))
-        edge_pos = self.normalize_edge(self.to_tensor(edge_pos))
-        edge_neg = self.normalize_edge(self.to_tensor(edge_neg))
+        img = self.to_tensor(img)
+        edge_pos = self.to_tensor(edge_pos)
+        edge_neg = self.to_tensor(edge_neg)
 
         i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
 
