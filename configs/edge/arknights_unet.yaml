@@ -139,7 +139,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/arknights_unet'
       filename: 'ednse'
-      monitor: 'val/contents_loss'
+      monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
