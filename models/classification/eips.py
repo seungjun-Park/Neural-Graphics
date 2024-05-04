@@ -21,8 +21,8 @@ class EIPS(pl.LightningModule):
                  use_deep_supervision: bool = False,
                  mean_img: Union[List[float], Tuple[float]] = (0.5965, 0.5498, 0.5482),
                  std_img: Union[List[float], Tuple[float]] = (0.2738, 0.2722, 0.2641),
-                 mean_edge: Union[List[float], Tuple[float]] = 0.9085,
-                 std_edge: Union[List[float], Tuple[float]] = 0.2184,
+                 mean_edge: float = 0.9085,
+                 std_edge: float = 0.2184,
                  ):
         super().__init__()
 
