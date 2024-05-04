@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
-from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img
+from utils import instantiate_from_config, to_2tuple, to_3tuple, conv_nd, get_act, group_norm, normalize_img
 
 
 class EIPS(pl.LightningModule):
@@ -19,6 +19,10 @@ class EIPS(pl.LightningModule):
                  ckpt_path: str = None,
                  use_fp16: bool = False,
                  use_deep_supervision: bool = False,
+                 mean_img: Union[List[float], Tuple[float]] = (0.5965, 0.5498, 0.5482),
+                 std_img: Union[List[float], Tuple[float]] = (0.2738, 0.2722, 0.2641),
+                 mean_edge: Union[List[float], Tuple[float]] = 0.9085,
+                 std_edge: Union[List[float], Tuple[float]] = 0.2184,
                  ):
         super().__init__()
 
@@ -29,6 +33,11 @@ class EIPS(pl.LightningModule):
         self.use_deep_supervision = use_deep_supervision
         self.use_fp16 = use_fp16
         self.margin = margin
+
+        self.register_buffer('mean_img', torch.Tensor(mean_img))
+        self.register_buffer('std_img', torch.Tensor(std_img))
+        self.register_buffer('mean_edge', torch.Tensor(to_3tuple(mean_edge)))
+        self.register_buffer('std_edge', torch.Tensor(to_3tuple(std_edge)))
 
         self.net = instantiate_from_config(net_config)
         self.criterion = instantiate_from_config(criterion_config)
@@ -47,14 +56,31 @@ class EIPS(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def forward(self, in0: torch.Tensor, in1: torch.Tensor) -> torch.Tensor:
-        feat0 = self.net(in0)
-        feat1 = self.net(in1)
+    def normalize_img(self, img: torch.Tensor) -> torch.Tensor:
+        img = (img - self.mean_img[None, :, None, None]) / self.std_img[None, :, None, None]
 
-        return self.criterion(feat0, feat1)
+        return img
+
+    def normalize_edge(self, edge: torch.Tensor) -> torch.Tensor:
+        edge = (edge - self.mean_edge[None, :, None, None]) / self.std_edge[None, :, None, None]
+
+        return edge
+
+    def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
+        img = self.normalize_img(img)
+        edge = self.normalize_edge(edge)
+        feat_img = self.net(img, self.use_deep_supervision)
+        feat_edge = self.net(edge, self.use_deep_supervision)
+
+        return self.criterion(feat_img, feat_edge)
 
     def training_step(self, batch, batch_idx):
         img, edge_pos, edge_neg = batch
+
+        with torch.no_grad():
+            img = self.normalize_img(img)
+            edge_pos = self.normalize_edge(edge_pos)
+            edge_neg = self.normalize_edge(edge_neg)
 
         feat_anc = self.net(img, self.use_deep_supervision)
         feat_pos = self.net(edge_pos, self.use_deep_supervision)
@@ -71,8 +97,13 @@ class EIPS(pl.LightningModule):
 
         return loss
 
-    def validation_step(self, batch, batch_idx) -> Optional[Any]:
+    def validation_step(self, batch, batch_idx):
         img, edge_pos, edge_neg = batch
+
+        with torch.no_grad():
+            img = self.normalize_img(img)
+            edge_pos = self.normalize_edge(edge_pos)
+            edge_neg = self.normalize_edge(edge_neg)
 
         feat_anc = self.net(img, self.use_deep_supervision)
         feat_pos = self.net(edge_pos, self.use_deep_supervision)
