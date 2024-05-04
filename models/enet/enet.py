@@ -17,6 +17,7 @@ class EDNSE(pl.LightningModule):
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  use_fp16: bool = False,
+                 threshold: float = 0.5,
                  ):
         super().__init__()
 
@@ -24,6 +25,7 @@ class EDNSE(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
+        self.threshold = threshold
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
@@ -49,7 +51,9 @@ class EDNSE(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
-        return F.sigmoid(self.net(x))
+        pred = F.hardtanh(self.net(x), min_val=0.0, max_val=1.0)
+        pred[pred >= self.threshold] = 1.0
+        return pred
 
     def training_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
@@ -91,9 +95,4 @@ class EDNSE(pl.LightningModule):
                                     betas=(0.5, 0.9)
                                     )
 
-        # lr_net = torch.optim.lr_scheduler.LambdaLR(
-        #     optimizer=opt_net,
-        #     lr_lambda=lambda epoch: 1.0 if epoch < self.lr_decay_epoch else (0.95 ** (epoch - self.lr_decay_epoch))
-        # )
-
-        return [opt_net]#, [{"scheduler": lr_net, "interval": "epoch"}]
+        return [opt_net]
