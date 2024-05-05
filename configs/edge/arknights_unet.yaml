@@ -6,6 +6,7 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
+    ckpt_path: './checkpoints/ednse/arknights_unet/ednse.ckpt'
 
     net_config:
       target: modules.blocks.UNet
