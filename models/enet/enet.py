@@ -51,9 +51,9 @@ class EDNSE(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
-        pred = F.hardtanh(self.net(x), min_val=0.0, max_val=1.0)
+        # pred = F.hardtanh(self.net(x), min_val=0.0, max_val=1.0)
         # pred[pred >= self.threshold] = 1.0
-        return pred
+        return F.sigmoid(self.net(x))
 
     def training_step(self, batch, batch_idx) -> Optional[Any]:
         img, gt, cond = batch
