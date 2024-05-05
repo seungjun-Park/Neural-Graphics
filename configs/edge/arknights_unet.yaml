@@ -14,19 +14,19 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 32, 64, 96, 128 ]
-        embed_dim: 16
+        hidden_dims: [ 48, 96, 144, 192 ]
+        embed_dim: 24
         attn_res: [ 0, 1, 2, 3]
         num_blocks: 2
         # num_heads: -1
-        num_head_channels: 8
+        num_head_channels: 12
         mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 8
+        num_groups: 12
         act: 'gelu'
         use_conv: True
         pool_type: 'max'
@@ -43,7 +43,7 @@ module:
       params:
         l1_weight: 1.0
         perceptual_weight: 1.0
-        edge_image_perceptual_weight: 1.0
+        edge_image_perceptual_weight: 0.3
         eips_config:
           lr: 2e-5
           weight_decay: 0.0
