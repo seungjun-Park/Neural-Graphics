@@ -14,19 +14,19 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 48, 96, 144, 192 ]
-        embed_dim: 24
+        hidden_dims: [ 32, 64, 128, 256 ]
+        embed_dim: 16
         attn_res: [ 0, 1, 2, 3]
         num_blocks: 2
         # num_heads: -1
-        num_head_channels: 12
+        num_head_channels: 16
         mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 12
+        num_groups: 16
         act: 'gelu'
         use_conv: True
         pool_type: 'max'
@@ -41,9 +41,9 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        l1_weight: 1.0
+        l1_weight: 0.7
         perceptual_weight: 1.0
-        edge_image_perceptual_weight: 0.05
+        edge_image_perceptual_weight: 0.1
         eips_config:
           lr: 2e-5
           weight_decay: 0.0
