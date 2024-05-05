@@ -43,7 +43,7 @@ module:
       params:
         l1_weight: 1.0
         perceptual_weight: 1.0
-        edge_image_perceptual_weight: 0.3
+        edge_image_perceptual_weight: 0.05
         eips_config:
           lr: 2e-5
           weight_decay: 0.0
