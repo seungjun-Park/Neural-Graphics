@@ -12,14 +12,14 @@ class EdgePerceptualLoss(nn.Module):
     def __init__(self,
                  eips_config,
                  pn_weight: float = 1.0,
-                 l1_wight: float = 1.0,
+                 l1_weight: float = 1.0,
                  perceptual_weight: float = 1.0,
                  edge_image_perceptual_weight: float = 1.0,
                  ):
 
         super().__init__()
         self.pn_weight = pn_weight
-        self.l1_weight = l1_wight
+        self.l1_weight = l1_weight
         self.perceptual_weight = perceptual_weight
         self.edge_image_perceptual_weight = edge_image_perceptual_weight
 
