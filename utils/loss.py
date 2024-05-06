@@ -151,7 +151,7 @@ def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
 
 def bdcn_loss3(inputs, targets, threshold: float = 0.5):
     targets = targets.long()
-    mask = targets
+    mask = targets.float()
     num_positive = torch.sum((mask > threshold).float()).float()  # >0.1
     num_negative = torch.sum((mask <= threshold).float()).float()  # <= 0.1
 
