@@ -12,12 +12,14 @@ class EdgePerceptualLoss(nn.Module):
     def __init__(self,
                  eips_config,
                  pn_weight: float = 1.0,
+                 l1_wight: float = 1.0,
                  perceptual_weight: float = 1.0,
-                 edge_image_perceptual_weight = 1.0,
+                 edge_image_perceptual_weight: float = 1.0,
                  ):
 
         super().__init__()
         self.pn_weight = pn_weight
+        self.l1_weight = l1_wight
         self.perceptual_weight = perceptual_weight
         self.edge_image_perceptual_weight = edge_image_perceptual_weight
 
@@ -25,8 +27,8 @@ class EdgePerceptualLoss(nn.Module):
         self.eips = EIPS(**eips_config).eval()
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, split: str = "train") -> torch.Tensor:
+        l1 = F.l1_loss(inputs, targets) * self.l1_weight
         pn = pn_loss(targets, inputs) * self.pn_weight
-
         if inputs.shape[1] == 1:
             inputs = inputs.repeat(1, 3, 1, 1)
 
@@ -34,10 +36,10 @@ class EdgePerceptualLoss(nn.Module):
             targets = targets.repeat(1, 3, 1, 1)
 
         p_loss = self.lpips(inputs.contiguous(), targets.contiguous()).mean() * self.perceptual_weight
-        boundary_weight = torch.clamp(2.0 / (self.eips(conds.contiguous(), inputs.contiguous()) + 1e-5).mean(), min=1e-4)
-        boundary_loss = (p_loss + pn) * boundary_weight
+        boundary_weight = torch.clamp(3.5 / (self.eips(conds.contiguous(), inputs.contiguous()) + 1e-5).mean(), min=1e-4)
+        boundary_loss = (p_loss + pn + l1) * boundary_weight
 
-        eip_loss = torch.clamp(self.eips(conds.contiguous(), targets.contiguous()).mean(), min=2.0) * self.edge_image_perceptual_weight
+        eip_loss = torch.clamp(self.eips(conds.contiguous(), targets.contiguous()).mean(), min=3.5) * self.edge_image_perceptual_weight
 
         loss = eip_loss + boundary_loss
 
@@ -45,6 +47,7 @@ class EdgePerceptualLoss(nn.Module):
                "{}/pn_loss".format(split): pn.detach(),
                "{}/p_loss".format(split): p_loss.detach(),
                "{}/eip_loss".format(split): eip_loss.detach(),
+               "{}/boundary_loss".format(split): boundary_loss.detach(),
                }
 
         return loss, log
