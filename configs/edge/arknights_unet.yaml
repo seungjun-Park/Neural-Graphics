@@ -42,7 +42,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        bdcn_weight: 1.0
+        pn_weight: 1.0
         perceptual_weight: 1.0
         edge_image_perceptual_weight: 0.07
         eips_config:
@@ -149,7 +149,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/arknights_unet'
       filename: 'ednse_best'
-      monitor: 'val/loss'
+      monitor: 'val/eip_loss'
       mode: 'min'
       save_top_k: 1
 
