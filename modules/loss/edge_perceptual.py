@@ -36,18 +36,14 @@ class EdgePerceptualLoss(nn.Module):
             targets = targets.repeat(1, 3, 1, 1)
 
         p_loss = self.lpips(inputs.contiguous(), targets.contiguous()).mean() * self.perceptual_weight
-        boundary_weight = torch.clamp(3.5 / (self.eips(conds.contiguous(), inputs.contiguous()) + 1e-5).mean(), min=1e-4)
-        boundary_loss = (p_loss + pn + l1) * boundary_weight
+        eips_weight = torch.clamp(1. / (self.eips(conds.contiguous(), inputs.contiguous()) + 1e-5).mean(), min=1e-5, max=1e2)
 
-        eip_loss = torch.clamp(self.eips(conds.contiguous(), targets.contiguous()).mean(), min=3.5) * self.edge_image_perceptual_weight
-
-        loss = eip_loss + boundary_loss
+        loss = (p_loss + pn + l1) * eips_weight
 
         log = {"{}/loss".format(split): loss.clone().detach(),
                "{}/pn_loss".format(split): pn.detach(),
                "{}/p_loss".format(split): p_loss.detach(),
-               "{}/eip_loss".format(split): eip_loss.detach(),
-               "{}/boundary_loss".format(split): boundary_loss.detach(),
+               "{}/l1_loss".format(split): l1.detach(),
                }
 
         return loss, log
