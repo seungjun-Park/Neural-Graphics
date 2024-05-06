@@ -149,16 +149,23 @@ def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
     return cos_dist
 
 
-def pn_loss(inputs: torch.Tensor, label: torch.Tensor, threshold: float = 0.5):
+def bdcn_loss3(inputs: torch.Tensor, label: torch.Tensor, threshold: float = 0.5):
     label = label.clone()
     label[label > threshold] = 1.0
     label[label <= threshold] = 0.0
 
-    inputs = inputs.clone()
-    inputs[inputs > threshold] = 1.0
-    inputs[inputs <= threshold] = 0.0
+    mask = label.float()
+    num_positive = torch.sum((mask > threshold).float()).float()  # >0.1
+    num_negative = torch.sum((mask <= threshold).float()).float()  # <= 0.1
 
-    cost = F.binary_cross_entropy(inputs, label, reduction='mean')
+    positive_mask = mask > threshold
+    negative_mask = mask <= threshold
+
+    mask[positive_mask] = 1.0 * num_negative / (num_positive + num_negative)  # 0.1
+    mask[negative_mask] = 1.1 * num_positive / (num_positive + num_negative)  # before mask[mask <= 0.1]
+    cost = torch.nn.BCELoss(mask, reduction='none')(inputs, label.float())
+
+    cost = torch.mean(cost.float().mean((1, 2, 3)))  # before sum
 
     return cost
 
