@@ -25,7 +25,7 @@ class EdgePerceptualLoss(nn.Module):
         self.eips = EIPS(**eips_config).eval()
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, split: str = "train") -> torch.Tensor:
-        pn = pn_loss(targets.contiguous(), inputs.contiguous()).mean()
+        pn = pn_loss(targets, inputs)
 
         if inputs.shape[1] == 1:
             inputs = inputs.repeat(1, 3, 1, 1)

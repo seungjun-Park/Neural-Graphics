@@ -150,11 +150,11 @@ def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
 
 
 def pn_loss(inputs: torch.Tensor, label: torch.Tensor, threshold: float = 0.3):
-    label = label.float()
+    label = label.clone()
     label[label > threshold] = 1.0
     label[label <= threshold] = 0.0
 
-    inputs = inputs.float()
+    inputs = inputs.clone()
     inputs[inputs > threshold] = 1.0
     inputs[inputs <= threshold] = 0.0
 
