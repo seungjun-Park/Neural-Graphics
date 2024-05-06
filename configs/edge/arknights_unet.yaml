@@ -43,6 +43,7 @@ module:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
         pn_weight: 1.0
+        l1_weight: 1.0
         perceptual_weight: 1.0
         edge_image_perceptual_weight: 0.05
         eips_config:
