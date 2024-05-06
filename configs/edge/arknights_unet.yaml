@@ -6,7 +6,7 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    ckpt_path: './checkpoints/ednse/arknights_unet/ednse.ckpt'
+    ckpt_path: './checkpoints/ednse/arknights_unet/ednse-v1.ckpt'
 
     net_config:
       target: modules.blocks.UNet
@@ -42,9 +42,9 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        l1_weight: 1.0
+        bdcn_weight: 1.0
         perceptual_weight: 1.0
-        edge_image_perceptual_weight: 0.05
+        edge_image_perceptual_weight: 0.07
         eips_config:
           lr: 2e-5
           weight_decay: 0.0
@@ -135,11 +135,20 @@ logger:
 
 
 checkpoints:
-  latest_checkpoint:
+  latest_checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
       dirpath: './checkpoints/ednse/arknights_unet'
-      filename: 'ednse'
+      filename: 'ednse_last'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+
+  best_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/ednse/arknights_unet'
+      filename: 'ednse_best'
       monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
