@@ -6,7 +6,7 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    ckpt_path: './checkpoints/ednse/arknights_unet/ednse-v1.ckpt'
+    # ckpt_path: './checkpoints/ednse/arknights_unet/ednse-v1.ckpt'
 
     net_config:
       target: modules.blocks.UNet
@@ -15,19 +15,19 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 32, 64, 128, 256 ]
+        hidden_dims: [ 32, 64, 96, 128 ]
         embed_dim: 16
         attn_res: [ 0, 1, 2, 3]
         num_blocks: 2
         # num_heads: -1
-        num_head_channels: 16
+        num_head_channels: 8
         mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 16
+        num_groups: 8
         act: 'gelu'
         use_conv: True
         pool_type: 'max'
