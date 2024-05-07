@@ -384,6 +384,7 @@ def to_rgb(inp: torch.Tensor, color_space: str):
     assert inp.ndim == 3
 
     inp = tf.ToPILImage()(inp)
+    inp = np.array(inp)
     inp = cv2.cvtColor(inp, color_space)
     inp = tf.ToTensor()(inp)
 
