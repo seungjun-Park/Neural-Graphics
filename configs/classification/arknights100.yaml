@@ -1,0 +1,105 @@
+module:
+  target: models.classification.EIPS
+  params:
+    lr: 2e-5
+    weight_decay: 0.0
+    lr_decay_epoch: 100
+    use_fp16: False
+    log_interval: 10
+    margin: 1.0
+    use_deep_supervision: False
+    mean_img: [0.5965, 0.5498, 0.5482]
+    std_img: [0.2738, 0.2722, 0.2641]
+    mean_edge: 0.9085
+    std_edge: 0.2184
+
+    net_config:
+      target: modules.blocks.SwinEncoder
+      params:
+        in_channels: 3
+        in_res: 512
+        window_size: 8
+        patch_size: 4
+        hidden_dims: [ 64, 128, 256, 256 ]
+        embed_dim: 32
+        attn_res: [ 0, 1, 2, 3 ]
+        num_blocks: 2
+        num_heads: -1
+        num_head_channels: 16
+        mlp_ratio: 4
+        dropout: 0.0
+        attn_dropout: 0.0
+        drop_path: 0.0
+        qkv_bias: True
+        bias: True
+        num_groups: 16
+        act: 'gelu'
+        use_conv: True
+        pool_type: 'max'
+        dim: 2
+        use_checkpoint: True
+        attn_mode: 'cosine'
+
+    criterion_config:
+      target: utils.loss.CosineDistance
+      params:
+        dim: 1
+        # deep_supervision_dim: 5
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 4
+    batch_size: 2
+    wrap: True
+    train:
+      target: modules.datasets.arknights.ArknightsTripletDataset
+      params:
+        root: '/local_datasets/arknights'
+        train: True
+        size: 512
+        scale: [0.9, 1.0]
+        ratio: [1.0, 1.0]
+        color_space: 'rgb'
+
+    validation:
+      target: modules.datasets.arknights.ArknightsTripletDataset
+      params:
+        root: '/local_datasets/arknights100'
+        train: False
+        size: 512
+        scale: [ 0.9, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
+        color_space: 'rgb'
+
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'eips'
+    version: 'arknights100'
+
+
+checkpoints:
+  latest_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/eips/'
+      filename: 'arknights100'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+  best_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/eips/'
+      filename: 'arknights100'
+      monitor: 'val/loss'
+      mode: 'min'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 100
+  accumulate_grad_batches: 5
