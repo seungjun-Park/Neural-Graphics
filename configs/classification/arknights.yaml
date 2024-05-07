@@ -6,7 +6,6 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    margin: 2.0
     use_deep_supervision: True
     mean_img: [0.5965, 0.5498, 0.5482]
     std_img: [0.2738, 0.2722, 0.2641]
@@ -53,24 +52,30 @@ data:
     batch_size: 2
     wrap: True
     train:
-      target: modules.datasets.arknights.ArknightsTripletDataset
+      target: modules.datasets.arknights.ArknightsDataset
       params:
         root: '/local_datasets/arknights'
         train: True
-        size: 512
-        scale: [0.9, 1.0]
-        ratio: [1.0, 1.0]
         color_space: 'rgb'
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 512, 512 ]
 
     validation:
-      target: modules.datasets.arknights.ArknightsTripletDataset
+      target: modules.datasets.arknights.ArknightsDataset
       params:
         root: '/local_datasets/arknights'
         train: False
-        size: 512
-        scale: [ 0.9, 1.0 ]
-        ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 512, 512 ]
 
 
 logger:
