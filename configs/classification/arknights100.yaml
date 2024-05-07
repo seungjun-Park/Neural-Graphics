@@ -55,7 +55,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsTripletDataset
       params:
-        root: '/local_datasets/arknights'
+        root: '/local_datasets/arknights100'
         train: True
         size: 512
         scale: [0.9, 1.0]
