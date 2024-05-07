@@ -6,7 +6,7 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    margin: 0.5
+    margin: 0.25
     use_deep_supervision: False
 
     net_config:
@@ -56,7 +56,7 @@ data:
         size: 512
         scale: [0.5, 1.0]
         ratio: [1.0, 1.0]
-        color_space: 'ycrcb'
+        color_space: 'lab'
 
     validation:
       target: modules.datasets.arknights.ArknightsTripletDataset
@@ -66,7 +66,7 @@ data:
         size: 512
         scale: [ 0.5, 1.0 ]
         ratio: [ 1.0, 1.0 ]
-        color_space: 'ycrcb'
+        color_space: 'lab'
 
 
 logger:
