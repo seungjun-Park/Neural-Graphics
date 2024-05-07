@@ -129,7 +129,6 @@ class SwinEncoder(nn.Module):
     def forward(self, x: torch.Tensor, use_deep_supervision: bool = False, **ignored_kwargs) -> Union[torch.Tensor, List[torch.Tensor]]:
         hs = []
         h = self.embed(x)
-        hs.append(h)
 
         for i, module in enumerate(self.encoder):
             h = module(h)

@@ -32,6 +32,46 @@ def LFD(target, pred, dim=2, type='l1'):
     return lfd
 
 
+class CosineDistance(nn.Module):
+    def __init__(self,
+                 dim: int = 1,
+                 deep_supervision_dim: int = None,
+                 ):
+        super().__init__()
+        self.dim = dim
+        self.deep_supervision_dim = deep_supervision_dim
+
+        if deep_supervision_dim is not None:
+            self.weight = nn.Parameter(torch.ones((1, deep_supervision_dim)), requires_grad=True)
+
+    def forward(self,
+                inputs: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]],
+                targets: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]]
+                ) -> torch.Tensor:
+        if isinstance(inputs, torch.Tensor):
+            inputs = [inputs]
+        if isinstance(targets, torch.Tensor):
+            targets = [targets]
+
+        cos_dists = list()
+
+        for ip, tg in zip(inputs, targets):
+            cos_dist = 1.0 - F.cosine_similarity(ip, tg, dim=self.dim)
+            cos_dist = torch.mean(cos_dist, dim=[i for i in range(1, cos_dist.ndim)]).unsqueeze(1)
+            cos_dists.append(cos_dist)
+
+        if self.deep_supervision_dim is not None:
+            cos_dists = torch.cat(cos_dists, dim=1)
+            cost = F.linear(cos_dists, weight=torch.clamp(self.weight, min=0.0, max=1.0))
+
+        else:
+            cost = cos_dists[0]
+
+        cost = torch.sum(cost) / cost.shape[0]
+
+        return cost
+
+
 class EuclideanDistanceWithCosineDistance(nn.Module):
     def __init__(self,
                  use_square: bool = False,

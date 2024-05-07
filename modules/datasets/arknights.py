@@ -22,7 +22,31 @@ class ArknightsDataset(Dataset):
                  train=True,
                  transform_configs=None,
                  target_transform_configs=None,
+                 color_space: str = 'rgb',
                  ):
+        super().__init__()
+        color_space = color_space.lower()
+        if color_space == 'rgb':
+            self.color_space = cv2.COLOR_BGR2RGB
+        elif color_space == 'rgba':
+            self.color_space = cv2.COLOR_BGR2RGBA
+        elif color_space == 'gray':
+            self.color_space = cv2.COLOR_BGR2GRAY
+        elif color_space == 'xyz':
+            self.color_space = cv2.COLOR_BGR2XYZ
+        elif color_space == 'ycrcb':
+            self.color_space = cv2.COLOR_BGR2YCrCb
+        elif color_space == 'hsv':
+            self.color_space = cv2.COLOR_BGR2HSV
+        elif color_space == 'lab':
+            self.color_space = cv2.COLOR_BGR2LAB
+        elif color_space == 'luv':
+            self.color_space = cv2.COLOR_BGR2LUV
+        elif color_space == 'hls':
+            self.color_space = cv2.COLOR_BGR2HLS
+        elif color_space == 'yuv':
+            self.color_space = cv2.COLOR_BGR2YUV
+
         if transform_configs is not None:
             transform_list = list()
             for transform_config in transform_configs['transforms']:
@@ -58,7 +82,7 @@ class ArknightsDataset(Dataset):
         tag_name = self.tag_names[index]
 
         img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = cv2.cvtColor(img, self.color_space)
         edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
 
         with open(f'{tag_name}', 'r') as f:
@@ -85,8 +109,32 @@ class ArknightsTripletDataset(Dataset):
                  train: bool = True,
                  size: Union[int, List[int], Tuple[int]] = 224,
                  scale: Union[List[float], Tuple[float]] = (0.08, 1.0),
-                 ratio: Union[List[float], Tuple[float]] = (0.75, 1.3333333333333333)
+                 ratio: Union[List[float], Tuple[float]] = (0.75, 1.3333333333333333),
+                 color_space: str = 'rgb',
                  ):
+        super().__init__()
+
+        color_space = color_space.lower()
+        if color_space == 'rgb':
+            self.color_space = cv2.COLOR_BGR2RGB
+        elif color_space == 'rgba':
+            self.color_space = cv2.COLOR_BGR2RGBA
+        elif color_space == 'gray':
+            self.color_space = cv2.COLOR_BGR2GRAY
+        elif color_space == 'xyz':
+            self.color_space = cv2.COLOR_BGR2XYZ
+        elif color_space == 'ycrcb':
+            self.color_space = cv2.COLOR_BGR2YCrCb
+        elif color_space == 'hsv':
+            self.color_space = cv2.COLOR_BGR2HSV
+        elif color_space == 'lab':
+            self.color_space = cv2.COLOR_BGR2LAB
+        elif color_space == 'luv':
+            self.color_space = cv2.COLOR_BGR2LUV
+        elif color_space == 'hls':
+            self.color_space = cv2.COLOR_BGR2HLS
+        elif color_space == 'yuv':
+            self.color_space = cv2.COLOR_BGR2YUV
 
         self.to_tensor = transforms.ToTensor()
 

@@ -28,7 +28,6 @@ class EdgePerceptualLoss(nn.Module):
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, split: str = "train",
                 threshold: float = 0.5) -> torch.Tensor:
-        l1 = F.l1_loss(inputs, targets, reduction='mean') * self.l1_weight
         bdcn = bdcn_loss3(targets, inputs, threshold=threshold) * self.bdcn_weight
         if inputs.shape[1] == 1:
             inputs = inputs.repeat(1, 3, 1, 1)
@@ -39,14 +38,13 @@ class EdgePerceptualLoss(nn.Module):
         p_loss = self.lpips(inputs.contiguous(), targets.contiguous()).mean() * self.perceptual_weight
         eips_weight = 1. / (self.eips(conds.contiguous(), inputs.contiguous()) + 1e-5).mean()
 
-        loss = (p_loss + bdcn + l1) * eips_weight
+        loss = (p_loss + bdcn) * eips_weight
 
         eips = self.eips(conds.detach(), targets.detach())
 
         log = {"{}/loss".format(split): loss.clone().detach(),
                "{}/bdcn_loss".format(split): bdcn.detach(),
                "{}/p_loss".format(split): p_loss.detach(),
-               "{}/l1_loss".format(split): l1.detach(),
                "{}/eips".format(split): eips.detach(),
                }
 

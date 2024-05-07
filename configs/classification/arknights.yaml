@@ -41,15 +41,10 @@ module:
         attn_mode: 'cosine'
 
     criterion_config:
-      target: utils.loss.EuclideanDistanceWithCosineDistance
+      target: utils.loss.CosineDistance
       params:
-        use_square: True
-        use_normalize: True
-        ed_weight: 1.0
-        ed_dim: [2, 3]
-        cd_weight: 1.0
-        cd_dim: 1
-        reduction: 'mean'
+        dim: 1
+        deep_supervision_dim: 5
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -63,7 +58,7 @@ data:
         root: '/local_datasets/arknights'
         train: True
         size: 512
-        scale: [0.5, 1.0]
+        scale: [0.9, 1.0]
         ratio: [1.0, 1.0]
 
     validation:
@@ -72,7 +67,7 @@ data:
         root: '/local_datasets/arknights'
         train: False
         size: 512
-        scale: [ 0.5, 1.0 ]
+        scale: [ 0.9, 1.0 ]
         ratio: [ 1.0, 1.0 ]
 
 
@@ -90,11 +85,19 @@ checkpoints:
     params:
       dirpath: './checkpoints/eips/'
       filename: 'arknights'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+  best_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/eips/'
+      filename: 'arknights'
       monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 400
+  max_epochs: 200
   accumulate_grad_batches: 5
