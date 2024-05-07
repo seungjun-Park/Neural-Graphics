@@ -132,7 +132,11 @@ class EIPS(pl.LightningModule):
         self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
-        opt = torch.optim.AdamW(list(self.net.parameters()),
+        params = list(self.net.parameters())
+        if isinstance(self.criterion, nn.Module):
+            params = params + list(self.criterion.parameters())
+
+        opt = torch.optim.AdamW(params,
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
                                 betas=(0.5, 0.9)

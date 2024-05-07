@@ -60,6 +60,7 @@ data:
         size: 512
         scale: [0.9, 1.0]
         ratio: [1.0, 1.0]
+        color_space: 'rgb'
 
     validation:
       target: modules.datasets.arknights.ArknightsTripletDataset
@@ -69,6 +70,7 @@ data:
         size: 512
         scale: [ 0.9, 1.0 ]
         ratio: [ 1.0, 1.0 ]
+        color_space: 'rgb'
 
 
 logger:
