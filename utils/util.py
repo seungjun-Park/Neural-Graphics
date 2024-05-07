@@ -3,11 +3,13 @@ import importlib
 import torch
 import torch.nn as nn
 import numpy as np
+import torchvision.transforms as tf
 import torch.fft
 from collections import abc
 from functools import partial
 import math
 import warnings
+import cv2
 from itertools import repeat
 from typing import Union, List, Tuple
 
@@ -354,3 +356,36 @@ def zero_module(module):
     for p in module.parameters():
         p.detach().zero_()
     return module
+
+
+def to_rgb(inp: torch.Tensor, color_space: str):
+    color_space = color_space.lower()
+    if color_space == 'bgr':
+        color_space = cv2.COLOR_BGR2RGB
+    elif color_space == 'rgba':
+        color_space = cv2.COLOR_RGBA2RGB
+    elif color_space == 'gray':
+        color_space = cv2.COLOR_GRAY2RGB
+    elif color_space == 'xyz':
+        color_space = cv2.COLOR_XYZ2RGB
+    elif color_space == 'ycrcb':
+        color_space = cv2.COLOR_YCrCb2RGB
+    elif color_space == 'hsv':
+        color_space = cv2.COLOR_HSV2RGB
+    elif color_space == 'lab':
+        color_space = cv2.COLOR_LAB2RGB
+    elif color_space == 'luv':
+        color_space = cv2.COLOR_LUV2RGB
+    elif color_space == 'hls':
+        color_space = cv2.COLOR_HLS2RGB
+    elif color_space == 'yuv':
+        color_space = cv2.COLOR_YUV2RGB
+
+    assert inp.ndim == 3
+
+    inp = tf.ToPILImage()(inp)
+    inp = cv2.cvtColor(inp, color_space)
+    inp = tf.ToTensor()(inp)
+
+    return inp
+

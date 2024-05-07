@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
-from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img
+from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img, to_rgb
 
 
 class EDNSE(pl.LightningModule):
@@ -18,6 +18,7 @@ class EDNSE(pl.LightningModule):
                  ckpt_path: str = None,
                  use_fp16: bool = False,
                  threshold: float = 0.5,
+                 color_space: str = 'rgb',
                  ):
         super().__init__()
 
@@ -26,6 +27,7 @@ class EDNSE(pl.LightningModule):
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
         self.threshold = threshold
+        self.color_space = color_space.lower()
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
@@ -97,7 +99,7 @@ class EDNSE(pl.LightningModule):
     def log_img(self, img, gt, pred):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', img[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/img', to_rgb(img[0], self.color_space), self.global_step, dataformats='CHW')
         tb.add_image(f'{prefix}/gt', gt[0], self.global_step, dataformats='CHW')
         tb.add_image(f'{prefix}/pred', pred[0], self.global_step, dataformats='CHW')
 

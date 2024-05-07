@@ -6,8 +6,8 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    threshold: 0.4
-    # ckpt_path: './checkpoints/ednse/arknights_unet/ednse-v1.ckpt'
+    threshold: 0.9
+    color_space: 'ycrcb'
 
     net_config:
       target: modules.blocks.UNet
@@ -20,8 +20,8 @@ module:
         embed_dim: 16
         attn_res: [ 0, 1, 2, 3, 4]
         num_blocks: 2
-        # num_heads: -1
-        num_head_channels: 16
+        num_heads: 8
+        num_head_channels: -1
         mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
@@ -44,22 +44,17 @@ module:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
         bdcn_weight: 1.1
-        l1_weight: 1.0
-        perceptual_weight: 1.0
-        edge_image_perceptual_weight: 0.05
+        perceptual_weight: 0.9
+        edge_image_perceptual_weight: 0.5
         eips_config:
           lr: 2e-5
           weight_decay: 0.0
           lr_decay_epoch: 100
           use_fp16: False
           log_interval: 10
-          margin: 2.0
-          use_deep_supervision: True
-          mean_img: [ 0.5965, 0.5498, 0.5482 ]
-          std_img: [ 0.2738, 0.2722, 0.2641 ]
-          mean_edge: 0.9085
-          std_edge: 0.2184
-          ckpt_path: './checkpoints/eips/arknights.ckpt'
+          margin: 0.5
+          use_deep_supervision: False
+          ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
 
           net_config:
             target: modules.blocks.SwinEncoder
@@ -72,11 +67,11 @@ module:
               embed_dim: 32
               attn_res: [ 0, 1, 2, 3 ]
               num_blocks: 2
-              num_heads: -1
-              num_head_channels: 16
+              num_heads: 8
+              num_head_channels: -1
               mlp_ratio: 4
-              dropout: 0.0
-              attn_dropout: 0.0
+              dropout: 0.1
+              attn_dropout: 0.1
               drop_path: 0.0
               qkv_bias: True
               bias: True
@@ -89,15 +84,9 @@ module:
               attn_mode: 'cosine'
 
           criterion_config:
-            target: utils.loss.EuclideanDistanceWithCosineDistance
+            target: utils.loss.CosineDistance
             params:
-              use_square: True
-              use_normalize: True
-              ed_weight: 1.0
-              ed_dim: [ 2, 3 ]
-              cd_weight: 1.0
-              cd_dim: 1
-              reduction: 'mean'
+              dim: 1
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
@@ -107,8 +96,9 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights'
+        root: '/local_datasets/arknights100'
         train: True
+        color_space: 'ycrcb'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
@@ -119,8 +109,9 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights'
+        root: '/local_datasets/arknights100'
         train: False
+        color_space: 'ycrcb'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
@@ -140,8 +131,8 @@ checkpoints:
   latest_checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/arknights_unet'
-      filename: 'ednse_last'
+      dirpath: './checkpoints/ednse/'
+      filename: 'arknights_unet_last'
       monitor: 'step'
       mode: 'max'
       save_top_k: 1
@@ -149,9 +140,9 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/arknights_unet'
-      filename: 'ednse_best'
-      monitor: 'val/eips'
+      dirpath: './checkpoints/ednse/'
+      filename: 'arknights_unet_best'
+      monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
