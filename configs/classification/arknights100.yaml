@@ -12,7 +12,6 @@ module:
     std_img: [0.2738, 0.2722, 0.2641]
     mean_edge: 0.9085
     std_edge: 0.2184
-    ckpt_path: './checkpoints/eips/arknights-v1.ckpt'
 
     net_config:
       target: modules.blocks.SwinEncoder
