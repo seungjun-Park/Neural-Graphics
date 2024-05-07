@@ -11,6 +11,7 @@ class EIPS(pl.LightningModule):
     def __init__(self,
                  net_config: dict,
                  criterion_config: dict,
+                 margin: float = 1.0,
                  lr: float = 2e-5,
                  weight_decay: float = 1e-4,
                  lr_decay_epoch: int = 100,
@@ -39,6 +40,7 @@ class EIPS(pl.LightningModule):
 
         self.net = instantiate_from_config(net_config)
         self.criterion = instantiate_from_config(criterion_config)
+        self.loss = nn.TripletMarginWithDistanceLoss(distance_function=self.criterion, margin=margin)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -78,29 +80,56 @@ class EIPS(pl.LightningModule):
         return edge
 
     def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
-        with torch.no_grad():
-            img = self.normalize_img(img)
-            edge = self.normalize_edge(edge)
+        img = self.normalize_img(img)
+        edge = self.normalize_edge(edge)
         feat_img = self.net(img, self.use_deep_supervision)
         feat_edge = self.net(edge, self.use_deep_supervision)
 
         return self.criterion(feat_img, feat_edge)
 
     def training_step(self, batch, batch_idx):
-        img, edge, tag = batch
+        img, edge_pos, edge_neg = batch
 
-        loss = self(img, edge)
+        with torch.no_grad():
+            img = self.normalize_img(img)
+            edge_pos = self.normalize_edge(edge_pos)
+            edge_neg = self.normalize_edge(edge_neg)
+
+        feat_anc = self.net(img, self.use_deep_supervision)
+        feat_pos = self.net(edge_pos, self.use_deep_supervision)
+        feat_neg = self.net(edge_neg, self.use_deep_supervision)
+
+        dist_pos = self.criterion(feat_anc, feat_pos)
+        dist_neg = self.criterion(feat_anc, feat_neg)
+
+        loss = self.loss(feat_anc, feat_pos, feat_neg)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
+        self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
+        self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        img, edge, tag = batch
+        img, edge_pos, edge_neg = batch
 
-        loss = self(img, edge)
+        with torch.no_grad():
+            img = self.normalize_img(img)
+            edge_pos = self.normalize_edge(edge_pos)
+            edge_neg = self.normalize_edge(edge_neg)
+
+        feat_anc = self.net(img, self.use_deep_supervision)
+        feat_pos = self.net(edge_pos, self.use_deep_supervision)
+        feat_neg = self.net(edge_neg, self.use_deep_supervision)
+
+        dist_pos = self.criterion(feat_anc, feat_pos)
+        dist_neg = self.criterion(feat_anc, feat_neg)
+
+        loss = self.loss(feat_anc, feat_pos, feat_neg)
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
+        self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
+        self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
         params = list(self.net.parameters())

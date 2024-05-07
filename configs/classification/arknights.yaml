@@ -6,7 +6,8 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    use_deep_supervision: True
+    margin: 1.0
+    use_deep_supervision: False
     mean_img: [0.5965, 0.5498, 0.5482]
     std_img: [0.2738, 0.2722, 0.2641]
     mean_edge: 0.9085
@@ -31,7 +32,7 @@ module:
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 32
+        num_groups: 16
         act: 'gelu'
         use_conv: True
         pool_type: 'max'
@@ -43,7 +44,7 @@ module:
       target: utils.loss.CosineDistance
       params:
         dim: 1
-        deep_supervision_dim: 5
+        # deep_supervision_dim: 5
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -52,30 +53,24 @@ data:
     batch_size: 2
     wrap: True
     train:
-      target: modules.datasets.arknights.ArknightsDataset
+      target: modules.datasets.arknights.ArknightsTripletDataset
       params:
         root: '/local_datasets/arknights'
         train: True
+        size: 512
+        scale: [0.9, 1.0]
+        ratio: [1.0, 1.0]
         color_space: 'rgb'
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 512, 512 ]
 
     validation:
-      target: modules.datasets.arknights.ArknightsDataset
+      target: modules.datasets.arknights.ArknightsTripletDataset
       params:
         root: '/local_datasets/arknights'
         train: False
+        size: 512
+        scale: [ 0.9, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 512, 512 ]
 
 
 logger:
@@ -106,5 +101,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 200
+  max_epochs: 100
   accumulate_grad_batches: 5
