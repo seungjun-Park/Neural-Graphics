@@ -6,7 +6,7 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    threshold: 0.9
+    threshold: 0.3
     color_space: 'ycrcb'
 
     net_config:
