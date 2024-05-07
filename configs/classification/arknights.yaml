@@ -94,7 +94,7 @@ checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
       dirpath: './checkpoints/eips/'
-      filename: 'arknights'
+      filename: 'arknights_best'
       monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
