@@ -67,7 +67,7 @@ class CosineDistance(nn.Module):
         else:
             cost = cos_dists[0]
 
-        cost = torch.sum(cost) / cost.shape[0]
+        cost = torch.mean(cost)
 
         return cost
 
