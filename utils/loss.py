@@ -190,7 +190,7 @@ def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
 
 
 def bdcn_loss3(inputs: torch.Tensor, label: torch.Tensor, threshold: float = 0.5):
-    label = torch.where(label > threshold, 1.0, 0.0)
+    label = torch.where(label > 0.7, 1.0, 0.0)
     inputs = torch.where(inputs <= threshold, 0.0, inputs)
     cost = F.binary_cross_entropy(inputs, label, reduction='none')
 
