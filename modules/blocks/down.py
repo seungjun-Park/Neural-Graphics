@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, Tuple, List
 
-from utils import conv_nd, pool_nd
+from utils import conv_nd, pool_nd, group_norm
 
 
 class DownBlock(nn.Module):
@@ -11,16 +11,26 @@ class DownBlock(nn.Module):
                  in_channels: int = None,
                  scale_factor: Union[int, float] = 2.0,
                  dim: int = 2,
-                 use_conv: bool = False,
-                 pool_type: str = 'max',
+                 pool_type: str = 'conv',
                  ):
         super().__init__()
 
         scale_factor = int(scale_factor)
 
-        if use_conv:
+        pool_type = pool_type.lower()
+
+        if pool_type == 'conv':
             assert in_channels is not None
-            self.pooling = conv_nd(dim, in_channels, in_channels, kernel_size=scale_factor, stride=scale_factor, bias=False)
+            self.pooling = nn.Sequential(
+                conv_nd(dim,
+                        in_channels,
+                        in_channels,
+                        kernel_size=scale_factor,
+                        stride=scale_factor,
+                        bias=False,
+                        groups=in_channels),
+                group_norm(in_channels, in_channels)  # instance norm
+            )
 
         else:
             self.pooling = pool_nd(pool_type, dim=dim, kernel_size=scale_factor, stride=scale_factor)

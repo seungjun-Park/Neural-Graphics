@@ -7,7 +7,7 @@ module:
     use_fp16: False
     log_interval: 10
     threshold: 0.3
-    color_space: 'lab'
+    color_space: 'hsv'
     ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
 
     net_config:
@@ -17,7 +17,7 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 64, 96, 128, 160 ]
+        hidden_dims: [ 64, 128, 256, 512 ]
         embed_dim: 32
         attn_res: [ 0, 1, 2, 3 ]
         num_blocks: 2
@@ -32,7 +32,7 @@ module:
         num_groups: 32
         act: 'gelu'
         use_conv: True
-        pool_type: 'max'
+        pool_type: 'conv'
         mode: 'nearest'
         dim: 2
         use_checkpoint: True
@@ -102,9 +102,9 @@ data:
         root: '/local_datasets/arknights100'
         train: True
         size: 512
-        scale: [ 0.5, 1.0 ]
+        scale: [ 0.25, 1.0 ]
         ratio: [ 1.0, 1.0 ]
-        color_space: 'lab'
+        color_space: 'hsv'
 
     validation:
       target: modules.datasets.arknights.ArknightsDataset
@@ -112,9 +112,9 @@ data:
         root: '/local_datasets/arknights100'
         train: False
         size: 512
-        scale: [ 0.5, 1.0 ]
+        scale: [ 0.25, 1.0 ]
         ratio: [ 1.0, 1.0 ]
-        color_space: 'lab'
+        color_space: 'hsv'
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger

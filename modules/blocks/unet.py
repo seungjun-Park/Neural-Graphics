@@ -28,7 +28,7 @@ class UNet(nn.Module):
                  num_groups: int = 32,
                  act: str = 'relu',
                  use_conv: bool = True,
-                 pool_type: str = 'max',
+                 pool_type: str = 'conv',
                  mode: str = 'nearest',
                  dim: int = 2,
                  use_checkpoint: bool = True,
@@ -110,8 +110,7 @@ class UNet(nn.Module):
                 self.encoder.append(nn.Sequential(*down))
 
             if i != len(self.hidden_dims) - 1:
-                self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
-                skip_dims.append(in_ch)
+                self.encoder.append(DownBlock(in_ch, dim=dim, pool_type=pool_type))
                 cur_res //= 2
 
         for i in range(num_blocks):
@@ -126,8 +125,6 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
-                        use_lpf_conv=use_lpf_conv,
-                        perception_level=perception_level,
                     ),
                     *[
                         WindowAttnBlock(
@@ -158,16 +155,14 @@ class UNet(nn.Module):
                 skip_dim = skip_dims.pop()
                 up.append(
                     ResidualBlock(
-                        in_channels=in_ch + skip_dim if not use_addition_skip else in_ch,
+                        in_channels=in_ch + skip_dim,
                         out_channels=out_ch,
                         dropout=dropout,
                         act=act,
                         num_groups=num_groups,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
-                        use_cond=use_conv,
-                        use_lpf_conv=use_lpf_conv,
-                        perception_level=perception_level,
+                        use_conv=use_conv,
                     )
                 )
 
@@ -198,51 +193,42 @@ class UNet(nn.Module):
                 self.decoder.append(nn.Sequential(*up))
 
             if i != 0:
-                skip_dim = skip_dims.pop()
                 self.decoder.append(
-                    UpBlock(in_ch + skip_dim if not use_addition_skip else in_ch,
-                            out_channels=in_ch,
+                    UpBlock(in_ch,
                             dim=dim,
                             mode=mode,
-                            use_conv=use_conv
                     )
                 )
                 cur_res = int(cur_res * 2)
 
-        skip_dim = skip_dims.pop()
         self.out = nn.Sequential(
             conv_nd(
                 dim,
-                in_ch + skip_dim if not use_addition_skip else in_ch,
+                in_ch,
                 out_channels,
-                kernel_size=3,
+                kernel_size=1,
                 stride=1,
-                padding=1
+                bias=False,
             )
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = []
         h = self.embed(x)
-        hs.append(h)
-        for i, block in enumerate(self.encoder):
+
+        for i, block in enumerate(self.encoder, start=1):
             h = block(h)
-            hs.append(h)
+            if i % (self.num_blocks + 1) != 0:
+                hs.append(h)
 
         for i, block in enumerate(self.middle):
             h = block(h)
 
-        for i, block in enumerate(self.decoder):
-            if self.use_addition_skip:
-                h = (h + hs.pop()) * 0.5
-            else:
+        for i, block in enumerate(self.decoder, start=1):
+            if i % (self.num_blocks + 1) != 0:
                 h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
-        if self.use_addition_skip:
-            h = (h + hs.pop()) * 0.5
-        else:
-            h = torch.cat([h, hs.pop()], dim=1)
         h = self.out(h)
 
         return h

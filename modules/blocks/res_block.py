@@ -18,8 +18,6 @@ class ResidualBlock(nn.Module):
                  num_groups: int = 32,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
-                 use_lpf_conv: bool = False,
-                 perception_level: int = 2,
                  **ignored_kwargs,
                  ):
         super().__init__()
@@ -30,17 +28,11 @@ class ResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
-        if use_lpf_conv:
-            self.conv1 = LargePerceptionFieldConv(in_channels=in_channels, out_channels=out_channels, dim=dim,
-                                                  perception_level=perception_level)
-            self.conv2 = LargePerceptionFieldConv(in_channels=out_channels, out_channels=out_channels, dim=dim,
-                                                  perception_level=perception_level)
-        else:
-            self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
-            self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
+        self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
+        self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
 
-        self.norm1 = group_norm(out_channels, num_groups=num_groups)
-        self.norm2 = group_norm(out_channels, num_groups=num_groups)
+        self.norm1 = group_norm(out_channels, num_groups=out_channels)
+        self.norm2 = group_norm(out_channels, num_groups=out_channels)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
 
