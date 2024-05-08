@@ -19,7 +19,7 @@ module:
         hidden_dims: [ 64, 128, 256, 512 ]
         embed_dim: 32
         attn_res: [ 0, 1, 2, 3 ]
-        num_blocks: 2
+        num_blocks: 1
         num_heads: 8
         num_head_channels: -1
         mlp_ratio: 4
@@ -32,7 +32,7 @@ module:
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
-        mode: 'nearest'
+        mode: 'bilinear'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
