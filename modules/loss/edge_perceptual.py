@@ -37,8 +37,6 @@ class EdgePerceptualLoss(nn.Module):
         if targets.shape[1] == 1:
             targets = targets.repeat(1, 3, 1, 1)
 
-        l1 = torch.mean(l1, dim=[1, 2, 3])
-        l1 = l1.mean()
         p_loss = self.lpips(inputs.contiguous(), targets.contiguous()).mean() * self.lpips_weight
 
         loss = bdcn + l1 + p_loss
