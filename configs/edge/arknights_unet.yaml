@@ -7,7 +7,7 @@ module:
     use_fp16: False
     log_interval: 10
     threshold: 0.3
-    color_space: 'hsv'
+    color_space: 'lab'
 
     net_config:
       target: modules.blocks.UNet
@@ -37,8 +37,6 @@ module:
         use_checkpoint: True
         attn_mode: 'cosine'
         use_addition_skip: False
-        use_lpf_conv: False
-        perception_level: 2
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
@@ -101,9 +99,9 @@ data:
         root: '/local_datasets/arknights100'
         train: True
         size: 512
-        scale: [ 0.25, 1.0 ]
+        scale: [ 0.5, 1.0 ]
         ratio: [ 1.0, 1.0 ]
-        color_space: 'hsv'
+        color_space: 'lab'
 
     validation:
       target: modules.datasets.arknights.ArknightsDataset
@@ -111,9 +109,9 @@ data:
         root: '/local_datasets/arknights100'
         train: False
         size: 512
-        scale: [ 0.25, 1.0 ]
+        scale: [ 0.5, 1.0 ]
         ratio: [ 1.0, 1.0 ]
-        color_space: 'hsv'
+        color_space: 'lab'
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
