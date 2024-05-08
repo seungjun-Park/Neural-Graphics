@@ -143,7 +143,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/'
       filename: 'arknights_unet_best'
-      monitor: 'val/eips_loss'
+      monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
