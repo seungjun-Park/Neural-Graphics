@@ -20,8 +20,9 @@ class ArknightsDataset(Dataset):
     def __init__(self,
                  root,
                  train=True,
-                 transform_configs=None,
-                 target_transform_configs=None,
+                 size: Union[int, List[int], Tuple[int]] = 224,
+                 scale: Union[List[float], Tuple[float]] = (0.08, 1.0),
+                 ratio: Union[List[float], Tuple[float]] = (0.75, 1.3333333333333333),
                  color_space: str = 'rgb',
                  ):
         super().__init__()
@@ -47,23 +48,11 @@ class ArknightsDataset(Dataset):
         elif color_space == 'yuv':
             self.color_space = cv2.COLOR_BGR2YUV
 
-        if transform_configs is not None:
-            transform_list = list()
-            for transform_config in transform_configs['transforms']:
-                transform_list.append(instantiate_from_config(transform_config))
-            self.transform = transforms.Compose(transform_list)
+        self.to_tensor = transforms.ToTensor()
 
-        else:
-            self.transform = None
-
-        if target_transform_configs is not None:
-            target_transform_list = list()
-            for target_transform_config in target_transform_configs['transforms']:
-                target_transform_list.append(instantiate_from_config(target_transform_config))
-            self.target_transform = transforms.Compose(target_transform_list)
-
-        else:
-            self.target_transform = None
+        self.size = list(to_2tuple(size))
+        self.scale = list(to_2tuple(scale))
+        self.ratio = list(to_2tuple(ratio))
 
         if train:
             root = os.path.join(root, 'train')
@@ -88,12 +77,13 @@ class ArknightsDataset(Dataset):
         with open(f'{tag_name}', 'r') as f:
             tag = json.load(f)
 
-        if self.transform is not None:
-            img = self.transform(img)
-            edge = self.transform(edge)
+        img = self.to_tensor(img)
+        edge = self.to_tensor(edge)
 
-        if self.target_transform is not None:
-            tag = self.target_transform(tag)
+        i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
+
+        img = tf.resized_crop(img, i, j, h, w, size=self.size)
+        edge = tf.resized_crop(edge, i, j, h, w, size=self.size)
 
         tag = torch.zeros(img.shape)
 

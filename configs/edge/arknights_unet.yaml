@@ -6,7 +6,7 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    threshold: 0.3
+    threshold: 0.5
     color_space: 'lab'
 
     net_config:
@@ -23,8 +23,8 @@ module:
         num_heads: 8
         num_head_channels: -1
         mlp_ratio: 4
-        dropout: 0.05
-        attn_dropout: 0.05
+        dropout: 0.0
+        attn_dropout: 0.0
         drop_path: 0.0
         qkv_bias: True
         bias: True
@@ -43,7 +43,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        bdcn_weight: 1.0
+        bdcn_weight: 0.7
         l1_weight: 1.0
         lpips_weight: 1.0
         eips_weight: 0.03
@@ -88,6 +88,7 @@ module:
 #            target: utils.loss.CosineDistance
 #            params:
 #              dim: 1
+
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
@@ -99,26 +100,20 @@ data:
       params:
         root: '/local_datasets/arknights100'
         train: True
+        size: 512
+        scale: [ 0.5, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
         color_space: 'lab'
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 512, 512 ]
 
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
         root: '/local_datasets/arknights100'
         train: False
+        size: 512
+        scale: [ 0.5, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
         color_space: 'lab'
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 512, 512 ]
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
@@ -149,5 +144,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 100
+  max_epochs: 400
   accumulate_grad_batches: 5
