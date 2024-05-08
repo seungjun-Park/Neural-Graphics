@@ -10,7 +10,7 @@ from models.classification import EIPS
 
 class EdgePerceptualLoss(nn.Module):
     def __init__(self,
-                 eips_config,
+                 eips_config: dict = None,
                  bdcn_weight: float = 1.1,
                  l1_weight: float = 1.0,
                  lpips_weight: float = 1.0,
@@ -24,7 +24,7 @@ class EdgePerceptualLoss(nn.Module):
         self.l1_weight = l1_weight
 
         self.lpips = LPIPS().eval()
-        self.eips = EIPS(**eips_config).eval()
+        # self.eips = EIPS(**eips_config).eval()
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, split: str = "train",
                 threshold: float = 0.5) -> torch.Tensor:
@@ -37,15 +37,16 @@ class EdgePerceptualLoss(nn.Module):
             targets = targets.repeat(1, 3, 1, 1)
 
         p_loss = self.lpips(inputs.contiguous(), targets.contiguous()).mean() * self.lpips_weight
-        eips_loss = self.eips(conds.contiguous(), targets.contiguous()).mean()
+        # eips_loss = self.eips(conds.contiguous(), targets.contiguous()).mean()
 
-        loss = p_loss + eips_loss * self.eips_weight + bdcn + l1
+        # loss = p_loss + eips_loss * self.eips_weight + bdcn + l1
+        loss = p_loss + bdcn + l1
 
         log = {"{}/loss".format(split): loss.clone().detach(),
                "{}/bdcn_loss".format(split): bdcn.detach(),
                "{}/l1_loss".format(split): l1.detach(),
                "{}/p_loss".format(split): p_loss.detach(),
-               "{}/eips_loss".format(split): eips_loss.detach(),
+               # "{}/eips_loss".format(split): eips_loss.detach(),
                }
 
         return loss, log

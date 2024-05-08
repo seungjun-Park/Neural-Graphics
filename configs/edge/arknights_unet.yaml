@@ -7,7 +7,7 @@ module:
     use_fp16: False
     log_interval: 10
     threshold: 0.3
-    color_space: 'ycrcb'
+    color_space: 'lab'
 
     net_config:
       target: modules.blocks.UNet
@@ -18,13 +18,13 @@ module:
         out_channels: 1
         hidden_dims: [ 64, 96, 128, 160 ]
         embed_dim: 32
-        attn_res: [ 0, 1, 2, 3, ]
+        attn_res: [ 0, 1, 2, 3 ]
         num_blocks: 2
         num_heads: 8
         num_head_channels: -1
         mlp_ratio: 4
-        dropout: 0.1
-        attn_dropout: 0.1
+        dropout: 0.05
+        attn_dropout: 0.05
         drop_path: 0.0
         qkv_bias: True
         bias: True
@@ -43,51 +43,51 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        bdcn_weight: 1.1
+        bdcn_weight: 1.0
         l1_weight: 1.0
         lpips_weight: 1.0
         eips_weight: 0.03
-        eips_config:
-          lr: 2e-5
-          weight_decay: 0.0
-          lr_decay_epoch: 100
-          use_fp16: False
-          log_interval: 10
-          margin: 0.5
-          use_deep_supervision: False
-          ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
-
-          net_config:
-            target: modules.blocks.SwinEncoder
-            params:
-              in_channels: 3
-              in_res: 512
-              window_size: 8
-              patch_size: 4
-              hidden_dims: [ 64, 128, 256, 256 ]
-              embed_dim: 32
-              attn_res: [ 0, 1, 2, 3 ]
-              num_blocks: 2
-              num_heads: 8
-              num_head_channels: -1
-              mlp_ratio: 4
-              dropout: 0.1
-              attn_dropout: 0.1
-              drop_path: 0.0
-              qkv_bias: True
-              bias: True
-              num_groups: 32
-              act: 'gelu'
-              use_conv: True
-              pool_type: 'max'
-              dim: 2
-              use_checkpoint: True
-              attn_mode: 'cosine'
-
-          criterion_config:
-            target: utils.loss.CosineDistance
-            params:
-              dim: 1
+#        eips_config:
+#          lr: 2e-5
+#          weight_decay: 0.0
+#          lr_decay_epoch: 100
+#          use_fp16: False
+#          log_interval: 10
+#          margin: 0.5
+#          use_deep_supervision: False
+#          ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
+#
+#          net_config:
+#            target: modules.blocks.SwinEncoder
+#            params:
+#              in_channels: 3
+#              in_res: 512
+#              window_size: 8
+#              patch_size: 4
+#              hidden_dims: [ 64, 128, 256, 256 ]
+#              embed_dim: 32
+#              attn_res: [ 0, 1, 2, 3 ]
+#              num_blocks: 2
+#              num_heads: 8
+#              num_head_channels: -1
+#              mlp_ratio: 4
+#              dropout: 0.1
+#              attn_dropout: 0.1
+#              drop_path: 0.0
+#              qkv_bias: True
+#              bias: True
+#              num_groups: 32
+#              act: 'gelu'
+#              use_conv: True
+#              pool_type: 'max'
+#              dim: 2
+#              use_checkpoint: True
+#              attn_mode: 'cosine'
+#
+#          criterion_config:
+#            target: utils.loss.CosineDistance
+#            params:
+#              dim: 1
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
@@ -99,7 +99,7 @@ data:
       params:
         root: '/local_datasets/arknights100'
         train: True
-        color_space: 'ycrcb'
+        color_space: 'lab'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor
@@ -112,7 +112,7 @@ data:
       params:
         root: '/local_datasets/arknights100'
         train: False
-        color_space: 'ycrcb'
+        color_space: 'lab'
         transform_configs:
           transforms:
             - target: torchvision.transforms.transforms.ToTensor

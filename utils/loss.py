@@ -193,11 +193,11 @@ def bdcn_loss3(inputs: torch.Tensor, label: torch.Tensor, threshold: float = 0.5
     label = label.long()
     mask = label.float()
     inputs = torch.where(inputs <= threshold, 0.0, inputs)
-    num_positive = torch.sum((mask > threshold).float()).float()  # >0.1
-    num_negative = torch.sum((mask <= threshold).float()).float()  # <= 0.1
+    num_positive = torch.sum((mask > 0.0).float()).float()  # >0.1
+    num_negative = torch.sum((mask <= 0.0).float()).float()  # <= 0.1
 
-    mask[mask > threshold] = 1.0 * num_negative / (num_positive + num_negative)  # 0.1
-    mask[mask <= threshold] = 1.1 * num_positive / (num_positive + num_negative)  # before mask[mask <= 0.1]
+    mask[mask > 0.0] = 1.0 * num_negative / (num_positive + num_negative)  # 0.1
+    mask[mask <= 0.0] = 1.1 * num_positive / (num_positive + num_negative)  # before mask[mask <= 0.1]
     cost = torch.nn.BCELoss(mask, reduction='none')(inputs, label.float())
 
     cost = torch.mean(cost.float().mean((1, 2, 3)))  # before sum

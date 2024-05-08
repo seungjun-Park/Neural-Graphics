@@ -360,7 +360,9 @@ def zero_module(module):
 
 def to_rgb(inp: torch.Tensor, color_space: str):
     color_space = color_space.lower()
-    if color_space == 'bgr':
+    if color_space == 'rgb':
+        return inp
+    elif color_space == 'bgr':
         color_space = cv2.COLOR_BGR2RGB
     elif color_space == 'rgba':
         color_space = cv2.COLOR_RGBA2RGB
