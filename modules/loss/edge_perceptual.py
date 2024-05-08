@@ -29,24 +29,26 @@ class EdgePerceptualLoss(nn.Module):
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor, conds: torch.Tensor, split: str = "train",
                 threshold: float = 0.5) -> torch.Tensor:
         bdcn = bdcn_loss3(targets, inputs, threshold=threshold) * self.bdcn_weight
-        l1 = F.l1_loss(inputs, targets, reduction='mean') * self.l1_weight
+        l1 = torch.abs(inputs.contiguous() - targets.contiguous()) * self.l1_weight
+
         if inputs.shape[1] == 1:
             inputs = inputs.repeat(1, 3, 1, 1)
 
         if targets.shape[1] == 1:
             targets = targets.repeat(1, 3, 1, 1)
 
-        p_loss = self.lpips(inputs.contiguous(), targets.contiguous()).mean() * self.lpips_weight
-        # eips_loss = self.eips(conds.contiguous(), targets.contiguous()).mean()
+        p_loss = self.lpips(inputs.contiguous(), targets.contiguous()) * self.lpips_weight
 
-        # loss = p_loss + eips_loss * self.eips_weight + bdcn + l1
-        loss = p_loss + bdcn + l1
+        rec_loss = l1 + p_loss
+        rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+
+        loss = bdcn + rec_loss
 
         log = {"{}/loss".format(split): loss.clone().detach(),
-               "{}/bdcn_loss".format(split): bdcn.detach(),
-               "{}/l1_loss".format(split): l1.detach(),
-               "{}/p_loss".format(split): p_loss.detach(),
-               # "{}/eips_loss".format(split): eips_loss.detach(),
+               "{}/bdcn_loss".format(split): bdcn.detach().mean(),
+               "{}/l1_loss".format(split): l1.detach().mean(),
+               "{}/p_loss".format(split): p_loss.detach().mean(),
+               "{}/rec_loss".format(split): rec_loss.detach().mean(),
                }
 
         return loss, log
