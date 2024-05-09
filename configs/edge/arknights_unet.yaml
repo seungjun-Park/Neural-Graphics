@@ -6,8 +6,10 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    threshold: 0.3
-    color_space: 'lab'
+    threshold: 0.8
+    color_space: 'rgb'
+    ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
+    ignore_keys: []
 
     net_config:
       target: modules.blocks.UNet
@@ -16,23 +18,23 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 64, 128, 256, 512 ]
-        embed_dim: 32
-        attn_res: [ 0, 1, 2, 3 ]
-        num_blocks: 1
-        num_heads: 8
-        num_head_channels: -1
+        hidden_dims: [ 32, 64, 128 ]
+        embed_dim: 16
+        attn_res: [ 0, 1, 2 ]
+        num_blocks: 2
+        num_heads: -1
+        num_head_channels: 8
         mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 32
+        num_groups: 16
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
-        mode: 'bilinear'
+        mode: 'nearest'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
@@ -41,51 +43,9 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        bdcn_weight: 1.0
-        l1_weight: 1.0
+        existence_weight: 1.0
+        strength_weight: 1.0
         lpips_weight: 1.0
-        eips_weight: 0.03
-#        eips_config:
-#          lr: 2e-5
-#          weight_decay: 0.0
-#          lr_decay_epoch: 100
-#          use_fp16: False
-#          log_interval: 10
-#          margin: 0.5
-#          use_deep_supervision: False
-#          ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
-#
-#          net_config:
-#            target: modules.blocks.SwinEncoder
-#            params:
-#              in_channels: 3
-#              in_res: 512
-#              window_size: 8
-#              patch_size: 4
-#              hidden_dims: [ 64, 128, 256, 256 ]
-#              embed_dim: 32
-#              attn_res: [ 0, 1, 2, 3 ]
-#              num_blocks: 2
-#              num_heads: 8
-#              num_head_channels: -1
-#              mlp_ratio: 4
-#              dropout: 0.1
-#              attn_dropout: 0.1
-#              drop_path: 0.0
-#              qkv_bias: True
-#              bias: True
-#              num_groups: 32
-#              act: 'gelu'
-#              use_conv: True
-#              pool_type: 'max'
-#              dim: 2
-#              use_checkpoint: True
-#              attn_mode: 'cosine'
-#
-#          criterion_config:
-#            target: utils.loss.CosineDistance
-#            params:
-#              dim: 1
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -99,9 +59,9 @@ data:
         root: '/local_datasets/arknights100'
         train: True
         size: 512
-        scale: [ 0.5, 1.0 ]
+        scale: [ 0.9, 1.0 ]
         ratio: [ 1.0, 1.0 ]
-        color_space: 'lab'
+        color_space: 'rgb'
 
     validation:
       target: modules.datasets.arknights.ArknightsDataset
@@ -109,9 +69,9 @@ data:
         root: '/local_datasets/arknights100'
         train: False
         size: 512
-        scale: [ 0.5, 1.0 ]
+        scale: [ 0.9, 1.0 ]
         ratio: [ 1.0, 1.0 ]
-        color_space: 'lab'
+        color_space: 'rgb'
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
@@ -142,5 +102,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 400
+  max_epochs: 200
   accumulate_grad_batches: 5

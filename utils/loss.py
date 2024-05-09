@@ -189,14 +189,34 @@ def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
     return cos_dist
 
 
-def bdcn_loss3(inputs: torch.Tensor, label: torch.Tensor, threshold: float = 0.5):
-    label = label.long()
-    inputs = torch.where(inputs <= threshold, 0.0, 1.0)
-    cost = F.binary_cross_entropy(inputs, label.float(), reduction='none')
+def strength_loss(preds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    mask = (labels.long() == 0)  # 1 or 0
+    preds = preds * mask
 
-    cost = torch.sum(cost) / cost.shape[0]
+    cost = F.l1_loss(preds, labels, reduction='none')
+    cost = torch.mean(cost.mean(dim=[1, 2, 3]))
 
     return cost
+
+
+def existence_loss(preds: torch.Tensor, labels: torch.Tensor, threshold: float = 0.8) -> torch.Tensor:
+    labels = torch.where(labels <= threshold, 0.0, 1.0)
+    preds = torch.where(preds <= threshold, 0.0, 1.0)
+    cost = F.binary_cross_entropy(preds, labels, reduction='none')
+
+    cost = torch.mean(cost.mean(dim=[1, 2, 3]))
+
+    return cost
+
+
+def smoothing_loss(preds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    filter = torch.ones((1, 1, 3, 3)).to(preds.device)
+    filter.requires_grad = False
+
+    preds_smoothing = F.conv2d(preds, weight=filter, bias=None, stride=1, padding=1)
+    labels_smoothing = F.conv2d(labels, weight=labels, bias=None, stride=1, padding=1)
+
+    return
 
 
 def bdcn_loss2(inputs, targets):
@@ -212,6 +232,7 @@ def bdcn_loss2(inputs, targets):
 
     cost = torch.mean(cost.float().mean((1, 2, 3)))  # before sum
     return cost
+
 
 # ------------ cats losses ----------
 
@@ -262,6 +283,9 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
     # tracingLoss
     cost_weight, tex_factor, bdr_factor = weights
     balanced_w = 1.1
+    label = label.float()
+    prediction = prediction.float()
+
     with torch.no_grad():
         mask = label.clone()
 
@@ -272,7 +296,7 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
         mask[mask == 0] = balanced_w * (1 - beta)
         mask[mask == 2] = 0
 
-    cost = torch.nn.functional.binary_cross_entropy_with_logits(prediction, label, weight=mask, reduce=False)
+    cost = torch.nn.functional.binary_cross_entropy(prediction, label, weight=mask, reduce=False)
     label_w = (label != 0).to(prediction.dtype)
 
     textcost = textureloss(prediction, label_w, mask_radius=4)

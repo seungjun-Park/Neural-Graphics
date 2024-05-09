@@ -85,6 +85,14 @@ class ArknightsDataset(Dataset):
         img = tf.resized_crop(img, i, j, h, w, size=self.size)
         edge = tf.resized_crop(edge, i, j, h, w, size=self.size)
 
+        if random.random() > 0.5:
+            img = tf.hflip(img)
+            edge = tf.hflip(edge)
+
+        if random.random() > 0.5:
+            img = tf.vflip(img)
+            edge = tf.vflip(edge)
+
         tag = torch.zeros(img.shape)
 
         return img, edge, tag

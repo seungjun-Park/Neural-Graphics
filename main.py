@@ -1,5 +1,6 @@
 import argparse
 import glob
+import os.path
 import random
 
 import cv2
@@ -86,7 +87,7 @@ def test():
     with torch.no_grad():
         for i, name in enumerate(file_names):
             img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
             img = torchvision.transforms.transforms.Resize([512, 512])(img)
             img = img.unsqueeze(0)
@@ -97,9 +98,11 @@ def test():
             img = torchvision.transforms.ToPILImage()(img)
             # first, second = name.split('imgs')
             p1, p2 = name.rsplit('images', 1)
-            img.save(f'{p1}/edges_v2/{p2}.png', 'png')
+            if not os.path.isdir(f'{p1}/edges_v3'):
+                os.mkdir(f'{p1}/edges_v3')
+            img.save(f'{p1}/edges_v3/{p2}.png', 'png')
 
 
 if __name__ == '__main__':
-    main()
-    # test()
+    # main()
+    test()

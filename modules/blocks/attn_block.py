@@ -396,7 +396,7 @@ class WindowAttnBlock(nn.Module):
         else:
             attn_mask = None
 
-        self.register_buffer("attn_mask", attn_mask)
+        self.register_buffer("attn_mask", attn_mask.detach())
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
@@ -411,6 +411,7 @@ class WindowAttnBlock(nn.Module):
         x = x.reshape(b, c, -1).permute(0, 2, 1) # B, C, H, W => B, N(H * W), C
 
         shortcut = x
+        x = self.norm1(x)
         x = x.reshape(b, h, w, c)
 
         # cyclic shift
@@ -437,10 +438,10 @@ class WindowAttnBlock(nn.Module):
             x = shifted_x
 
         x = x.reshape(b, h * w, c)
-        x = shortcut + self.drop_path(self.norm1(x))
+        x = shortcut + self.drop_path(x)
 
         # FFN
-        x = x + self.drop_path(self.norm2(self.mlp(x)))
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
 
         x = x.permute(0, 2, 1).reshape(b, -1, h, w)
 

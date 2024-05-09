@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, List, Tuple
 
-from utils import conv_nd, group_norm
+from utils import conv_nd
 
 
 class UpBlock(nn.Module):
@@ -19,8 +19,7 @@ class UpBlock(nn.Module):
         self.mode = mode.lower()
         self.scale_factor = int(scale_factor)
 
-        self.up = nn.Sequential(
-            conv_nd(
+        self.up = conv_nd(
                 dim,
                 in_channels,
                 in_channels,
@@ -29,9 +28,7 @@ class UpBlock(nn.Module):
                 padding=1,
                 groups=in_channels,
                 bias=False,
-            ),
-            group_norm(in_channels, in_channels)
-        )
+            )
 
     def forward(self, x):
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)

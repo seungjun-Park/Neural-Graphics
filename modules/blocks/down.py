@@ -29,7 +29,6 @@ class DownBlock(nn.Module):
                         stride=scale_factor,
                         bias=False,
                         groups=in_channels),
-                group_norm(in_channels, in_channels)  # instance norm
             )
 
         else:
