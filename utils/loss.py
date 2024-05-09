@@ -214,7 +214,7 @@ def smoothing_loss(preds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     filter.requires_grad = False
 
     preds_smoothing = F.conv2d(preds, weight=filter, bias=None, stride=1, padding=1)
-    labels_smoothing = F.conv2d(labels, weight=labels, bias=None, stride=1, padding=1)
+    labels_smoothing = F.conv2d(labels, weight=filter, bias=None, stride=1, padding=1)
 
     cost = F.l1_loss(preds_smoothing, labels_smoothing, reduction='none')
     cost = torch.mean(cost.mean(dim=[1, 2, 3]))
