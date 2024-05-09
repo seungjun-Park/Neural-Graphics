@@ -72,26 +72,26 @@ class EDNSE(pl.LightningModule):
         return F.sigmoid(self.net(x))
 
     def training_step(self, batch, batch_idx) -> Optional[Any]:
-        img, gt, cond = batch
+        img, label, cond = batch
 
         pred = self(img)
 
-        loss, loss_log = self.loss(gt, pred, img, split='train', threshold=self.threshold)
+        loss, loss_log = self.loss(pred, label, split='train', threshold=self.threshold)
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, gt, pred)
+            self.log_img(img, label, pred)
 
         self.log_dict(loss_log)
 
         return loss
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
-        img, gt, cond = batch
+        img, label, cond = batch
 
         pred = self(img)
-        loss, loss_log = self.loss(gt, pred, img, split='val', threshold=self.threshold)
+        loss, loss_log = self.loss(pred, label, split='val', threshold=self.threshold)
 
-        self.log_img(img, gt, pred)
+        self.log_img(img, label, pred)
         self.log_dict(loss_log)
 
         return self.log_dict
