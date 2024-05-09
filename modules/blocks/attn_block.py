@@ -396,7 +396,7 @@ class WindowAttnBlock(nn.Module):
         else:
             attn_mask = None
 
-        self.register_buffer("attn_mask", attn_mask.detach())
+        self.register_buffer("attn_mask", attn_mask)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
