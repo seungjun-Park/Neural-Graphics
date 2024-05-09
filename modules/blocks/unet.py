@@ -208,6 +208,7 @@ class UNet(nn.Module):
                 out_channels,
                 kernel_size=3,
                 stride=1,
+                padding=1,
             )
         )
 

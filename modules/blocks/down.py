@@ -21,15 +21,14 @@ class DownBlock(nn.Module):
 
         if pool_type == 'conv':
             assert in_channels is not None
-            self.pooling = nn.Sequential(
-                conv_nd(dim,
-                        in_channels,
-                        in_channels,
-                        kernel_size=scale_factor,
-                        stride=scale_factor,
-                        bias=False,
-                        groups=in_channels),
-            )
+            self.pooling = conv_nd(dim,
+                                   in_channels,
+                                   in_channels,
+                                   kernel_size=scale_factor,
+                                   stride=scale_factor,
+                                   bias=False,
+                                   groups=in_channels,
+                                   padding=0)
 
         else:
             self.pooling = pool_nd(pool_type, dim=dim, kernel_size=scale_factor, stride=scale_factor)
