@@ -24,7 +24,7 @@ class EdgePerceptualLoss(nn.Module):
 
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, split: str = "train", threshold: float = 0.8) -> torch.Tensor:
         l1 = F.l1_loss(preds, labels, reduction='mean') * self.l1_weight
-        cats = cats_loss(preds, labels, weights=self.cats_weight)
+        cats = cats_loss(preds, labels, weights=self.cats_weight).mean()
 
         if preds.shape[1] == 1:
             preds = preds.repeat(1, 3, 1, 1)
