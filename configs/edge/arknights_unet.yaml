@@ -8,8 +8,6 @@ module:
     log_interval: 10
     threshold: 0.8
     color_space: 'rgb'
-    ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
-    ignore_keys: []
 
     net_config:
       target: modules.blocks.UNet
