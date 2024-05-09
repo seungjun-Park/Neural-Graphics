@@ -189,8 +189,8 @@ def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
     return cos_dist
 
 
-def strength_loss(preds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-    mask = (labels.long() == 0)  # 1 or 0
+def strength_loss(preds: torch.Tensor, labels: torch.Tensor, threshold: float = 0.8) -> torch.Tensor:
+    mask = (labels <= threshold).float()  # 1 or 0
     preds = preds * mask
 
     cost = F.l1_loss(preds, labels, reduction='none')
@@ -200,8 +200,8 @@ def strength_loss(preds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
 
 
 def existence_loss(preds: torch.Tensor, labels: torch.Tensor, threshold: float = 0.8) -> torch.Tensor:
-    labels = torch.where(labels <= threshold, 0.0, 1.0)
-    preds = torch.where(preds <= threshold, 0.0, 1.0)
+    labels = torch.where(labels <= threshold, 0.0, labels)
+    preds = torch.where(preds <= threshold, 0.0, preds)
     cost = F.binary_cross_entropy(preds, labels, reduction='none')
 
     cost = torch.mean(cost.mean(dim=[1, 2, 3]))
@@ -216,7 +216,10 @@ def smoothing_loss(preds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     preds_smoothing = F.conv2d(preds, weight=filter, bias=None, stride=1, padding=1)
     labels_smoothing = F.conv2d(labels, weight=labels, bias=None, stride=1, padding=1)
 
-    return
+    cost = F.l1_loss(preds_smoothing, labels_smoothing, reduction='none')
+    cost = torch.mean(cost.mean(dim=[1, 2, 3]))
+
+    return cost
 
 
 def bdcn_loss2(inputs, targets):

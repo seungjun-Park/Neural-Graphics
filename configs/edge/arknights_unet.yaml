@@ -6,7 +6,7 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    threshold: 0.8
+    threshold: 0.5
     color_space: 'rgb'
 
     net_config:
@@ -21,7 +21,7 @@ module:
         attn_res: [ 0, 1, 2 ]
         num_blocks: 2
         num_heads: -1
-        num_head_channels: 8
+        num_head_channels: 16
         mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
@@ -41,7 +41,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        existence_weight: 1.0
+        existence_weight: 0.1
         strength_weight: 1.0
         lpips_weight: 1.0
 
