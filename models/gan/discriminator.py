@@ -49,9 +49,9 @@ class Discriminator(nn.Module):
                             dim,
                             in_ch,
                             out_ch,
-                            kernel_size=4,
-                            stride=2,
-                            padding=1,
+                            kernel_size=5,
+                            stride=1,
+                            padding=2,
                         )
                     ),
                     get_act(act)
@@ -81,6 +81,9 @@ class Discriminator(nn.Module):
                             attn_mode=attn_mode,
                         )
                     )
+
+            if i != len(hidden_dims) - 1:
+                self.blocks.append(DownBlock(in_channels=in_ch, dim=dim, pool_type=pool_type))
 
         self.quant_conv = conv_nd(dim, in_ch, 1, kernel_size=1)
         self.fc_w = nn.Parameter(torch.randn(1, 1, cur_res, cur_res), requires_grad=True)
