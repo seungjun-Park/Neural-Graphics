@@ -80,7 +80,7 @@ class Discriminator(nn.Module):
                     )
 
             if i != len(hidden_dims) - 1:
-                self.encoder.append(DownBlock(in_ch, dim=dim, pool_type=pool_type))
+                self.blocks.append(DownBlock(in_ch, dim=dim, pool_type=pool_type))
                 cur_res //= 2
 
         self.fc_w = nn.Parameter(torch.randn(1, in_ch * cur_res * cur_res), requires_grad=True)
