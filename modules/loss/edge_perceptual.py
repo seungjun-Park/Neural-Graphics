@@ -48,7 +48,7 @@ class EdgePerceptualLoss(nn.Module):
             p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(),
                                 labels.repeat(1, 3, 1, 1).contiguous()).mean() * self.lpips_weight
 
-            logits_fake = self.disc(torch.cat([preds, imgs], dim=1), training=False)
+            logits_fake = self.disc(preds, training=False)
             g_weight = adopt_weight(self.g_weight, global_step=global_step, threshold=self.disc_start_step)
             g_loss = -torch.mean(logits_fake) * g_weight
 
@@ -63,8 +63,8 @@ class EdgePerceptualLoss(nn.Module):
             return loss, log
 
         if optimizer_idx == 1:
-            out_real = self.disc(torch.cat([labels, imgs], dim=1).detach(), training=True)
-            out_fake = self.disc(torch.cat([preds, imgs], dim=1).detach(), training=True)
+            out_real = self.disc(labels.detach(), training=True)
+            out_fake = self.disc(preds.detach(), training=True)
 
             d_factor = adopt_weight(1.0, global_step=global_step, threshold=self.disc_start_step)
 
