@@ -1,0 +1,104 @@
+module:
+  target: models.enet.enet.EDNSE
+  params:
+    lr: 2e-5
+    weight_decay: 1e-4
+    lr_decay_epoch: 100
+    use_fp16: False
+    log_interval: 10
+    threshold: 0.5
+    color_space: 'rgb'
+
+    net_config:
+      target: modules.blocks.UNet
+      params:
+        in_channels: 3
+        in_res: 512
+        window_size: 8
+        out_channels: 1
+        hidden_dims: [ 32, 64, 128 ]
+        embed_dim: 16
+        attn_res: [ 0, 1, 2 ]
+        num_blocks: 2
+        num_heads: -1
+        num_head_channels: 16
+        mlp_ratio: 4
+        dropout: 0.0
+        attn_dropout: 0.0
+        drop_path: 0.0
+        qkv_bias: True
+        bias: True
+        num_groups: 16
+        act: 'gelu'
+        use_conv: True
+        pool_type: 'conv'
+        mode: 'nearest'
+        dim: 2
+        use_checkpoint: True
+        attn_mode: 'cosine'
+        use_addition_skip: False
+
+    loss_config:
+      target: modules.loss.edge_perceptual.EdgePerceptualLoss
+      params:
+        cats_weight: [1.0, 0.05, 1.0]
+        l1_weight: 1.0
+        lpips_weight: 1.0
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 4
+    batch_size: 2
+    wrap: True
+    train:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: '/local_datasets/arknights100'
+        train: True
+        size: 512
+        scale: [ 0.9, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
+        color_space: 'rgb'
+
+    validation:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: '/local_datasets/arknights100'
+        train: False
+        size: 512
+        scale: [ 0.9, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
+        color_space: 'rgb'
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'ednse'
+    version: 'arknights_unet'
+
+
+checkpoints:
+  latest_checkpoints:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/ednse/'
+      filename: 'arknights_unet_last'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+
+  best_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/ednse/'
+      filename: 'arknights_unet_best'
+      monitor: 'val/loss'
+      mode: 'min'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 200
+  accumulate_grad_batches: 5
