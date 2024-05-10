@@ -68,31 +68,30 @@ class EDNSE(pl.LightningModule):
 
         pred = self(img)
 
-        with torch.autograd.detect_anomaly():
-            net_loss, net_loss_log = self.loss(pred, label, img, split='train', optimizer_idx=0,
-                                               global_step=self.global_step)
-            disc_loss, disc_loss_log = self.loss(pred, label, img, split='train', optimizer_idx=1,
-                                                 global_step=self.global_step)
-            net_loss = net_loss / self.accumulate_grad_batches
-            disc_loss = disc_loss / self.disc_accumulate_grad_batches
+        net_loss, net_loss_log = self.loss(pred, label, img, split='train', optimizer_idx=0,
+                                           global_step=self.global_step)
+        disc_loss, disc_loss_log = self.loss(pred, label, img, split='train', optimizer_idx=1,
+                                             global_step=self.global_step)
+        net_loss = net_loss / self.accumulate_grad_batches
+        disc_loss = disc_loss / self.disc_accumulate_grad_batches
 
-            if (self.global_step // 2) % self.log_interval == 0:
-                self.log_img(img, label, pred)
+        if (self.global_step // 2) % self.log_interval == 0:
+            self.log_img(img, label, pred)
 
-            self.log_dict(net_loss_log)
-            self.log_dict(disc_loss_log)
+        self.log_dict(net_loss_log)
+        self.log_dict(disc_loss_log)
 
-            self.manual_backward(net_loss)
+        self.manual_backward(net_loss)
 
-            if (batch_idx + 1) % self.accumulate_grad_batches:
-                opt_net.step()
-                opt_net.zero_grad()
+        if (batch_idx + 1) % self.accumulate_grad_batches:
+            opt_net.step()
+            opt_net.zero_grad()
 
-            self.manual_backward(disc_loss)
+        self.manual_backward(disc_loss)
 
-            if (batch_idx + 1) % self.disc_accumulate_grad_batches:
-                opt_disc.step()
-                opt_disc.zero_grad()
+        if (batch_idx + 1) % self.disc_accumulate_grad_batches:
+            opt_disc.step()
+            opt_disc.zero_grad()
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, label, cond = batch
