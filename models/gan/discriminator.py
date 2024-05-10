@@ -38,6 +38,7 @@ class Discriminator(nn.Module):
         cur_res = in_res
         self.embed = nn.utils.spectral_norm(conv_nd(dim, in_ch, embed_dim, kernel_size=patch_size, stride=patch_size))
         in_ch = embed_dim
+        cur_res //= patch_size
 
         for i, out_ch in enumerate(hidden_dims):
             self.blocks.append(
