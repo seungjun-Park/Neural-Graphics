@@ -12,6 +12,7 @@ from models.gan.discriminator import Discriminator
 class EdgePerceptualLoss(nn.Module):
     def __init__(self,
                  disc_config: dict,
+                 bdcn_weight: float = 1.0,
                  l1_weight: float = 1.0,
                  lpips_weight: float = 1.0,
                  d_loss_type: str = 'san',
@@ -20,6 +21,7 @@ class EdgePerceptualLoss(nn.Module):
                  ):
 
         super().__init__()
+        self.bdcn_weight = bdcn_weight
         self.l1_weight = l1_weight
         self.lpips_weight = lpips_weight
         self.g_weight = g_weight
@@ -40,6 +42,7 @@ class EdgePerceptualLoss(nn.Module):
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, global_step: int,
                 split: str = "train", optimizer_idx: int = 0) -> torch.Tensor:
         if optimizer_idx == 0:
+            bdcn = bdcn_loss2(preds, labels).mean() * self.bdcn_weight
             l1 = F.l1_loss(preds, labels, reduction='mean') * self.l1_weight
 
             p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(),
@@ -49,7 +52,7 @@ class EdgePerceptualLoss(nn.Module):
             g_weight = adopt_weight(self.g_weight, global_step=global_step, threshold=self.disc_start_step)
             g_loss = -torch.mean(logits_fake) * g_weight
 
-            loss = p_loss + l1 + g_loss
+            loss = p_loss + l1 + g_loss + bdcn
 
             log = {"{}/loss".format(split): loss.clone().detach(),
                    "{}/l1_loss".format(split): l1.detach().mean(),
