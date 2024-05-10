@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Dict
 
 from torch.fft import rfftn, ifftn
 
@@ -187,6 +187,35 @@ def cosine_distance(inputs: torch.Tensor, targets: torch.Tensor, dim: int = 1,
         raise NotImplementedError(f'reduction: "{reduction}" is not implemented.')
 
     return cos_dist
+
+
+def san_d_loss(out_real: Dict[str, torch.Tensor], out_fake: Dict[str, torch.Tensor]) -> torch.Tensor:
+    logits_real = out_real['logits']
+    logits_fake = out_fake['logits']
+    dir_real = out_real['dir']
+    dir_fake = out_fake['dir']
+
+    loss_hinge = hinge_d_loss(logits_real, logits_fake)
+    loss_wasserstein = wasserstein_d_loss(dir_real, dir_fake)
+    return loss_hinge + loss_wasserstein
+
+
+def wasserstein_d_loss(dir_real: torch.Tensor, dir_fake: torch.Tensor) -> torch.Tensor:
+    return dir_real.mean() + dir_fake.mean()
+
+
+def hinge_d_loss(logits_real: torch.Tensor, logits_fake: torch.Tensor) -> torch.Tensor:
+    loss_real = torch.mean(F.relu(1. - logits_real))
+    loss_fake = torch.mean(F.relu(1. + logits_fake))
+    d_loss = 0.5 * (loss_real + loss_fake)
+    return d_loss
+
+
+def vanilla_d_loss(logits_real: torch.Tensor, logits_fake: torch.Tensor) -> torch.Tensor:
+    d_loss = 0.5 * (
+        torch.mean(torch.nn.functional.softplus(-logits_real)) +
+        torch.mean(torch.nn.functional.softplus(logits_fake)))
+    return d_loss
 
 
 def strength_loss(preds: torch.Tensor, labels: torch.Tensor, threshold: float = 0.8) -> torch.Tensor:

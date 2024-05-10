@@ -171,4 +171,4 @@ checkpoints/*
 *.gz
 *.png
 *.json
-main.py
+./main.py

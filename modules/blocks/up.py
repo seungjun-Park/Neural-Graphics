@@ -9,6 +9,7 @@ from utils import conv_nd
 class UpBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
+                 out_channels: int = None,
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
                  mode: str = 'nearest',
@@ -19,15 +20,15 @@ class UpBlock(nn.Module):
         self.mode = mode.lower()
         self.scale_factor = int(scale_factor)
 
+        out_channels = out_channels if out_channels is not None else in_channels
+
         self.up = conv_nd(
                 dim,
                 in_channels,
-                in_channels,
+                out_channels,
                 kernel_size=3,
                 stride=1,
                 padding=1,
-                groups=in_channels,
-                bias=False,
             )
 
     def forward(self, x):

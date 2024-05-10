@@ -17,9 +17,9 @@ class EDNSE(pl.LightningModule):
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  use_fp16: bool = False,
-                 threshold: float = 0.5,
-                 color_space: str = 'rgb',
-                 ignore_keys: Union[List[str], Tuple[str]] = ['attn_mask'],
+                 accumulate_grad_batches: int = 1,
+                 disc_update_frequency: float = 1.0,
+                 ignore_keys: Union[List[str], Tuple[str]] = (),
                  ):
         super().__init__()
 
@@ -27,8 +27,13 @@ class EDNSE(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
-        self.threshold = threshold
-        self.color_space = color_space.lower()
+        self.save_hyperparameters()
+        self.automatic_optimization = False
+        self.accumulate_grad_batches = accumulate_grad_batches
+        self.disc_update_frequency = disc_update_frequency
+        self.disc_accumulate_grad_batches = (self.accumulate_grad_batches // self.disc_update_frequency)
+
+        self.log_val = True
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
@@ -53,54 +58,62 @@ class EDNSE(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def train(self, mode: bool = True):
-        super().train(mode)
-        for param in self.parameters():
-            param.requires_grad = True
-
-        return self
-
-    def eval(self):
-        super().eval()
-        for param in self.parameters():
-            param.requires_grad = False
-        return self
-
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
-        # pred = F.hardtanh(self.net(x), min_val=0.0, max_val=1.0)
-        # pred[pred >= self.threshold] = 1.0
         return F.sigmoid(self.net(x))
 
     def training_step(self, batch, batch_idx) -> Optional[Any]:
         img, label, cond = batch
 
+        opt_net, opt_disc = self.optimizers()
+
         pred = self(img)
 
-        loss, loss_log = self.loss(pred, label, split='train', threshold=self.threshold)
+        net_loss, net_loss_log = self.loss(pred, label, img, split='train', optimizer_idx=0)
+        disc_loss, disc_loss_log = self.loss(pred, label, img, split='train', optimizer_idx=1)
+        net_loss = net_loss / self.accumulate_grad_batches
+        disc_loss = disc_loss / self.disc_accumulate_grad_batches
 
-        if self.global_step % self.log_interval == 0:
+        if (self.global_step // 2) % self.log_interval == 0:
             self.log_img(img, label, pred)
 
-        self.log_dict(loss_log)
+        self.log_dict(net_loss_log)
+        self.log_dict(disc_loss_log)
 
-        return loss
+        self.manual_backward(disc_loss)
+
+        if (batch_idx + 1) % self.disc_accumulate_grad_batches:
+            opt_disc.step()
+            opt_disc.zero_grad()
+
+        self.manual_backward(net_loss)
+
+        if (batch_idx + 1) % self.accumulate_grad_batches:
+            opt_net.step()
+            opt_net.zero_grad()
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, label, cond = batch
 
         pred = self(img)
-        loss, loss_log = self.loss(pred, label, split='val', threshold=self.threshold)
 
-        self.log_img(img, label, pred)
-        self.log_dict(loss_log)
+        net_loss, net_loss_log = self.loss(pred, label, img, split='val', optimizer_idx=0)
+        disc_loss, disc_loss_log = self.loss(pred, label, img, split='val', optimizer_idx=1)
 
-        return self.log_dict
+        if self.log_val:
+            self.log_img(img, label, pred)
+            self.log_val = False
+
+        self.log_dict(net_loss_log)
+        self.log_dict(disc_loss_log)
+
+    def on_validation_end(self):
+        self.log_val = True
 
     @torch.no_grad()
     def log_img(self, img, gt, pred):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', to_rgb(img[0], self.color_space), self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/img', img[0], self.global_step, dataformats='CHW')
         tb.add_image(f'{prefix}/gt', gt[0], self.global_step, dataformats='CHW')
         tb.add_image(f'{prefix}/pred', pred[0], self.global_step, dataformats='CHW')
 
@@ -111,4 +124,10 @@ class EDNSE(pl.LightningModule):
                                     betas=(0.5, 0.9)
                                     )
 
-        return [opt_net]
+        opt_disc = torch.optim.AdamW(list(self.loss.disc.parameters()),
+                                     lr=self.lr,
+                                     weight_decay=self.weight_decay,
+                                     betas=(0.5, 0.9)
+                                     )
+
+        return [opt_net, opt_disc]

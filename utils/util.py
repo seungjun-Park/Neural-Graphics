@@ -392,3 +392,9 @@ def to_rgb(inp: torch.Tensor, color_space: str):
 
     return inp
 
+
+def adopt_weight(weight, global_step, threshold=0, value=0.):
+    if global_step < threshold:
+        weight = value
+    return weight
+

@@ -87,7 +87,7 @@ def test():
     with torch.no_grad():
         for i, name in enumerate(file_names):
             img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
             img = torchvision.transforms.transforms.Resize([512, 512])(img)
             img = img.unsqueeze(0)
@@ -104,5 +104,5 @@ def test():
 
 
 if __name__ == '__main__':
-    main()
-    # test()
+    # main()
+    test()

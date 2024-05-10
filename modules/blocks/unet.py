@@ -111,6 +111,7 @@ class UNet(nn.Module):
 
             if i != len(self.hidden_dims) - 1:
                 self.encoder.append(DownBlock(in_ch, dim=dim, pool_type=pool_type))
+                skip_dims.append(in_ch)
                 cur_res //= 2
 
         for i in range(num_blocks):
@@ -152,10 +153,9 @@ class UNet(nn.Module):
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks):
                 up = list()
-                skip_dim = skip_dims.pop()
                 up.append(
                     ResidualBlock(
-                        in_channels=in_ch + skip_dim,
+                        in_channels=in_ch + skip_dims.pop(),
                         out_channels=out_ch,
                         dropout=dropout,
                         act=act,
@@ -194,7 +194,8 @@ class UNet(nn.Module):
 
             if i != 0:
                 self.decoder.append(
-                    UpBlock(in_ch,
+                    UpBlock(in_ch + skip_dims.pop(),
+                            in_ch,
                             dim=dim,
                             mode=mode,
                     )
@@ -218,15 +219,13 @@ class UNet(nn.Module):
 
         for i, block in enumerate(self.encoder, start=1):
             h = block(h)
-            if i % (self.num_blocks + 1) != 0:
-                hs.append(h)
+            hs.append(h)
 
         for i, block in enumerate(self.middle):
             h = block(h)
 
         for i, block in enumerate(self.decoder, start=1):
-            if i % (self.num_blocks + 1) != 0:
-                h = torch.cat([h, hs.pop()], dim=1)
+            h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
         h = self.out(h)
@@ -343,7 +342,7 @@ class UNet3Plus(nn.Module):
                 self.encoder.append(nn.Sequential(*down))
 
             if i != len(self.hidden_dims) - 1:
-                self.encoder.append(DownBlock(in_ch, dim=dim, use_conv=use_conv, pool_type=pool_type))
+                self.encoder.append(DownBlock(in_ch, dim=dim, pool_type=pool_type))
                 skip_dims.append(in_ch)
                 cur_res //= 2
 

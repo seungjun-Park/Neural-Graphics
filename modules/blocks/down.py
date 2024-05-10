@@ -25,10 +25,7 @@ class DownBlock(nn.Module):
                                    in_channels,
                                    in_channels,
                                    kernel_size=scale_factor,
-                                   stride=scale_factor,
-                                   bias=False,
-                                   groups=in_channels,
-                                   padding=0)
+                                   stride=scale_factor)
 
         else:
             self.pooling = pool_nd(pool_type, dim=dim, kernel_size=scale_factor, stride=scale_factor)

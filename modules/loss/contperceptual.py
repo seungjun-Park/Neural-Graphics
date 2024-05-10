@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 
-from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight#, LPIPS
-from modules.loss.lpips import LPIPS
+from taming.modules.losses.vqperceptual import hinge_d_loss, weights_init, vanilla_d_loss, NLayerDiscriminator, adopt_weight, LPIPS
 from utils import FD
 
 
