@@ -39,7 +39,7 @@ class Discriminator(nn.Module):
         cur_res = in_res
         self.embed = nn.utils.spectral_norm(conv_nd(dim, in_ch, embed_dim, kernel_size=patch_size, stride=patch_size))
         in_ch = embed_dim
-        cur_res = cur_res // patch_size
+        cur_res //= patch_size
 
         for i, out_ch in enumerate(hidden_dims):
             self.blocks.append(
@@ -84,6 +84,7 @@ class Discriminator(nn.Module):
 
             if i != len(hidden_dims) - 1:
                 self.blocks.append(DownBlock(in_channels=in_ch, dim=dim, pool_type=pool_type))
+                cur_res //= 2
 
         self.quant_conv = conv_nd(dim, in_ch, 1, kernel_size=1)
         self.fc_w = nn.Parameter(torch.randn(1, 1, cur_res, cur_res), requires_grad=True)
