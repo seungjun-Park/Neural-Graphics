@@ -63,10 +63,8 @@ class EdgePerceptualLoss(nn.Module):
             out_real = self.disc(torch.cat([labels, imgs], dim=1).detach(), training=True)
             out_fake = self.disc(torch.cat([preds, imgs], dim=1).detach(), training=True)
 
-            d_weight = adopt_weight(1.0, global_step=global_step, threshold=self.disc_start_step)
-
             if self.d_loss_type == 'san':
-                loss = self.d_loss(out_real=out_real, out_fake=out_fake) * d_weight
+                loss = self.d_loss(out_real=out_real, out_fake=out_fake)
 
                 log = {"{}/disc_loss".format(split): loss.clone().detach().mean(),
                        "{}/logits_real".format(split): out_real['logits'].detach().mean(),
@@ -76,7 +74,7 @@ class EdgePerceptualLoss(nn.Module):
                        }
 
             else:
-                loss = self.d_loss(out_real['logits'], out_fake['logits']) * d_weight
+                loss = self.d_loss(out_real['logits'], out_fake['logits'])
 
                 log = {"{}/disc_loss".format(split): loss.clone().detach().mean(),
                        "{}/logits_real".format(split): out_real['logits'].detach().mean(),

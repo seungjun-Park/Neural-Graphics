@@ -115,9 +115,9 @@ class EDNSE(pl.LightningModule):
     def log_img(self, img, gt, pred):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', img[0], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/gt', gt[0], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/pred', pred[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/img', img[0], self.global_step // 2, dataformats='CHW')
+        tb.add_image(f'{prefix}/gt', gt[0], self.global_step // 2, dataformats='CHW')
+        tb.add_image(f'{prefix}/pred', pred[0], self.global_step // 2, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.net.parameters()),
