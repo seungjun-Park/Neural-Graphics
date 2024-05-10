@@ -43,7 +43,7 @@ module:
       params:
         l1_weight: 1.0
         lpips_weight: 1.0
-        g_weight: 1e-4
+        g_weight: 1.0
         d_loss_type: 'san'
         disc_start_step: 300
         disc_config:
