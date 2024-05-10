@@ -42,12 +42,12 @@ class EdgePerceptualLoss(nn.Module):
         if optimizer_idx == 0:
             l1 = F.l1_loss(preds, labels, reduction='mean') * self.l1_weight
 
-            p_loss = self.lpips(preds.contiguous().repeat(1, 3, 1, 1),
-                                labels.contiguous().repeat(1, 3, 1, 1)).mean() * self.lpips_weight
+            p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(),
+                                labels.repeat(1, 3, 1, 1).contiguous()).mean() * self.lpips_weight
 
-            logits_fake = self.disc(torch.cat([preds, imgs], dim=1).contiguous(), training=False)
+            logits_fake = self.disc(torch.cat([preds, imgs], dim=1), training=False)
             g_weight = adopt_weight(self.g_weight, global_step=global_step, threshold=self.disc_start_step)
-            g_loss = -logits_fake.mean() * g_weight
+            g_loss = -torch.mean(logits_fake) * g_weight
 
             loss = p_loss + l1 + g_loss
 
