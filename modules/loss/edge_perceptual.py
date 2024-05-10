@@ -42,7 +42,7 @@ class EdgePerceptualLoss(nn.Module):
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, global_step: int,
                 split: str = "train", optimizer_idx: int = 0) -> torch.Tensor:
         if optimizer_idx == 0:
-            bdcn = bdcn_loss2(preds, labels).mean() * self.bdcn_weight
+            bdcn = bdcn_loss2(preds, labels) * self.bdcn_weight
             l1 = F.l1_loss(preds, labels, reduction='mean') * self.l1_weight
 
             p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(),
@@ -66,8 +66,10 @@ class EdgePerceptualLoss(nn.Module):
             out_real = self.disc(torch.cat([labels, imgs], dim=1).detach(), training=True)
             out_fake = self.disc(torch.cat([preds, imgs], dim=1).detach(), training=True)
 
+            d_factor = adopt_weight(1.0, global_step=global_step, threshold=self.disc_start_step)
+
             if self.d_loss_type == 'san':
-                loss = self.d_loss(out_real=out_real, out_fake=out_fake)
+                loss = self.d_loss(out_real=out_real, out_fake=out_fake) * d_factor
 
                 log = {"{}/disc_loss".format(split): loss.clone().detach().mean(),
                        "{}/logits_real".format(split): out_real['logits'].detach().mean(),
@@ -77,7 +79,7 @@ class EdgePerceptualLoss(nn.Module):
                        }
 
             else:
-                loss = self.d_loss(out_real['logits'], out_fake['logits'])
+                loss = self.d_loss(out_real['logits'], out_fake['logits']) * d_factor
 
                 log = {"{}/disc_loss".format(split): loss.clone().detach().mean(),
                        "{}/logits_real".format(split): out_real['logits'].detach().mean(),

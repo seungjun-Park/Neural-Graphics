@@ -69,9 +69,9 @@ class EDNSE(pl.LightningModule):
         pred = self(img)
 
         net_loss, net_loss_log = self.loss(pred, label, img, split='train', optimizer_idx=0,
-                                           global_step=self.global_step)
+                                           global_step=self.global_step // 2)
         disc_loss, disc_loss_log = self.loss(pred, label, img, split='train', optimizer_idx=1,
-                                             global_step=self.global_step)
+                                             global_step=self.global_step // 2)
         net_loss = net_loss / self.accumulate_grad_batches
         disc_loss = disc_loss / self.disc_accumulate_grad_batches
 

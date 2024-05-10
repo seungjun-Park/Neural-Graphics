@@ -13,6 +13,7 @@ class Discriminator(nn.Module):
                  in_res: int = 512,
                  embed_dim: int = 32,
                  hidden_dims: Union[List[int], Tuple[int]] = (),
+                 latent_dim: int = 32,
                  attn_res: Union[List[int], Tuple[int]] = (),
                  patch_size: Union[int, List[int], Tuple[int]] = 4,
                  window_size: Union[int, List[int], Tuple[int]] = 7,
@@ -48,8 +49,8 @@ class Discriminator(nn.Module):
                             dim,
                             in_ch,
                             out_ch,
-                            kernel_size=3,
-                            stride=1,
+                            kernel_size=4,
+                            stride=2,
                             padding=1,
                         )
                     ),
@@ -81,26 +82,23 @@ class Discriminator(nn.Module):
                         )
                     )
 
-            if i != len(hidden_dims) - 1:
-                self.blocks.append(DownBlock(in_ch, dim=dim, pool_type=pool_type))
-                cur_res //= 2
-
-        self.fc_w = nn.Parameter(torch.randn(1, in_ch * cur_res * cur_res), requires_grad=True)
+        self.quant_conv = conv_nd(dim, in_ch, 1, kernel_size=1)
+        self.fc_w = nn.Parameter(torch.randn(1, 1, cur_res, cur_res), requires_grad=True)
 
     def forward(self, x: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
         h = self.embed(x)
         for i, block in enumerate(self.blocks):
             h = block(h)
-        h = torch.flatten(h, start_dim=1)
-        direction = F.normalize(self.fc_w, dim=1)
-        scale = torch.norm(self.fc_w, dim=1).unsqueeze(1)
+        h = self.quant_conv(h)
+        direction = torch.norm(self.fc_w, dim=1, p=2.0, keepdim=True)
+        scale = torch.norm(self.fc_w, dim=1, keepdim=True)
         h = h * scale
         if training:
-            logits = (h.detach() * direction).sum(dim=1)
-            dir = (h * direction.detach()).sum(dim=1)
+            logits = (h.detach() * direction)
+            dir = (h * direction.detach())
             out = {'logits': logits, 'dir': dir}
         else:
-            logits = (h * direction).sum(dim=1)
+            logits = (h * direction)
             out = logits
 
         return out
