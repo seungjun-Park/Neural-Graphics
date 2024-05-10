@@ -45,6 +45,7 @@ module:
         lpips_weight: 1.0
         g_weight: 1.0
         d_loss_type: 'san'
+        disc_start_step: 300
         disc_config:
           in_channels: 4
           in_res: 512

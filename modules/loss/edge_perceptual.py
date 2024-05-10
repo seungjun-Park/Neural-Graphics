@@ -16,12 +16,14 @@ class EdgePerceptualLoss(nn.Module):
                  lpips_weight: float = 1.0,
                  d_loss_type: str = 'san',
                  g_weight: float = 1.0,
+                 disc_start_step: int = 0,
                  ):
 
         super().__init__()
         self.l1_weight = l1_weight
         self.lpips_weight = lpips_weight
         self.g_weight = g_weight
+        self.disc_start_step = disc_start_step
         self.d_loss_type = d_loss_type.lower()
         assert self.d_loss_type in ['vanilla', 'hinge', 'san']
 
@@ -35,7 +37,8 @@ class EdgePerceptualLoss(nn.Module):
         self.lpips = LPIPS().eval()
         self.disc = Discriminator(**disc_config)
 
-    def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, split: str = "train", optimizer_idx: int = 0) -> torch.Tensor:
+    def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, global_step: int,
+                split: str = "train", optimizer_idx: int = 0) -> torch.Tensor:
         if optimizer_idx == 0:
             l1 = F.l1_loss(preds, labels, reduction='mean') * self.l1_weight
 
@@ -43,7 +46,8 @@ class EdgePerceptualLoss(nn.Module):
                                 labels.contiguous().repeat(1, 3, 1, 1)).mean() * self.lpips_weight
 
             logits_fake = self.disc(torch.cat([preds, imgs], dim=1).contiguous(), training=False)
-            g_loss = -logits_fake.mean() * self.g_weight
+            g_weight = adopt_weight(self.g_weight, global_step=global_step, threshold=self.disc_start_step)
+            g_loss = -logits_fake.mean() * g_weight
 
             loss = p_loss + l1 + g_loss
 
@@ -59,8 +63,10 @@ class EdgePerceptualLoss(nn.Module):
             out_real = self.disc(torch.cat([labels, imgs], dim=1).detach(), training=True)
             out_fake = self.disc(torch.cat([preds, imgs], dim=1).detach(), training=True)
 
+            d_weight = adopt_weight(1.0, global_step=global_step, threshold=self.disc_start_step)
+
             if self.d_loss_type == 'san':
-                loss = self.d_loss(out_real=out_real, out_fake=out_fake)
+                loss = self.d_loss(out_real=out_real, out_fake=out_fake) * d_weight
 
                 log = {"{}/disc_loss".format(split): loss.clone().detach().mean(),
                        "{}/logits_real".format(split): out_real['logits'].detach().mean(),
@@ -70,7 +76,7 @@ class EdgePerceptualLoss(nn.Module):
                        }
 
             else:
-                loss = self.d_loss(out_real['logits'], out_fake['logits'])
+                loss = self.d_loss(out_real['logits'], out_fake['logits']) * d_weight
 
                 log = {"{}/disc_loss".format(split): loss.clone().detach().mean(),
                        "{}/logits_real".format(split): out_real['logits'].detach().mean(),
