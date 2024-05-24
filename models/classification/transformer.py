@@ -50,11 +50,6 @@ class SwinTransformer(pl.LightningModule):
         in_ch = embed_dim
         cur_res = in_res // patch_size
 
-        self.train_avg_loss = 0
-        self.eval_avg_loss = 0
-        self.start_step = 0
-        self.end_step = 0
-
         if isinstance(num_blocks, ListConfig):
             num_blocks = list(num_blocks)
 
@@ -124,27 +119,15 @@ class SwinTransformer(pl.LightningModule):
             return hs
         return h
 
-    def on_train_start(self):
-        self.train_avg_loss = 0
-        self.start_step = self.global_step
-
     def training_step(self, batch, batch_idx):
         x, label = batch
         logit = self(x)
 
         loss = F.binary_cross_entropy_with_logits(logit, label)
-        self.train_avg_loss += loss.detach().clone().mean()
+
+        self.log('train/loss', loss, rank_zero_only=True, logger=True)
 
         return loss
-
-    def on_train_end(self):
-        self.end_step = self.global_step
-        self.train_avg_loss /= (self.end_step - self.start_step)
-        self.log('train/loss', self.train_avg_loss, self.current_epoch)
-
-    def on_validation_start(self):
-        self.eval_avg_loss = 0
-        self.start_step = self.global_step
 
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
@@ -153,12 +136,7 @@ class SwinTransformer(pl.LightningModule):
 
         loss = F.binary_cross_entropy_with_logits(logit, label)
 
-        self.eval_avg_loss += loss.detach().clone().mean()
-
-    def on_validation_end(self):
-        self.end_step = self.global_step
-        self.eval_avg_loss /= (self.end_step - self.start_step)
-        self.log('val/loss', self.eval_avg_loss, self.current_epoch)
+        self.log('val/loss', loss, rank_zero_only=True, logger=True)
 
     def configure_optimizers(self):
         opt = torch.optim.AdamW(self.parameters(),
