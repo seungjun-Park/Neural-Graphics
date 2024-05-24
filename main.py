@@ -122,16 +122,26 @@ def classification_test():
     model = instantiate_from_config(config.module).eval().to(device)
 
     data_path = './datasets/arknights100/val/*/edges/*.*'
+    # img_path = '../frequency_test/1.png'
     file_names = glob.glob(f'{data_path}')
     with torch.no_grad():
         for i, name in enumerate(file_names):
             img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
-            img = torchvision.transforms.transforms.Resize([256, 256])(img)
+            img = torchvision.transforms.transforms.Resize([512, 512])(img)
             img = img.unsqueeze(0)
             logit = model(img)
             print(logit)
+
+            feats = model.feature_extract(img, True)
+            for j, feat in enumerate(feats):
+                for k, f in enumerate(feat[0]):
+                    if not os.path.isdir(f'./feats{j}'):
+                        os.mkdir(f'./feats{j}')
+                    f = f.unsqueeze(0)
+                    f = torchvision.transforms.ToPILImage()(f)
+                    f.save(f'./feats{j}/{k}.png', 'png')
 
 
 if __name__ == '__main__':

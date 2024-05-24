@@ -120,7 +120,7 @@ class SwinTransformer(pl.LightningModule):
         h = torch.flatten(h, start_dim=1)
         h = self.logit_out(h)
 
-        return h
+        return F.softmax(h, dim=-1)
 
     @torch.no_grad()
     def feature_extract(self, x: torch.Tensor, use_deep_supervision: bool = False)\
@@ -138,9 +138,9 @@ class SwinTransformer(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, label = batch
-        logit = self(x)
+        prob = self(x)
 
-        loss = F.binary_cross_entropy_with_logits(logit, label)
+        loss = F.cross_entropy(prob, label)
 
         self.log('train/loss', loss, rank_zero_only=True, logger=True)
 
@@ -149,9 +149,9 @@ class SwinTransformer(pl.LightningModule):
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         x, label = batch
-        logit = self(x)
+        prob = self(x)
 
-        loss = F.binary_cross_entropy_with_logits(logit, label)
+        loss = F.cross_entropy(prob, label)
 
         self.log('val/loss', loss, rank_zero_only=True, logger=True)
 
