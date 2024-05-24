@@ -290,7 +290,7 @@ class WindowAttention(nn.Module):
 
         if mask is not None:
             nW = mask.shape[0]
-            attn = attn.reshape(b // nW, nW, self.num_heads, l, l) + mask.unsqueeze(1).unsqueeze(0)
+            attn = attn.reshape(b // nW, nW, self.num_heads, l, l) + mask.unsqueeze(1).unsqueeze(0).to(attn.device)
             attn = attn.reshape(-1, self.num_heads, l, l)
 
         attn = F.softmax(attn, dim=1)
