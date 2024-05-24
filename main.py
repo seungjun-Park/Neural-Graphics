@@ -121,18 +121,25 @@ def classification_test():
     device = torch.device('cuda')
     model = instantiate_from_config(config.module).eval().to(device)
 
-    data_path = './datasets/arknights100/val/*/edges/*.*'
-    # img_path = '../frequency_test/1.png'
+    data_path = './datasets/arknights100/train/*/edges/*.*'
     file_names = glob.glob(f'{data_path}')
+
+    labels = glob.glob('./datasets/arknights100/train/*')
+    for i, label in enumerate(labels):
+        labels[i] = label.rsplit('\\', 1)[1]
+
     with torch.no_grad():
         for i, name in enumerate(file_names):
-            img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.imread(f'{name}', cv2.IMREAD_GRAYSCALE)
+            # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
             img = torchvision.transforms.transforms.Resize([512, 512])(img)
             img = img.unsqueeze(0)
-            logit = model(img)
-            print(logit)
+            logit = model(img).squeeze(0)
+            # idx = torch.argmax(logit, dim=-1)
+            # for label in labels:
+            #    if label in name:
+            #        print(f'{label} : {labels[idx]}, value: {logit[idx]}')
 
             feats = model.feature_extract(img, True)
             for j, feat in enumerate(feats):

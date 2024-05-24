@@ -224,14 +224,16 @@ class ArknightsEdgeClassification(Dataset):
         else:
             root = os.path.join(root, 'val')
 
-        self.edge_names = glob.glob(f'{root}/*/edges/*.*')
+        self.edge_names = glob.glob(f'{root}/*/images/*.*')
         self.labels = glob.glob(f'{root}/*')
         for i, label in enumerate(self.labels):
             self.labels[i] = label.rsplit('/', 1)[1]
+        print(self.labels)
 
     def __getitem__(self, index):
         edge_name = self.edge_names[index]
-        edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
+        edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
+        edge = cv2.cvtColor(edge, self.color_space)
         edge = self.to_tensor(edge)
         label = torch.zeros(len(self.labels))
 
