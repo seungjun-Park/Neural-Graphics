@@ -234,13 +234,13 @@ class ArknightsImageEdgeClassification(Dataset):
             img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, self.color_space)
             img = self.to_tensor(img)
-            label = torch.tensor([0.0])
+            label = torch.tensor([1.0])
         else:
             edge_name = self.edge_names[index]
             img = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
             img = self.to_tensor(img)
             img = img.repeat(3, 1, 1)
-            label = torch.tensor([1.0])
+            label = torch.tensor([0.0])
 
         i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
         img = tf.resized_crop(img, i, j, h, w, size=self.size)

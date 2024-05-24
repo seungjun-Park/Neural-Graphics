@@ -36,6 +36,7 @@ class SwinTransformer(pl.LightningModule):
                  use_norm: bool = True,
                  lr: float = 1e-4,
                  weight_decay: float = 0.,
+                 ckpt_path: str = None
                  ):
         super().__init__()
 
@@ -93,6 +94,20 @@ class SwinTransformer(pl.LightningModule):
                 self.quant = nn.Linear(in_ch, quant_dim)
 
             self.logit_out = nn.Linear(int(quant_dim * (cur_res ** 2)), logit_dim)
+
+        if ckpt_path is not None:
+            self.init_from_ckpt(ckpt_path)
+
+    def init_from_ckpt(self, path, ignore_keys=list()):
+        sd = torch.load(path, map_location="cpu")["state_dict"]
+        keys = list(sd.keys())
+        for k in keys:
+            for ik in ignore_keys:
+                if ik in k:
+                    print("Deleting key {} from state_dict.".format(k))
+                    del sd[k]
+        self.load_state_dict(sd, strict=False)
+        print(f"Restored from {path}")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.embed(x)

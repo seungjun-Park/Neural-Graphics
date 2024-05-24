@@ -26,6 +26,7 @@ module:
     use_norm: True
     lr: 2e-5
     weight_decay: 0.
+    ckpt_path: './checkpoints/classification/arknights100_best.ckpt'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
