@@ -36,7 +36,8 @@ class SwinTransformer(pl.LightningModule):
                  use_norm: bool = True,
                  lr: float = 1e-4,
                  weight_decay: float = 0.,
-                 ckpt_path: str = None
+                 ckpt_path: str = None,
+                 ignored_keys: list = ['attn_mask']
                  ):
         super().__init__()
 
@@ -96,7 +97,7 @@ class SwinTransformer(pl.LightningModule):
             self.logit_out = nn.Linear(int(quant_dim * (cur_res ** 2)), logit_dim)
 
         if ckpt_path is not None:
-            self.init_from_ckpt(ckpt_path)
+            self.init_from_ckpt(ckpt_path, ignored_keys)
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -128,7 +129,8 @@ class SwinTransformer(pl.LightningModule):
         hs = []
         for i, module in enumerate(self.encoder):
             h = module(h)
-            hs.append(h)
+            if not isinstance(module, DownBlock):
+                hs.append(h)
 
         if use_deep_supervision:
             return hs

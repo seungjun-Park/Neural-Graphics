@@ -121,7 +121,7 @@ def classification_test():
     device = torch.device('cuda')
     model = instantiate_from_config(config.module).eval().to(device)
 
-    data_path = './datasets/arknights100/train/*/edges/*.*'
+    data_path = './datasets/arknights100/val/*/edges/*.*'
     file_names = glob.glob(f'{data_path}')
     with torch.no_grad():
         for i, name in enumerate(file_names):

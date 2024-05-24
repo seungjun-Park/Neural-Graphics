@@ -395,7 +395,7 @@ class DoubleWindowAttentionBlock(nn.Module):
         else:
             attn_mask = None
 
-        self.register_buffer("attn_mask", attn_mask)
+        self.attn_mask = attn_mask
 
         self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, bias=qkv_bias)
         self.proj = conv_nd(dim, in_channels * 2, in_channels, kernel_size=1, bias=proj_bias)
