@@ -172,3 +172,9 @@ checkpoints/*
 *.png
 *.json
 ./main.py
+datasets/BIPED/edges/test_rgb.lst
+datasets/BIPED/edges/train_rgb.lst
+datasets/BIPEDv2/test_pair.lst
+datasets/BIPEDv2/test_pairMULTICUEdataset.lst
+datasets/BIPEDv2/edges/test_pair.lst
+datasets/BIPEDv2/edges/test_pairMULTICUEdataset.lst

@@ -16,20 +16,20 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 32, 64, 128, 256 ]
-        embed_dim: 16
-        attn_res: [ 0, 1, 2, 3 ]
+        hidden_dims: [ 64, 64, 128, 256, 256 ]
+        embed_dim: 32
+        attn_res: [ 2, 3, 4, 5 ]
         num_blocks: 2
         num_heads: -1
-        num_head_channels: 16
+        num_head_channels: 32
         mlp_ratio: 4
-        dropout: 0.0
-        attn_dropout: 0.0
+        dropout: 0.1
+        attn_dropout: 0.1
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 16
-        act: 'gelu'
+        num_groups: 32
+        act: 'silu'
         use_conv: True
         pool_type: 'conv'
         mode: 'bilinear'

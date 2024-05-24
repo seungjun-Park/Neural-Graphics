@@ -58,24 +58,26 @@ class PatchMerging(nn.Module):
                  ):
         super().__init__()
 
-        self.in_res = to_2tuple(in_resolution)
         self.in_channels = in_channels
-        self.out_channels = in_channels * 2 if out_channels is None else out_channels
+        out_channels = in_channels * 2 if out_channels is None else out_channels
         self.scale_factor = scale_factor
-
         self.norm = nn.LayerNorm((scale_factor ** 2) * in_channels)
         self.reduction = nn.Linear((scale_factor ** 2) * in_channels, out_channels, bias=False)
 
     def forward(self, x):
-        x = rearrange(x, 'b c (h s_h) (w s_w) -> b (c s_h s_w) h w', s_w=self.scale_factor, s_h=self.scale_factor)
         b, c, h, w = x.shape
+        x0 = x[:, :, 0::2, 0::2]
+        x1 = x[:, :, 1::2, 0::2]
+        x2 = x[:, :, 0::2, 1::2]
+        x3 = x[:, :, 1::2, 1::2]
+        x = torch.cat([x0, x1, x2, x3], dim=1)
 
-        x = x.reshape(b, c, -1).permute(0, 2, 1)
+        x = x.permute(0, 2, 3, 1).reshape(b, -1, (self.scale_factor ** 2) * c)
 
         x = self.norm(x)
         x = self.reduction(x)
 
-        x = x.permute(0, 2, 1).reshape(b, -1, h, w)
+        x = x.permute(0, 2, 1).reshape(b, -1, h // self.scale_factor, w // self.scale_factor)
 
         return x
 

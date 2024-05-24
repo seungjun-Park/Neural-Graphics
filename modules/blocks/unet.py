@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from typing import Union, List, Tuple
 from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
-from modules.blocks import ResidualBlock, WindowAttnBlock, DownBlock, UpBlock, ScaledSkipBlock
+# from modules.blocks import ResidualBlock, WindowAttention, DownBlock, UpBlock, ScaledSkipBlock
 
 
 class UNet(nn.Module):
@@ -114,41 +114,50 @@ class UNet(nn.Module):
                 skip_dims.append(in_ch)
                 cur_res //= 2
 
-        for i in range(num_blocks):
-            self.middle.append(
-                nn.Sequential(
-                    ResidualBlock(
+        self.middle.append(
+            nn.Sequential(
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    num_groups=num_groups,
+                    dim=dim,
+                    use_checkpoint=use_checkpoint,
+                    use_conv=use_conv,
+                ),
+                *[
+                    WindowAttnBlock(
                         in_channels=in_ch,
-                        out_channels=in_ch,
-                        dropout=dropout,
+                        in_res=to_2tuple(cur_res),
+                        num_heads=num_heads,
+                        num_head_channels=num_head_channels,
+                        window_size=window_size,
+                        shift_size=0 if k % 2 == 0 else window_size // 2,
+                        mlp_ratio=mlp_ratio,
+                        qkv_bias=qkv_bias,
+                        proj_bias=bias,
+                        drop=dropout,
+                        attn_drop=attn_dropout,
+                        drop_path=drop_path,
                         act=act,
-                        num_groups=num_groups,
-                        dim=dim,
                         use_checkpoint=use_checkpoint,
-                        use_conv=use_conv,
-                    ),
-                    *[
-                        WindowAttnBlock(
-                            in_channels=in_ch,
-                            in_res=to_2tuple(cur_res),
-                            num_heads=num_heads,
-                            num_head_channels=num_head_channels,
-                            window_size=window_size,
-                            shift_size=0 if k % 2 == 0 else window_size // 2,
-                            mlp_ratio=mlp_ratio,
-                            qkv_bias=qkv_bias,
-                            proj_bias=bias,
-                            drop=dropout,
-                            attn_drop=attn_dropout,
-                            drop_path=drop_path,
-                            act=act,
-                            use_checkpoint=use_checkpoint,
-                            attn_mode=attn_mode,
-                        )
-                        for k in range(2)
-                    ]
-                )
+                        attn_mode=attn_mode,
+                    )
+                    for k in range(2)
+                ],
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    dropout=dropout,
+                    act=act,
+                    num_groups=num_groups,
+                    dim=dim,
+                    use_checkpoint=use_checkpoint,
+                    use_conv=use_conv,
+                ),
             )
+        )
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks):
@@ -197,12 +206,13 @@ class UNet(nn.Module):
                     UpBlock(in_ch + skip_dims.pop(),
                             in_ch,
                             dim=dim,
-                            mode=mode,
-                    )
+                            mode=mode)
                 )
                 cur_res = int(cur_res * 2)
 
         self.out = nn.Sequential(
+            group_norm(in_ch, num_groups),
+            get_act(act),
             conv_nd(
                 dim,
                 in_ch,
@@ -217,14 +227,14 @@ class UNet(nn.Module):
         hs = []
         h = self.embed(x)
 
-        for i, block in enumerate(self.encoder, start=1):
+        for i, block in enumerate(self.encoder):
             h = block(h)
             hs.append(h)
 
         for i, block in enumerate(self.middle):
             h = block(h)
 
-        for i, block in enumerate(self.decoder, start=1):
+        for i, block in enumerate(self.decoder):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 

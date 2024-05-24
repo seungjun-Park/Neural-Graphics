@@ -6,8 +6,6 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 10
-    threshold: 0.5
-    color_space: 'rgb'
     ckpt_path: './checkpoints/ednse/arknights_unet_last.ckpt'
 
     net_config:
@@ -17,9 +15,9 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 32, 64, 128 ]
+        hidden_dims: [ 32, 64, 128, 256 ]
         embed_dim: 16
-        attn_res: [ 0, 1, 2 ]
+        attn_res: [ 0, 1, 2, 3 ]
         num_blocks: 2
         num_heads: -1
         num_head_channels: 16
@@ -33,18 +31,12 @@ module:
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
-        mode: 'nearest'
+        mode: 'bilinear'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
         use_addition_skip: False
 
-    loss_config:
-      target: modules.loss.edge_perceptual.EdgePerceptualLoss
-      params:
-        cats_weight: [1.0, 0.05, 1.0]
-        l1_weight: 1.0
-        lpips_weight: 1.0
 
 data:
   target: modules.datasets.util.DataModuleFromConfig

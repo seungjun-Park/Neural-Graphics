@@ -4,7 +4,9 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 from typing import Union, List, Tuple
 
-from modules.blocks import DownBlock, UpBlock, ResidualBlock, WindowAttnBlock
+from modules.blocks.down import DownBlock
+from modules.blocks.up import UpBlock
+from modules.blocks.res_block import ResidualBlock
 from utils import get_act, group_norm, conv_nd, pool_nd
 
 

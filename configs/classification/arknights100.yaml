@@ -1,79 +1,64 @@
 module:
-  target: models.classification.EIPS
+  target: models.classification.SwinTransformer
   params:
+    in_channels: 3
+    in_res: 256
+    window_size: 8
+    patch_size: 2
+    hidden_dims: [64, 128, 256, 612]
+    embed_dim: 32
+    quant_dim: 8
+    logit_dim: 1
+    num_blocks: [1, 1, 3, 1]
+    num_groups: 16
+    num_heads: 8
+    dropout: 0.1
+    attn_dropout: 0.1
+    drop_path: 0.0
+    qkv_bias: True
+    bias: True
+    act: 'gelu'
+    use_conv: True
+    pool_type: 'conv'
+    dim: 2
+    use_checkpoint: True
+    attn_mode: 'cosine'
+    use_norm: True
     lr: 2e-5
-    weight_decay: 0.0
-    lr_decay_epoch: 100
-    use_fp16: False
-    log_interval: 10
-    margin: 0.25
-    use_deep_supervision: False
-
-    net_config:
-      target: modules.blocks.SwinEncoder
-      params:
-        in_channels: 3
-        in_res: 512
-        window_size: 8
-        patch_size: 4
-        hidden_dims: [ 64, 128, 256, 256 ]
-        embed_dim: 32
-        attn_res: [ 0, 1, 2, 3 ]
-        num_blocks: 2
-        num_heads: 8
-        num_head_channels: -1
-        mlp_ratio: 4
-        dropout: 0.1
-        attn_dropout: 0.1
-        drop_path: 0.0
-        qkv_bias: True
-        bias: True
-        num_groups: 32
-        act: 'gelu'
-        use_conv: True
-        pool_type: 'max'
-        dim: 2
-        use_checkpoint: True
-        attn_mode: 'cosine'
-
-    criterion_config:
-      target: utils.loss.CosineDistance
-      params:
-        dim: 1
-        # deep_supervision_dim: 5
+    weight_decay: 0.
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 2
+    batch_size: 4
     wrap: True
     train:
-      target: modules.datasets.arknights.ArknightsTripletDataset
+      target: modules.datasets.arknights.ArknightsImageEdgeClassification
       params:
         root: '/local_datasets/arknights100'
         train: True
-        size: 512
+        size: 256
         scale: [0.5, 1.0]
         ratio: [1.0, 1.0]
-        color_space: 'lab'
+        color_space: 'rgb'
 
     validation:
-      target: modules.datasets.arknights.ArknightsTripletDataset
+      target: modules.datasets.arknights.ArknightsImageEdgeClassification
       params:
         root: '/local_datasets/arknights100'
         train: False
-        size: 512
+        size: 256
         scale: [ 0.5, 1.0 ]
         ratio: [ 1.0, 1.0 ]
-        color_space: 'lab'
+        color_space: 'rgb'
 
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
   params:
     save_dir: './logs'
-    name: 'eips'
+    name: 'classification'
     version: 'arknights100'
 
 
@@ -81,15 +66,16 @@ checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/eips/'
+      dirpath: './checkpoints/classification/'
       filename: 'arknights100'
       monitor: 'step'
       mode: 'max'
       save_top_k: 1
+
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/eips/'
+      dirpath: './checkpoints/classification/'
       filename: 'arknights100_best'
       monitor: 'val/loss'
       mode: 'min'

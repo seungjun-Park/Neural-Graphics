@@ -56,14 +56,12 @@ class ResidualBlock(nn.Module):
         return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.norm1(x)
+        h = self.conv1(x)
+        h = self.norm1(h)
         h = self.act(h)
-        h = self.conv1(h)
 
-        z = self.norm2(h)
-        z = self.act(z)
-        z = self.dropout(z)
-        z = self.conv2(z)
+        h = self.conv2(h)
+        h = self.dropout(h)
 
-        return z + self.shortcut(x)
+        return self.act(self.norm2(h + self.shortcut(x)))
 
