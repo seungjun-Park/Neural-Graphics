@@ -86,10 +86,10 @@ class ConvMLP(nn.Module):
         h = self.act(h)
         h = F.dropout(h, p=self.dropout)
 
+        h = self.conv2(h)
         if self.use_norm:
             h = self.norm2(h)
         h = self.act(h)
-        h = self.conv2(h)
         h = F.dropout(h, p=self.dropout)
 
         return h
