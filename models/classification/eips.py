@@ -131,9 +131,9 @@ class EIPS(pl.LightningModule):
 
         loss = torch.clamp_min(self.margin + pos_dist - neg_dist, 0).mean()
 
-        self.log('train/loss', loss, logger=True, rank_zero_only=True)
-        self.log('train/pos_dist', pos_dist.mean(), logger=True, rank_zero_only=True)
-        self.log('train/neg_dist', neg_dist.mean(), logger=True, rank_zero_only=True)
+        self.log('val/loss', loss, logger=True, rank_zero_only=True)
+        self.log('val/pos_dist', pos_dist.mean(), logger=True, rank_zero_only=True)
+        self.log('val/neg_dist', neg_dist.mean(), logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
         params = list(self.criterion.parameters())
