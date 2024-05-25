@@ -113,7 +113,7 @@ def classification_test():
     configs = [OmegaConf.load(cfg) for cfg in opt.base]
     cli = OmegaConf.from_dotlist(unknown)
     config = OmegaConf.merge(*configs, cli)
-
+    hidden_dims = list(config.module['params']['hidden_dims'])
     # datamodule
     # NOTE according to https://pytorch-lightning.readthedocs.io/en/latest/datamodules.html
     # calling these ourselves should not be necessary but it is.
@@ -121,35 +121,33 @@ def classification_test():
     device = torch.device('cuda')
     model = instantiate_from_config(config.module).eval().to(device)
 
-    data_path = './datasets/arknights100/train/*/edges/*.*'
+    data_path = './datasets/arknights_v2/train/amiya/edges/*.*'
     file_names = glob.glob(f'{data_path}')
-
+    avg_logit = 0
     labels = glob.glob('./datasets/arknights100/train/*')
     for i, label in enumerate(labels):
         labels[i] = label.rsplit('\\', 1)[1]
 
     with torch.no_grad():
         for i, name in enumerate(file_names):
-            img = cv2.imread(f'{name}', cv2.IMREAD_GRAYSCALE)
-            # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
             img = torchvision.transforms.transforms.Resize([512, 512])(img)
             img = img.unsqueeze(0)
-            logit = model(img).squeeze(0)
-            # idx = torch.argmax(logit, dim=-1)
-            # for label in labels:
-            #    if label in name:
-            #        print(f'{label} : {labels[idx]}, value: {logit[idx]}')
+            logit = model(img).squeeze(0).detach().cpu()
+            avg_logit += logit
 
-            feats = model.feature_extract(img, True)
-            for j, feat in enumerate(feats):
-                for k, f in enumerate(feat[0]):
-                    if not os.path.isdir(f'./feats{j}'):
-                        os.mkdir(f'./feats{j}')
-                    f = f.unsqueeze(0)
-                    f = torchvision.transforms.ToPILImage()(f)
-                    f.save(f'./feats{j}/{k}.png', 'png')
+            # feats = model.feature_extract(img, True)
+            # for j, feat in enumerate(feats):
+            #     for k, f in enumerate(feat[0]):
+            #         if not os.path.isdir(f'./feats{j}'):
+            #             os.mkdir(f'./feats{j}')
+            #         f = f.unsqueeze(0)
+            #         f = torchvision.transforms.ToPILImage()(f)
+            #         f.save(f'./feats{j}/{k}.png', 'png')
 
+        print(avg_logit / (i + 1))
 
 if __name__ == '__main__':
     main()

@@ -5,33 +5,36 @@ import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, to_3tuple, conv_nd, get_act, group_norm, normalize_img
+from models.classification.transformer import SwinTransformer
 
 
 class EIPS(pl.LightningModule):
     def __init__(self,
                  net_config: dict,
-                 criterion_config: dict,
                  margin: float = 1.0,
                  lr: float = 2e-5,
                  weight_decay: float = 1e-4,
-                 lr_decay_epoch: int = 100,
                  log_interval: int = 100,
                  ckpt_path: str = None,
-                 use_fp16: bool = False,
-                 use_deep_supervision: bool = False,
+                 dim: int = 2,
                  ):
         super().__init__()
 
         self.lr = lr
         self.weight_decay = weight_decay
-        self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
-        self.use_deep_supervision = use_deep_supervision
-        self.use_fp16 = use_fp16
+        self.margin = margin
 
-        self.net = instantiate_from_config(net_config)
-        self.criterion = instantiate_from_config(criterion_config)
-        self.loss = nn.TripletMarginWithDistanceLoss(distance_function=self.criterion, margin=margin)
+        self.net: SwinTransformer = instantiate_from_config(net_config).eval()
+
+        self.criterion = nn.ModuleList()
+
+        hidden_dims = list(net_config['params']['hidden_dims'])
+
+        for hidden_dim in hidden_dims:
+            self.criterion.append(
+                conv_nd(dim, hidden_dim, 1, kernel_size=1, stride=1)
+            )
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -61,49 +64,79 @@ class EIPS(pl.LightningModule):
         return self
 
     def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
-        feat_img = self.net(img, self.use_deep_supervision)
-        feat_edge = self.net(edge, self.use_deep_supervision)
+        img_feats = self.net.feature_extract(img, True)
+        edge_feats = self.net.feature_extract(edge, True)
 
-        return self.criterion(feat_img, feat_edge)
+        dists = []
+
+        for i, module in enumerate(self.criterion):
+            dists.append(torch.mean(module((img_feats[i] - edge_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
+
+        dist = dists[0]
+
+        for i in range(1, len(dists)):
+            dist += dists[i]
+
+        return dist.mean()
 
     def training_step(self, batch, batch_idx):
         img, edge_pos, edge_neg = batch
 
-        feat_anc = self.net(img, self.use_deep_supervision)
-        feat_pos = self.net(edge_pos, self.use_deep_supervision)
-        feat_neg = self.net(edge_neg, self.use_deep_supervision)
+        anc_feats = self.net.feature_extract(img, True)
+        pos_feats = self.net.feature_extract(edge_pos, True)
+        neg_feats = self.net.feature_extract(edge_neg, True)
 
-        dist_pos = self.criterion(feat_anc, feat_pos)
-        dist_neg = self.criterion(feat_anc, feat_neg)
+        pos_dists = []
+        neg_dists = []
 
-        loss = self.loss(feat_anc, feat_pos, feat_neg)
+        for i, module in enumerate(self.criterion):
+            pos_dists.append(torch.mean(module((anc_feats[i] - pos_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
+            neg_dists.append(torch.mean(module((anc_feats[i] - neg_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
+
+        pos_dist = pos_dists[0]
+        neg_dist = neg_dists[0]
+
+        for i in range(1, len(pos_dists)):
+            pos_dist += pos_dists[i]
+            neg_dist += neg_dists[i]
+
+        loss = torch.clamp_min(self.margin + pos_dist - neg_dist, 0).mean()
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
-        self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
-        self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
+        self.log('train/pos_dist', pos_dist.mean(), logger=True, rank_zero_only=True)
+        self.log('train/neg_dist', neg_dist.mean(), logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
         img, edge_pos, edge_neg = batch
 
-        feat_anc = self.net(img, self.use_deep_supervision)
-        feat_pos = self.net(edge_pos, self.use_deep_supervision)
-        feat_neg = self.net(edge_neg, self.use_deep_supervision)
+        anc_feats = self.net.feature_extract(img, True)
+        pos_feats = self.net.feature_extract(edge_pos, True)
+        neg_feats = self.net.feature_extract(edge_neg, True)
 
-        dist_pos = self.criterion(feat_anc, feat_pos)
-        dist_neg = self.criterion(feat_anc, feat_neg)
+        pos_dists = []
+        neg_dists = []
 
-        loss = self.loss(feat_anc, feat_pos, feat_neg)
+        for i, module in enumerate(self.criterion):
+            pos_dists.append(torch.mean(module((anc_feats[i] - pos_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
+            neg_dists.append(torch.mean(module((anc_feats[i] - neg_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
 
-        self.log('val/loss', loss, logger=True, rank_zero_only=True)
-        self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
-        self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
+        pos_dist = pos_dists[0]
+        neg_dist = neg_dists[0]
+
+        for i in range(1, len(pos_dists)):
+            pos_dist += pos_dists[i]
+            neg_dist += neg_dists[i]
+
+        loss = torch.clamp_min(self.margin + pos_dist - neg_dist, 0).mean()
+
+        self.log('train/loss', loss, logger=True, rank_zero_only=True)
+        self.log('train/pos_dist', pos_dist.mean(), logger=True, rank_zero_only=True)
+        self.log('train/neg_dist', neg_dist.mean(), logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
-        params = list(self.net.parameters())
-        if isinstance(self.criterion, nn.Module):
-            params = params + list(self.criterion.parameters())
+        params = list(self.criterion.parameters())
 
         opt = torch.optim.AdamW(params,
                                 lr=self.lr,

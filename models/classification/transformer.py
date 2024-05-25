@@ -111,6 +111,19 @@ class SwinTransformer(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
+    def train(self, mode: bool = True):
+        super().train(mode)
+        for param in self.parameters():
+            param.requires_grad = True
+
+        return self
+
+    def eval(self):
+        super().eval()
+        for param in self.parameters():
+            param.requires_grad = False
+        return self
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.embed(x)
 
