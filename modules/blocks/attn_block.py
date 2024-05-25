@@ -324,6 +324,7 @@ class DoubleWindowAttentionBlock(nn.Module):
                  proj_bias=True,
                  dropout: float = 0.,
                  attn_dropout: float = 0.,
+                 drop_path: float = 0.,
                  act: str = 'relu',
                  num_groups: int = 1,
                  use_norm: bool = True,
@@ -375,7 +376,7 @@ class DoubleWindowAttentionBlock(nn.Module):
         if self.shift_size > 0:
             # calculate attention mask for SW-MSA
             H, W = self.in_res
-            img_mask = torch.zeros((1, 1, H, W))  # 1 H W 1
+            img_mask = torch.zeros((1, 1, H, W))  # 1 1 H W
             h_slices = (slice(0, -self.window_size),
                         slice(-self.window_size, -self.shift_size),
                         slice(-self.shift_size, None))
@@ -398,10 +399,13 @@ class DoubleWindowAttentionBlock(nn.Module):
         self.attn_mask = attn_mask
 
         self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels * 2, in_channels, kernel_size=1, bias=proj_bias)
-        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.proj = conv_nd(dim, in_channels * 2, in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias)
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         if use_conv:
+            self.norm1 = group_norm(in_channels, num_groups=num_groups)
+            self.norm2 = group_norm(out_channels, num_groups=num_groups)
+
             self.mlp = ConvMLP(
                 in_channels=in_channels,
                 embed_dim=int(in_channels * mlp_ratio),
@@ -419,6 +423,9 @@ class DoubleWindowAttentionBlock(nn.Module):
                 self.shortcut = nn.Identity()
 
         else:
+            self.norm1 = nn.LayerNorm(in_channels)
+            self.norm2 = nn.LayerNorm(out_channels)
+
             self.mlp = MLP(
                 in_channels=in_channels,
                 embed_dim=int(in_channels * mlp_ratio),
@@ -444,7 +451,7 @@ class DoubleWindowAttentionBlock(nn.Module):
         assert h * w == H * W, "input feature has wrong size"
 
         shortcut = x
-        qkv = self.qkv(self.norm(x))
+        qkv = self.qkv(x)
 
         # cyclic shift
         if self.shift_size > 0:
@@ -471,8 +478,8 @@ class DoubleWindowAttentionBlock(nn.Module):
         msa = torch.cat([w_msa, sw_msa], dim=1)
         msa = self.proj(msa)
 
-        msa = shortcut + msa
-        msa = self.mlp(msa) + self.shortcut(msa)
+        msa = shortcut + self.drop_path(self.norm1(msa))
+        msa = self.shortcut(msa) + self.norm2(self.mlp(msa))
 
         return msa
 

@@ -11,20 +11,21 @@ class PatchEmbedding(nn.Module):
     def __init__(self,
                  in_channels: int,
                  embed_dim: int,
-                 in_resolution: Union[int, List, Tuple] = (64, 64),
-                 patch_size: Union[int, List, Tuple] = (4, 4),
+                 in_res: Union[int, List, Tuple] = 64,
+                 patch_size: Union[int, List, Tuple] = 4,
+                 use_conv: bool = True,
                  dim=2,
                  *args,
                  **kwargs
                  ):
         super().__init__(*args, **kwargs)
 
-        self.in_res = to_2tuple(in_resolution)
-        self.patch_size = to_2tuple(patch_size)
-        assert self.in_res[0] % self.patch_size[0] == 0 and self.in_res[1] % self.patch_size[1] == 0
+        self.in_res = in_res
+        self.patch_size = patch_size
+        assert self.in_res % self.patch_size == 0
 
-        self.patch_res = to_2tuple([self.in_res[0] // self.patch_size[0], self.in_res[1] // self.patch_size[1]])
-        self.num_patches = self.patch_res[0] * self.patch_res[1]
+        self.patch_res = in_res // patch_size
+        self.num_patches = self.patch_res ** 2
 
         self.in_channels = in_channels
         self.embed_dim = embed_dim
@@ -40,8 +41,6 @@ class PatchEmbedding(nn.Module):
         self.norm = group_norm(embed_dim, num_groups=1)
 
     def forward(self, x):
-        b, c, h, w = x.shape
-        assert h == self.in_res[0] and w == self.in_res[1]
         x = self.proj(x)
         x = self.norm(x)
 

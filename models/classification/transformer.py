@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 from typing import Any, Union, List, Tuple, Dict
 
 from modules.blocks import DoubleWindowAttentionBlock, DownBlock
-from utils import instantiate_from_config, to_2tuple, conv_nd
+from utils import instantiate_from_config, to_2tuple, conv_nd, group_norm
 from omegaconf import ListConfig
 
 
@@ -46,6 +46,7 @@ class SwinTransformer(pl.LightningModule):
 
         self.embed = nn.Sequential(
             conv_nd(dim, in_channels=in_channels, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size),
+            group_norm(embed_dim, num_groups=num_groups)
         )
         self.encoder = nn.ModuleList()
 
