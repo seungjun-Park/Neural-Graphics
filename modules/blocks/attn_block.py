@@ -399,7 +399,7 @@ class DoubleWindowAttentionBlock(nn.Module):
         self.attn_mask = attn_mask
 
         self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels * 2, in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias)
+        self.proj = conv_nd(dim, in_channels * (2 if self.shift_size > 0 else 1), in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         if use_conv:
@@ -452,30 +452,24 @@ class DoubleWindowAttentionBlock(nn.Module):
 
         shortcut = x
         qkv = self.qkv(x)
-
-        # cyclic shift
-        if self.shift_size > 0:
-            shifted_qkv = torch.roll(qkv, shifts=(-self.shift_size, -self.shift_size), dims=(-2, -1))
-        else:
-            shifted_qkv = x
-
+        shifted_qkv = qkv
         # partition windows
         qkv = window_partition(qkv, self.window_size)  # nW*B, C, window_size, window_size
-        shifted_qkv = window_partition(shifted_qkv, self.window_size)  # nW*B, c, window_size, window_size
 
         # W-MSA/SW-MSA
         w_msa = self.w_attn(qkv)  # nW*B, C, window_size*window_size
-        sw_msa = self.sw_attn(shifted_qkv, mask=self.attn_mask)
-        # merge windows
-
         w_msa = window_reverse(w_msa, self.window_size, h, w)  # B c, H' W'
-        sw_msa = window_reverse(sw_msa, self.window_size, h, w)  # B c, H' W'
+        msa = w_msa
 
-        # reverse cyclic shift
+        # cyclic shift
         if self.shift_size > 0:
+            shifted_qkv = torch.roll(shifted_qkv, shifts=(-self.shift_size, -self.shift_size), dims=(-2, -1))
+            shifted_qkv = window_partition(shifted_qkv, self.window_size)  # nW*B, c, window_size, window_size
+            sw_msa = self.sw_attn(shifted_qkv, mask=self.attn_mask)
+            sw_msa = window_reverse(sw_msa, self.window_size, h, w)  # B c, H' W'
             sw_msa = torch.roll(sw_msa, shifts=(self.shift_size, self.shift_size), dims=(-2, -1))
+            msa = torch.cat([msa, sw_msa], dim=1)
 
-        msa = torch.cat([w_msa, sw_msa], dim=1)
         msa = self.proj(msa)
 
         msa = shortcut + self.drop_path(self.norm1(msa))
