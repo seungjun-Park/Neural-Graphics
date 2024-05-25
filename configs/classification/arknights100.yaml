@@ -37,7 +37,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsImageEdgeClassification
       params:
-        root: './datasets/arknights100'
+        root: '/local_datasets/arknights100'
         train: True
         size: 512
         scale: [0.5, 1.0]
@@ -47,7 +47,7 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsImageEdgeClassification
       params:
-        root: './datasets/arknights100'
+        root: '/local_datasets/arknights100'
         train: False
         size: 512
         scale: [ 0.5, 1.0 ]
