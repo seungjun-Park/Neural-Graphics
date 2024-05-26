@@ -193,6 +193,33 @@ class SwinDecoder(nn.Module):
                 cur_res //= 2
                 in_ch = out_ch
 
+        down = list()
+
+        for j in range(num_blocks[-1] if isinstance(num_blocks, ListConfig) else num_blocks):
+            down.append(
+                SwinDecoderBlock(
+                    in_channels=in_ch,
+                    in_res=cur_res,
+                    window_size=window_size,
+                    num_groups=num_groups,
+                    num_heads=num_heads[-1] if isinstance(num_heads, ListConfig) else num_heads,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    drop_path=drop_path,
+                    qkv_bias=qkv_bias,
+                    bias=bias,
+                    act=act,
+                    mlp_ratio=mlp_ratio,
+                    use_conv=use_conv,
+                    dim=dim,
+                    use_checkpoint=use_checkpoint,
+                    attn_mode=attn_mode,
+                    use_norm=use_norm,
+                )
+            )
+
+        self.decoder.append(nn.Sequential(*down))
+
         self.quant = conv_nd(dim, in_ch, quant_dim, kernel_size=1)
         self.logit = nn.Linear(int(quant_dim * (cur_res ** 2)), logit_dim)
 
