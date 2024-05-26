@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from typing import Any, Union, List, Tuple, Dict
 
-from modules.blocks import DoubleWindowAttentionBlock, DownBlock
+from modules.blocks import DoubleWindowSelfAttentionBlock, DownBlock
 from utils import instantiate_from_config, to_2tuple, conv_nd, group_norm
 from omegaconf import ListConfig
 
@@ -63,7 +63,7 @@ class SwinTransformer(pl.LightningModule):
             down = list()
             for j in range(num_blocks[i] if isinstance(num_blocks, list) else num_blocks):
                 down.append(
-                    DoubleWindowAttentionBlock(
+                    DoubleWindowSelfAttentionBlock(
                         in_channels=in_ch,
                         in_res=to_2tuple(cur_res),
                         out_channels=out_ch,

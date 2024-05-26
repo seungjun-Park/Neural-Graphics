@@ -4,7 +4,6 @@ from einops import rearrange
 
 from typing import List, Union, Tuple
 from utils import group_norm, conv_nd, to_2tuple
-from modules.complex import ComplexLayerNorm, ComplexLinear, ComplexGroupNorm, ComplexConv2d
 
 
 class PatchEmbedding(nn.Module):
@@ -52,6 +51,9 @@ class PatchMerging(nn.Module):
                  in_channels: int,
                  out_channels: int = None,
                  scale_factor: int = 2,
+                 num_groups: int = 1,
+                 use_conv: bool = True,
+                 dim: int = 2,
                  *args,
                  **kwargs,
                  ):
@@ -60,8 +62,14 @@ class PatchMerging(nn.Module):
         self.in_channels = in_channels
         out_channels = in_channels * 2 if out_channels is None else out_channels
         self.scale_factor = scale_factor
-        self.norm = nn.LayerNorm((scale_factor ** 2) * in_channels)
-        self.reduction = nn.Linear((scale_factor ** 2) * in_channels, out_channels, bias=False)
+        self.use_conv = use_conv
+
+        if use_conv:
+            self.norm = group_norm(out_channels, num_groups=num_groups)
+            self.reduction = conv_nd(dim, (scale_factor ** 2) * in_channels, out_channels, kernel_size=1, bias=False)
+        else:
+            self.norm = nn.LayerNorm(out_channels)
+            self.reduction = nn.Linear((scale_factor ** 2) * in_channels, out_channels, bias=False)
 
     def forward(self, x):
         b, c, h, w = x.shape
@@ -71,12 +79,14 @@ class PatchMerging(nn.Module):
         x3 = x[:, :, 1::2, 1::2]
         x = torch.cat([x0, x1, x2, x3], dim=1)
 
-        x = x.permute(0, 2, 3, 1).reshape(b, -1, (self.scale_factor ** 2) * c)
+        if not self.use_conv:
+            x = x.reshape(b, c, -1).permute(0, 2, 1)
 
-        x = self.norm(x)
         x = self.reduction(x)
+        x = self.norm(x)
 
-        x = x.permute(0, 2, 1).reshape(b, -1, h // self.scale_factor, w // self.scale_factor)
+        if not self.use_conv:
+            x = x.permute(0, 2, 1).reshape(b, -1, h // self.scale_factor, w // self.scale_factor)
 
         return x
 

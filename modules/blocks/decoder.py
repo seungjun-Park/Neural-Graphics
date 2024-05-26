@@ -4,213 +4,209 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import List, Tuple, Union
+from timm.models.layers import DropPath
+from omegaconf import ListConfig
 
-from modules.blocks.up import UpBlock
-from modules.blocks.res_block import ResidualBlock
-from modules.blocks.attn_block import AttnBlock
-from utils import get_act, conv_nd, group_norm, to_2tuple
+from modules.blocks.down import DownBlock
+from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, DoubleWindowCrossAttentionBlock
+from modules.blocks.mlp import MLP, ConvMLP
+from modules.blocks.patches import PatchMerging
+from utils import get_act, conv_nd, group_norm, to_2tuple, ConditionalSequential
 
 
-class Decoder(nn.Module):
+class SwinDecoderBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
-                 hidden_dims: Union[List, Tuple],
-                 embed_dim: int,
-                 latent_dim: int,
-                 mlp_ratio: int = 4,
-                 num_blocks: int = 2,
+                 in_res: Union[int, List[int], Tuple[int]],
+                 out_channels: int = None,
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 num_groups: int = 16,
                  num_heads: int = -1,
-                 num_head_channels: int = -1,
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
+                 drop_path: float = 0.0,
+                 qkv_bias: bool = True,
                  bias: bool = True,
-                 groups: int = 32,
                  act: str = 'relu',
-                 dim: int = 2,
+                 mlp_ratio: float = 4.0,
                  use_conv: bool = True,
-                 norm_type: str = 'group',
-                 mode: str = 'nearest',
-                 **ignorekwargs
+                 dim: int = 2,
+                 use_checkpoint: bool = True,
+                 attn_mode: str = 'cosine',
+                 use_norm: bool = True,
                  ):
         super().__init__()
 
-        self.in_channels = in_channels
-        self.embed_dim = embed_dim
-        self.hidden_dims = hidden_dims
+        out_channels = in_channels if out_channels is None else out_channels
 
-        self.num_heads = num_heads
-        self.num_head_channels = num_head_channels
-        self.attn_dropout = attn_dropout
-        self.bias = bias
-        self.act = act
-        self.dim = dim
-        self.use_conv = use_conv
-        self.norm_type = norm_type
+        self.attn = DoubleWindowSelfAttentionBlock(
+            in_channels=in_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
 
-        self.up = nn.ModuleList()
+        self.cross_attn = DoubleWindowCrossAttentionBlock(
+            in_channels=in_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
 
-        self.up.append(nn.Sequential(
-            group_norm(embed_dim, groups),
-            nn.Conv2d(
-                embed_dim,
-                in_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
+        if use_conv:
+            self.norm1 = group_norm(in_channels, num_groups=num_groups)
+            self.norm2 = group_norm(in_channels, num_groups=num_groups)
+            self.norm3 = group_norm(out_channels, num_groups=num_groups)
+
+            self.mlp = ConvMLP(
+                in_channels=in_channels,
+                embed_dim=int(in_channels * mlp_ratio),
+                out_channels=out_channels,
+                dropout=dropout,
+                act=act,
+                num_groups=num_groups,
+                use_norm=use_norm,
+                dim=dim,
+                use_checkpoint=use_checkpoint,
             )
-        ))
+
+        else:
+            self.norm1 = nn.LayerNorm(in_channels)
+            self.norm2 = nn.LayerNorm(in_channels)
+            self.norm3 = nn.LayerNorm(out_channels)
+
+            self.mlp = MLP(
+                in_channels=in_channels,
+                embed_dim=int(in_channels * mlp_ratio),
+                out_channels=out_channels,
+                dropout=dropout,
+                act=act,
+                use_norm=use_norm,
+                use_checkpoint=use_checkpoint,
+            )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        if in_channels != out_channels:
+            if use_conv:
+                self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+            else:
+                self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=1)
+        else:
+            self.shortcut = nn.Identity()
+
+    def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
+        h = x + self.drop_path(self.norm1(self.attn(x)))
+        h = h + self.drop_path(self.norm2(self.cross_attn(h, context)))
+        z = self.shortcut(h) + self.drop_path(self.norm3(self.mlp(h)))
+        return z
+
+
+class SwinDecoder(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 in_res: Union[int, List[int], Tuple[int]],
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 patch_size: Union[int, List[int], Tuple[int]] = 4,
+                 hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
+                 embed_dim: int = 16,
+                 quant_dim: int = 4,
+                 logit_dim: int = 1,
+                 num_blocks: Union[int, List[int], Tuple[int]] = 2,
+                 num_groups: int = 16,
+                 num_heads: int = -1,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 drop_path: float = 0.0,
+                 qkv_bias: bool = True,
+                 bias: bool = True,
+                 mlp_ratio: float = 4.0,
+                 act: str = 'relu',
+                 use_conv: bool = True,
+                 pool_type: str = 'max',
+                 dim: int = 2,
+                 use_checkpoint: bool = True,
+                 attn_mode: str = 'cosine',
+                 use_norm: bool = True,
+                 **ignored_kwargs,
+                 ):
+        super().__init__()
+
+        self.embed = nn.Sequential(
+                conv_nd(dim, in_channels=in_channels, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size),
+                group_norm(embed_dim, num_groups=num_groups)
+            )
+
+        self.decoder = nn.ModuleList()
 
         in_ch = embed_dim
+        cur_res = in_res // patch_size
 
         for i, out_ch in enumerate(hidden_dims):
-            layer = list()
-
-            for j in range(num_blocks):
-                layer.append(
-                    ResidualBlock(
+            down = list()
+            for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
+                down.append(
+                    SwinDecoderBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
-                        dropout=dropout,
-                        act=act,
-                        dim=dim,
-                        norm_type=norm_type,
-                        groups=groups,
-                    )
-                )
-                in_ch = out_ch
-
-            if i != 0:
-                layer.append(nn.Sequential(
-                    UpBlock(in_ch, dim=dim, mode=mode),
-                    AttnBlock(
-                        in_ch,
-                        mlp_ratio=mlp_ratio,
-                        heads=num_heads,
-                        num_head_channels=num_head_channels,
+                        in_res=cur_res,
+                        window_size=window_size,
+                        num_groups=num_groups,
+                        num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
+                        drop_path=drop_path,
+                        qkv_bias=qkv_bias,
                         bias=bias,
                         act=act,
+                        mlp_ratio=mlp_ratio,
                         use_conv=use_conv,
                         dim=dim,
-                        norm_type=norm_type,
-                        groups=groups,
-                    )
-                ))
-
-            self.up.insert(0, nn.Sequential(*layer))
-
-        self.up.append(nn.Conv2d(
-            in_ch,
-            embed_dim,
-            kernel_size=3,
-            stride=1,
-            padding=1,
-        ))
-
-        self.out = nn.Sequential(
-            group_norm(embed_dim, groups),
-            nn.Conv2d(embed_dim, out_channels=in_channels, kernel_size=3, stride=1, padding=1),
-        )
-
-    def forward(self, x):
-        for module in self.up:
-            x = module(x)
-
-
-
-        return x
-
-    def get_last_layer(self):
-        return self.up[-1][-1].weight
-
-
-class ComplexDecoder(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 out_channels: int,
-                 embed_dim: int,
-                 hidden_dims: Union[List[int], Tuple[int]],
-                 latent_dim: int,
-                 num_blocks: int = 2,
-                 patch_size: Union[int, List[int], Tuple[int]] = 4,
-                 window_size: Union[int, List[int], Tuple[int]] = 7,
-                 mlp_ratio: float = 4.,
-                 qkv_bias: bool = True,
-                 qk_scale: float = None,
-                 num_heads: int = -1,
-                 num_head_channels: int = -1,
-                 drop_path: float = 0.1,
-                 dropout: float = 0.0,
-                 attn_dropout: float = 0.0,
-                 proj_bias: bool = True,
-                 num_groups: int = 32,
-                 act: str = 'relu',
-                 use_pos_enc: bool = False,
-                 dtype: str = 'complex64',
-                 **ignorekwargs
-                 ):
-        super().__init__()
-
-        dtype = dtype.lower()
-        assert dtype in ['complex32', 'complex64', 'complex128']
-        if dtype == 'complex32':
-            self.dtype = torch.complex32
-        elif dtype == 'complex64':
-            self.dtype = torch.complex64
-        else:
-            self.dtype = torch.complex128
-
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads,
-        self.num_head_channels = num_head_channels
-        self.attn_dropout = attn_dropout
-        self.num_groups = num_groups
-        self.act = act
-        self.mlp_ratio = mlp_ratio
-        self.use_pos_enc = use_pos_enc
-
-        self.layers = nn.ModuleList()
-
-        in_ch = hidden_dims[-1]
-        hidden_dims.reverse()
-        hidden_dims = hidden_dims[1: ]
-        hidden_dims.append(hidden_dims[-1])
-
-        for i, out_ch in enumerate(hidden_dims):
-            layer = []
-
-            if i != 0:
-                layer.append(UpBlock(in_ch))
-
-            for j in range(num_blocks + 1):
-                layer.append(
-                    ResidualBlock(
-                        in_channels=in_ch,
-                        out_channels=out_ch,
-                        dropout=dropout,
-                        act=act
+                        use_checkpoint=use_checkpoint,
+                        attn_mode=attn_mode,
+                        use_norm=use_norm,
                     )
                 )
 
+            self.decoder.append(ConditionalSequential(*down))
+
+            if i != len(hidden_dims) - 1:
+                self.decoder.append(
+                    PatchMerging(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        num_groups=num_groups,
+                        use_conv=use_conv,
+                        dim=dim,
+                    )
+                )
+                cur_res //= 2
                 in_ch = out_ch
 
-            self.layers.append(nn.Sequential(*layer))
+        self.quant = conv_nd(dim, in_ch, quant_dim, kernel_size=1)
+        self.logit = nn.Linear(int(quant_dim * (cur_res ** 2)), logit_dim)
 
-        self.out = nn.Sequential(
-            group_norm(in_ch),
-            nn.Conv2d(in_ch, out_channels, kernel_size=3, stride=1, padding=1)
-        )
+    def forward(self, x: torch.Tensor, context: List[torch.Tensor]) -> torch.Tensor:
+        h = self.embed(x)
 
-    def forward(self, x):
-        for module in self.layers:
-            x = module(x)
+        for i, module in enumerate(self.decoder):
+            if isinstance(module, PatchMerging):
+                h = module(h)
+            else:
+                h = module(h, context.pop(0))
 
-        x = self.out(x)
+        h = self.quant(h)
+        h = torch.flatten(h, start_dim=1)
+        h = self.logit(h)
 
-        return x
-
-    def get_last_layer(self):
-        return self.out[-1].weight
+        return h

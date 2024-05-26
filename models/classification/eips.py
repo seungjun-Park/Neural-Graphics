@@ -5,7 +5,8 @@ import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, to_3tuple, conv_nd, get_act, group_norm, normalize_img
-from models.classification.transformer import SwinTransformer
+from modules.blocks.encoder import SwinEncoder
+from modules.blocks.decoder import SwinDecoder
 
 
 class EIPS(pl.LightningModule):
@@ -16,7 +17,6 @@ class EIPS(pl.LightningModule):
                  weight_decay: float = 1e-4,
                  log_interval: int = 100,
                  ckpt_path: str = None,
-                 dim: int = 2,
                  ):
         super().__init__()
 
@@ -25,16 +25,8 @@ class EIPS(pl.LightningModule):
         self.log_interval = log_interval
         self.margin = margin
 
-        self.net: SwinTransformer = instantiate_from_config(net_config).eval()
-
-        self.criterion = nn.ModuleList()
-
-        hidden_dims = list(net_config['params']['hidden_dims'])
-
-        for hidden_dim in hidden_dims:
-            self.criterion.append(
-                conv_nd(dim, hidden_dim, 1, kernel_size=1, stride=1)
-            )
+        self.encoder = SwinEncoder(**net_config)
+        self.decoder = SwinDecoder(**net_config)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -64,81 +56,32 @@ class EIPS(pl.LightningModule):
         return self
 
     def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
-        img_feats = self.net.feature_extract(img, True)
-        edge_feats = self.net.feature_extract(edge, True)
+        cond = self.encoder(img)
+        logit = self.decoder(edge, cond)
 
-        dists = []
-
-        for i, module in enumerate(self.criterion):
-            dists.append(torch.mean(module((img_feats[i] - edge_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
-
-        dist = dists[0]
-
-        for i in range(1, len(dists)):
-            dist += dists[i]
-
-        return dist.mean()
+        return F.sigmoid(logit)
 
     def training_step(self, batch, batch_idx):
-        img, edge_pos, edge_neg = batch
+        img, edge, label = batch
 
-        anc_feats = self.net.feature_extract(img, True)
-        pos_feats = self.net.feature_extract(edge_pos, True)
-        neg_feats = self.net.feature_extract(edge_neg, True)
-
-        pos_dists = []
-        neg_dists = []
-
-        for i, module in enumerate(self.criterion):
-            pos_dists.append(torch.mean(module((anc_feats[i] - pos_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
-            neg_dists.append(torch.mean(module((anc_feats[i] - neg_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
-
-        pos_dist = pos_dists[0]
-        neg_dist = neg_dists[0]
-
-        for i in range(1, len(pos_dists)):
-            pos_dist += pos_dists[i]
-            neg_dist += neg_dists[i]
-
-        loss = torch.clamp_min(self.margin + pos_dist - neg_dist, 0).mean()
+        prob = self(img, edge)
+        loss = F.binary_cross_entropy(prob, label)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
-        self.log('train/pos_dist', pos_dist.mean(), logger=True, rank_zero_only=True)
-        self.log('train/neg_dist', neg_dist.mean(), logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        img, edge_pos, edge_neg = batch
+        img, edge, label = batch
 
-        anc_feats = self.net.feature_extract(img, True)
-        pos_feats = self.net.feature_extract(edge_pos, True)
-        neg_feats = self.net.feature_extract(edge_neg, True)
-
-        pos_dists = []
-        neg_dists = []
-
-        for i, module in enumerate(self.criterion):
-            pos_dists.append(torch.mean(module((anc_feats[i] - pos_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
-            neg_dists.append(torch.mean(module((anc_feats[i] - neg_feats[i]) ** 2), dim=[-2, -1], keepdim=True))
-
-        pos_dist = pos_dists[0]
-        neg_dist = neg_dists[0]
-
-        for i in range(1, len(pos_dists)):
-            pos_dist += pos_dists[i]
-            neg_dist += neg_dists[i]
-
-        loss = torch.clamp_min(self.margin + pos_dist - neg_dist, 0).mean()
+        prob = self(img, edge)
+        loss = F.binary_cross_entropy(prob, label)
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
-        self.log('val/pos_dist', pos_dist.mean(), logger=True, rank_zero_only=True)
-        self.log('val/neg_dist', neg_dist.mean(), logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
-        params = list(self.criterion.parameters())
-
-        opt = torch.optim.AdamW(params,
+        opt = torch.optim.AdamW(list(self.encoder.parameters()) +
+                                list(self.decoder.parameters()),
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
                                 betas=(0.5, 0.9)

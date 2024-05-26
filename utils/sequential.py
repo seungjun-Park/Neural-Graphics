@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Union, List, Dict
 
 
 class ComplexSequential(nn.Sequential):
@@ -19,3 +20,17 @@ class ComplexSequential(nn.Sequential):
             x_imag = m(x_imag)
 
         return torch.complex(x_real, x_imag)
+
+
+class ConditionalSequential(nn.Sequential):
+    def __init__(self,
+                 *args,
+                 **kwargs,
+                 ):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, x, context):
+        for layer in self:
+            x = layer(x, context)
+
+        return x
