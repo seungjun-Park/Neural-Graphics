@@ -180,7 +180,7 @@ class SwinDecoder(nn.Module):
 
             self.decoder.append(ConditionalSequential(*down))
 
-            if i != len(hidden_dims) - 1:
+            if i != len(hidden_dims):
                 self.decoder.append(
                     PatchMerging(
                         in_channels=in_ch,
@@ -218,7 +218,7 @@ class SwinDecoder(nn.Module):
                 )
             )
 
-        self.decoder.append(nn.Sequential(*down))
+        self.decoder.append(ConditionalSequential(*down))
 
         self.quant = conv_nd(dim, in_ch, quant_dim, kernel_size=1)
         self.logit = nn.Linear(int(quant_dim * (cur_res ** 2)), logit_dim)
