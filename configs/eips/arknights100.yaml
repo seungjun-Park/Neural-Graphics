@@ -1,6 +1,7 @@
 module:
   target: models.classification.EIPS
   params:
+    ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
     margin: 2.5
     lr: 2e-5
     weight_decay: 0.
@@ -28,7 +29,6 @@ module:
       use_checkpoint: True
       attn_mode: 'cosine'
       use_norm: True
-      # ckpt_path: './checkpoints/classification/arknights100_best.ckpt'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
