@@ -25,7 +25,6 @@ class EDNSE(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
-        self.log_val = True
         # self.save_hyperparameters()
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
@@ -86,14 +85,8 @@ class EDNSE(pl.LightningModule):
 
         loss, loss_log = self.loss(pred, label, img, split='val')
 
-        if self.log_val:
-            self.log_val = False
-            self.log_img(img, label, pred)
-
+        self.log_img(img, label, pred)
         self.log_dict(loss_log, rank_zero_only=True, logger=True)
-
-    def on_validation_end(self):
-        self.log_val = True
 
     @torch.no_grad()
     def log_img(self, img, gt, pred):
