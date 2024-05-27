@@ -99,31 +99,23 @@ class PatchExpanding(nn.Module):
                  in_channels: int,
                  out_channels: int,
                  scale_factor: int = 2,
-                 act: str = 'relu',
-                 dropout: float = 0.,
                  num_groups: int = 1,
                  use_conv: bool = True,
                  dim: int = 2,
-                 use_checkpoint: bool = True,
                  mode: str = 'nearest'
                  ):
         super().__init__()
 
         self.scale_factor = scale_factor
-        self.use_checkpoint = use_checkpoint
         self.use_conv = use_conv
         self.mode = mode.lower()
 
-        self.expand = ResidualBlock(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            dropout=dropout,
-            act=act,
-            dim=dim,
-            num_groups=num_groups,
-            use_checkpoint=use_checkpoint,
-            use_conv=use_conv,
-        )
+        if use_conv:
+            self.expand = conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+            self.norm = group_norm(out_channels, num_groups=num_groups)
+        else:
+            self.expand = nn.Linear(in_channels, out_channels)
+            self.norm = nn.LayerNorm(out_channels)
 
     def forward(self, x: torch.Tensor):
         if self.use_checkpoint:
@@ -133,6 +125,6 @@ class PatchExpanding(nn.Module):
     def _forward(self, x):
         h = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
 
-        return self.expand(h)
+        return self.norm(self.expand(h))
 
     
