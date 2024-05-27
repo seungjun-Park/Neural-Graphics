@@ -210,12 +210,9 @@ class UNet(nn.Module):
                 PatchExpanding(
                     in_channels=in_ch + skip_dims.pop(),
                     out_channels=out_ch,
-                    act=act,
-                    dropout=dropout,
                     num_groups=num_groups,
                     use_conv=use_conv,
                     dim=dim,
-                    use_checkpoint=use_checkpoint,
                     mode=mode,
                 )
             )
@@ -258,6 +255,7 @@ class UNet(nn.Module):
                 stride=1,
                 padding=1,
             ),
+            group_norm(out_channels, num_groups=1)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
