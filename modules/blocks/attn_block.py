@@ -189,6 +189,7 @@ class WindowAttention(nn.Module):
                  qk_scale: float = None,
                  drop: float = 0.0,
                  attn_mode: str = 'vanilla',
+                 use_checkpoint: bool = True
                  ):
         super().__init__()
 
@@ -199,6 +200,7 @@ class WindowAttention(nn.Module):
         assert in_channels % num_heads == 0
         self.num_heads = num_heads
         self.d_k = in_channels // num_heads
+        self.use_checkpoint = use_checkpoint
 
         self.in_channels = in_channels
         self.window_size = window_size
@@ -358,6 +360,7 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
             qk_scale=qk_scale,
             drop=dropout,
             attn_mode=attn_mode,
+            use_checkpoint=use_checkpoint
         )
 
         self.sw_attn = WindowAttention(
@@ -368,6 +371,7 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
             qk_scale=qk_scale,
             drop=dropout,
             attn_mode=attn_mode,
+            use_checkpoint=use_checkpoint
         )
 
         if self.shift_size > 0:
