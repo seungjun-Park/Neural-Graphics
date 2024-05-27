@@ -42,6 +42,7 @@ class EdgePerceptualLoss(nn.Module):
                "{}/l1_loss".format(split): l1.detach().mean(),
                "{}/p_loss".format(split): p_loss.detach().mean(),
                "{}/eips".format(split): eips.detach().mean(),
+               "{}/bdcn_loss".format(split): bdcn.detach().mean(),
                }
 
         return loss, log
