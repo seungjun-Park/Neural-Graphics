@@ -117,12 +117,7 @@ class PatchExpanding(nn.Module):
             self.expand = nn.Linear(in_channels, out_channels)
             self.norm = nn.LayerNorm(out_channels)
 
-    def forward(self, x: torch.Tensor):
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x)
-        return self._forward(x)
-
-    def _forward(self, x):
+    def forward(self, x):
         h = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
 
         return self.norm(self.expand(h))
