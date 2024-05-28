@@ -254,8 +254,7 @@ class UNet(nn.Module):
                 kernel_size=3,
                 stride=1,
                 padding=1,
-            ),
-            group_norm(out_channels, num_groups=1)
+            )
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
