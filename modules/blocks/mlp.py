@@ -75,8 +75,8 @@ class ConvMLP(nn.Module):
         self.use_norm = use_norm
         self.use_checkpoint = use_checkpoint
 
-        self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
-        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=1, stride=1, padding=0)
+        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=1, stride=1, padding=0)
 
         self.act = get_act(act)
 
