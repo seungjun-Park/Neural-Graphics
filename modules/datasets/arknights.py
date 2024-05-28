@@ -388,8 +388,8 @@ class ArknightsImageEdgeSimilarity(Dataset):
         edge = self.to_tensor(edge)
         edge = edge.repeat(3, 1, 1)
         i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
-        img = tf.resized_crop(img, i, j, h, w, size=self.size)
-        edge = tf.resized_crop(edge, i, j, h, w, size=self.size)
+        img = tf.resized_crop(img, i, j, h, w, size=self.size, antialias=True)
+        edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
 
         return img, edge, label
 
