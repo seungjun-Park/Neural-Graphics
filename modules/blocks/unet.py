@@ -249,7 +249,7 @@ class UNet(nn.Module):
         self.out = nn.Sequential(
             conv_nd(
                 dim,
-                in_ch,
+                in_ch + skip_dims.pop(),
                 out_channels,
                 kernel_size=3,
                 stride=1,
@@ -260,6 +260,7 @@ class UNet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = []
         h = self.embed(x)
+        hs.append(h)
 
         for i, block in enumerate(self.encoder):
             h = block(h)
@@ -272,6 +273,7 @@ class UNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
+        h = torch.cat([h, hs.pop()], dim=1)
         h = self.out(h)
 
         return h
