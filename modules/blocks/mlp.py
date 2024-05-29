@@ -28,8 +28,8 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(embed_dim, out_channels)
 
         if use_norm:
-            self.norm1 = nn.LayerNorm(embed_dim)
-            self.norm2 = nn.LayerNorm(out_channels)
+            self.norm1 = nn.LayerNorm(in_channels)
+            self.norm2 = nn.LayerNorm(embed_dim)
 
         self.act = get_act(act)
 
@@ -83,8 +83,8 @@ class ConvMLP(nn.Module):
         self.dropout = dropout
 
         if use_norm:
-            self.norm1 = group_norm(embed_dim, num_groups=num_groups)
-            self.norm2 = group_norm(out_channels, num_groups=num_groups)
+            self.norm1 = group_norm(in_channels, num_groups=num_groups)
+            self.norm2 = group_norm(embed_dim, num_groups=num_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
