@@ -222,8 +222,6 @@ class SwinDecoder(nn.Module):
             group_norm(in_ch, num_groups=num_groups),
             get_act(act),
             conv_nd(dim, in_ch, quant_dim, kernel_size=1),
-            group_norm(quant_dim, num_groups=num_groups),
-            get_act(act),
         )
         self.logit = nn.Linear(int(quant_dim * (cur_res ** 2)), logit_dim)
 
