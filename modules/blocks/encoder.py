@@ -89,9 +89,8 @@ class SwinEncoderBlock(nn.Module):
             self.shortcut = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.attn(x)
-        h = x + self.drop_path(self.norm1(h))
-        z = self.shortcut(h) + self.drop_path(self.norm2(self.mlp(h)))
+        h = x + self.drop_path(self.attn(self.norm1(x)))
+        z = self.shortcut(h) + self.drop_path(self.mlp(h))
         return z
 
 
@@ -114,7 +113,6 @@ class SwinEncoder(nn.Module):
                  mlp_ratio: float = 4.0,
                  act: str = 'relu',
                  use_conv: bool = True,
-                 pool_type: str = 'max',
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
@@ -125,7 +123,6 @@ class SwinEncoder(nn.Module):
 
         self.embed = nn.Sequential(
                 conv_nd(dim, in_channels=in_channels, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size),
-                group_norm(embed_dim, num_groups=num_groups)
             )
 
         self.encoder = nn.ModuleList()

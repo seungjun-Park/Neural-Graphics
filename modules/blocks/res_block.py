@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
+from timm.models.layers import DropPath
 
 from typing import Union, List, Tuple
 from utils import get_act, conv_nd, group_norm
@@ -13,6 +14,7 @@ class ResidualBlock(nn.Module):
                  in_channels,
                  out_channels=None,
                  dropout=0.1,
+                 drop_path: float = 0.,
                  act='relu',
                  dim=2,
                  num_groups: int = 32,
@@ -35,7 +37,7 @@ class ResidualBlock(nn.Module):
         self.norm2 = group_norm(out_channels, num_groups=num_groups)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
-
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         if self.in_channels == self.out_channels:
             self.shortcut = nn.Identity()
 
@@ -56,15 +58,16 @@ class ResidualBlock(nn.Module):
         return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.conv1(x)
+        h = x
         h = self.norm1(h)
         h = self.act(h)
+        h = self.conv1(h)
         h = self.dropout(h)
 
-        h = self.conv2(h)
         h = self.norm2(h)
         h = self.act(h)
+        h = self.conv2(h)
         h = self.dropout(h)
 
-        return h + self.shortcut(x)
+        return self.drop_path(h) + self.shortcut(x)
 

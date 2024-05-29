@@ -84,7 +84,7 @@ class EIPS(pl.LightningModule):
                                 list(self.decoder.parameters()),
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
-                                betas=(0.5, 0.9)
+                                betas=(0.0, 0.99)
                                 )
 
         return [opt]

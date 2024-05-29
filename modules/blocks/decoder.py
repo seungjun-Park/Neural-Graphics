@@ -68,7 +68,7 @@ class SwinDecoderBlock(nn.Module):
         if use_conv:
             self.norm1 = group_norm(in_channels, num_groups=num_groups)
             self.norm2 = group_norm(in_channels, num_groups=num_groups)
-            self.norm3 = group_norm(out_channels, num_groups=num_groups)
+            self.norm3 = group_norm(in_channels, num_groups=num_groups)
 
             self.mlp = ConvMLP(
                 in_channels=in_channels,
@@ -85,7 +85,7 @@ class SwinDecoderBlock(nn.Module):
         else:
             self.norm1 = nn.LayerNorm(in_channels)
             self.norm2 = nn.LayerNorm(in_channels)
-            self.norm3 = nn.LayerNorm(out_channels)
+            self.norm3 = nn.LayerNorm(in_channels)
 
             self.mlp = MLP(
                 in_channels=in_channels,
@@ -107,9 +107,9 @@ class SwinDecoderBlock(nn.Module):
             self.shortcut = nn.Identity()
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
-        h = x + self.drop_path(self.norm1(self.attn(x)))
-        h = h + self.drop_path(self.norm2(self.cross_attn(h, context)))
-        z = self.shortcut(h) + self.drop_path(self.norm3(self.mlp(h)))
+        h = x + self.drop_path(self.attn(self.norm1(x)))
+        h = h + self.drop_path(self.cross_attn(self.norm2(h), self.norm3(context)))
+        z = self.shortcut(h) + self.drop_path(self.mlp(h))
         return z
 
 
@@ -134,7 +134,6 @@ class SwinDecoder(nn.Module):
                  mlp_ratio: float = 4.0,
                  act: str = 'relu',
                  use_conv: bool = True,
-                 pool_type: str = 'max',
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
@@ -145,7 +144,6 @@ class SwinDecoder(nn.Module):
 
         self.embed = nn.Sequential(
                 conv_nd(dim, in_channels=in_channels, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size),
-                group_norm(embed_dim, num_groups=num_groups)
             )
 
         self.decoder = nn.ModuleList()
@@ -220,7 +218,13 @@ class SwinDecoder(nn.Module):
 
         self.decoder.append(ConditionalSequential(*down))
 
-        self.quant = conv_nd(dim, in_ch, quant_dim, kernel_size=1)
+        self.quant = nn.Sequential(
+            group_norm(in_ch, num_groups=num_groups),
+            get_act(act),
+            conv_nd(dim, in_ch, quant_dim, kernel_size=1),
+            group_norm(quant_dim, num_groups=num_groups),
+            get_act(act),
+        )
         self.logit = nn.Linear(int(quant_dim * (cur_res ** 2)), logit_dim)
 
     def forward(self, x: torch.Tensor, context: List[torch.Tensor]) -> torch.Tensor:

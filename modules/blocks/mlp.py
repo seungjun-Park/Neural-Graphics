@@ -41,16 +41,16 @@ class MLP(nn.Module):
     def _forward(self, x):
         # x.shape == b, l, c
         h = x
-        h = self.fc1(h)
         if self.use_norm:
             h = self.norm1(h)
         h = self.act(h)
+        h = self.fc1(h)
         h = F.dropout(h, p=self.dropout)
 
-        h = self.fc2(h)
         if self.use_norm:
             h = self.norm2(h)
         h = self.act(h)
+        h = self.fc2(h)
         h = F.dropout(h, p=self.dropout)
 
         return h
@@ -75,8 +75,8 @@ class ConvMLP(nn.Module):
         self.use_norm = use_norm
         self.use_checkpoint = use_checkpoint
 
-        self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
-        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=1, stride=1, padding=0)
+        self.conv2 = conv_nd(dim, embed_dim, out_channels, kernel_size=1, stride=1, padding=0)
 
         self.act = get_act(act)
 
@@ -95,16 +95,16 @@ class ConvMLP(nn.Module):
         # x.shape == b, c, *...
 
         h = x
-        h = self.conv1(h)
         if self.use_norm:
             h = self.norm1(h)
         h = self.act(h)
+        h = self.conv1(h)
         h = F.dropout(h, p=self.dropout)
 
-        h = self.conv2(h)
         if self.use_norm:
             h = self.norm2(h)
         h = self.act(h)
+        h = self.conv2(h)
         h = F.dropout(h, p=self.dropout)
 
         return h

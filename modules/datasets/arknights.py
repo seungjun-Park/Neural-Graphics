@@ -372,18 +372,27 @@ class ArknightsImageEdgeSimilarity(Dataset):
         img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, self.color_space)
         img = self.to_tensor(img)
+
+        label = torch.tensor([1.0])
+
+        # use image or different edge or similar edge
         if p < 0.5:
             while True:
                 idx = random.randrange(0, len(self))
                 if idx != index:
                     break
-            edge_name = self.edge_names[idx]
+            if random.random() < 0.5:
+                edge_name = self.edge_names[idx]
+            else:
+                edge_name = self.img_names[idx]
             edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
-            label = torch.tensor([1.0])
         else:
-            edge_name = self.edge_names[index]
+            if random.random() < 0.5:
+                edge_name = self.edge_names[index]
+                label = torch.tensor([0.0])
+            else:
+                edge_name = self.img_names[index]
             edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
-            label = torch.tensor([0.0])
 
         edge = self.to_tensor(edge)
         edge = edge.repeat(3, 1, 1)
