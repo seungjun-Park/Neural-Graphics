@@ -18,7 +18,6 @@ module:
         embed_dim: 16
         num_blocks: 1
         num_heads: [2, 4, 8, 16]
-        mlp_ratio: 4
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
