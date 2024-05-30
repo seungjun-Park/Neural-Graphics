@@ -34,7 +34,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        bdcn_weight: 0.0
+        bdcn_weight: 1.0
         l1_weight: 1.0
         lpips_weight: 1.0
         eips_weight: 1.0
