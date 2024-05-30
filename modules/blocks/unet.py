@@ -37,7 +37,7 @@ class UnetBlock(nn.Module):
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.norm = group_norm(out_channels, num_groups=num_groups)
 
         self.res_block = ResidualBlock(
             in_channels=in_channels,
