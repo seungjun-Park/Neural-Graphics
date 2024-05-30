@@ -9,6 +9,9 @@ from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_a
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock
+from modules.blocks.res_block import ResidualBlock
+from modules.blocks.down import DownBlock
+from modules.blocks.up import UpBlock
 
 
 class UnetBlock(nn.Module):
@@ -25,19 +28,31 @@ class UnetBlock(nn.Module):
                  qkv_bias: bool = True,
                  bias: bool = True,
                  act: str = 'relu',
-                 mlp_ratio: float = 4.0,
                  use_conv: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
-                 use_norm: bool = True,
                  ):
         super().__init__()
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.attn = DoubleWindowSelfAttentionBlock(
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+
+        self.res_block = ResidualBlock(
             in_channels=in_channels,
+            out_channels=out_channels,
+            dropout=dropout,
+            drop_path=drop_path,
+            act=act,
+            dim=dim,
+            num_groups=num_groups,
+            use_checkpoint=use_checkpoint,
+            use_conv=use_conv
+        )
+
+        self.attn = DoubleWindowSelfAttentionBlock(
+            in_channels=out_channels,
             in_res=to_2tuple(in_res),
             num_heads=num_heads,
             window_size=window_size,
@@ -49,50 +64,12 @@ class UnetBlock(nn.Module):
             dim=dim
         )
 
-        if use_conv:
-            self.norm1 = group_norm(in_channels, num_groups=num_groups)
-            self.norm2 = group_norm(out_channels, num_groups=num_groups)
-
-            self.mlp = ConvMLP(
-                in_channels=in_channels,
-                embed_dim=int(in_channels * mlp_ratio),
-                out_channels=out_channels,
-                dropout=dropout,
-                act=act,
-                num_groups=num_groups,
-                use_norm=use_norm,
-                dim=dim,
-                use_checkpoint=use_checkpoint,
-            )
-
-        else:
-            self.norm1 = nn.LayerNorm(in_channels)
-            self.norm2 = nn.LayerNorm(out_channels)
-            self.mlp = MLP(
-                in_channels=in_channels,
-                embed_dim=int(in_channels * mlp_ratio),
-                out_channels=out_channels,
-                dropout=dropout,
-                act=act,
-                use_norm=use_norm,
-                use_checkpoint=use_checkpoint,
-            )
-
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        if in_channels != out_channels:
-            if use_conv:
-                self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1)
-            else:
-                self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=1)
-        else:
-            self.shortcut = nn.Identity()
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.attn(x)
-        h = x + self.drop_path(self.norm1(h))
-        z = self.shortcut(h) + self.drop_path(self.norm2(self.mlp(h)))
-        return z
+        h = self.res_block(x)
+        h = h + self.drop_path(self.attn(self.norm(h)))
+        return h
 
 
 class UNet(nn.Module):
@@ -105,7 +82,6 @@ class UNet(nn.Module):
                  embed_dim: int = 16,
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
                  num_heads: Union[int, List[int], Tuple[int]] = 8,
-                 mlp_ratio: int = 4,
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
                  drop_path: float = 0.0,
@@ -113,7 +89,6 @@ class UNet(nn.Module):
                  bias: bool = True,
                  num_groups: int = 32,
                  act: str = 'relu',
-                 use_norm: bool = True,
                  use_conv: bool = True,
                  pool_type: str = 'conv',
                  mode: str = 'nearest',
@@ -147,6 +122,7 @@ class UNet(nn.Module):
                 down.append(
                     UnetBlock(
                         in_channels=in_ch,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -157,35 +133,29 @@ class UNet(nn.Module):
                         qkv_bias=qkv_bias,
                         bias=bias,
                         act=act,
-                        mlp_ratio=mlp_ratio,
                         use_conv=use_conv,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
-                        use_norm=use_norm,
                     )
                 )
 
+                in_ch = out_ch
                 skip_dims.append(in_ch)
                 self.encoder.append(nn.Sequential(*down))
 
             self.encoder.append(
-                PatchMerging(
-                    in_channels=in_ch,
-                    out_channels=out_ch,
-                    num_groups=num_groups,
-                    use_conv=use_conv,
-                    dim=dim
-                )
+                DownBlock(in_ch, dim=dim, pool_type=pool_type)
             )
             in_ch = out_ch
             skip_dims.append(out_ch)
             cur_res //= 2
 
-        for j in range(num_blocks[-1] if isinstance(num_blocks, ListConfig) else num_blocks):
-            self.middle.append(
+        self.middle.append(
+            nn.Sequential(
                 UnetBlock(
                     in_channels=in_ch,
+                    out_channels=in_ch,
                     in_res=cur_res,
                     window_size=window_size,
                     num_groups=num_groups,
@@ -196,27 +166,23 @@ class UNet(nn.Module):
                     qkv_bias=qkv_bias,
                     bias=bias,
                     act=act,
-                    mlp_ratio=mlp_ratio,
                     use_conv=use_conv,
                     dim=dim,
                     use_checkpoint=use_checkpoint,
                     attn_mode=attn_mode,
-                    use_norm=use_norm,
+                ),
+                ResidualBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    in_res=cur_res,
                 )
             )
+        )
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             self.decoder.append(
-                PatchExpanding(
-                    in_channels=in_ch + skip_dims.pop(),
-                    out_channels=out_ch,
-                    num_groups=num_groups,
-                    use_conv=use_conv,
-                    dim=dim,
-                    mode=mode,
-                )
+                UpBlock(in_ch + skip_dims.pop(), in_ch, dim=dim, mode=mode)
             )
-            in_ch = out_ch
             cur_res = int(cur_res * 2)
 
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
@@ -224,8 +190,8 @@ class UNet(nn.Module):
                 up.append(
                     UnetBlock(
                         in_channels=in_ch + skip_dims.pop(),
+                        out_channels=out_ch,
                         in_res=cur_res,
-                        out_channels=in_ch,
                         window_size=window_size,
                         num_groups=num_groups,
                         num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
@@ -235,21 +201,24 @@ class UNet(nn.Module):
                         qkv_bias=qkv_bias,
                         bias=bias,
                         act=act,
-                        mlp_ratio=mlp_ratio,
                         use_conv=use_conv,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
-                        use_norm=use_norm,
                     )
                 )
 
+                in_ch = out_ch
                 self.decoder.append(nn.Sequential(*up))
 
+        in_ch = in_ch + skip_dims.pop()
+
         self.out = nn.Sequential(
+            group_norm(in_ch, num_groups=num_groups),
+            get_act(act),
             conv_nd(
                 dim,
-                in_ch + skip_dims.pop(),
+                in_ch,
                 out_channels,
                 kernel_size=3,
                 stride=1,
