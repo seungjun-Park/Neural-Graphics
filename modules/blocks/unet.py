@@ -211,9 +211,18 @@ class UNet(nn.Module):
                 in_ch = out_ch
                 self.decoder.append(nn.Sequential(*up))
 
-        in_ch = in_ch + skip_dims.pop()
-
         self.out = nn.Sequential(
+            ResidualBlock(
+                in_channels=in_ch,
+                out_channels=in_ch,
+                dropout=dropout,
+                drop_path=drop_path,
+                act=act,
+                dim=dim,
+                num_groups=num_groups,
+                use_checkpoint=use_checkpoint,
+                use_conv=use_conv
+            ),
             group_norm(in_ch, num_groups=num_groups),
             get_act(act),
             conv_nd(
@@ -242,7 +251,6 @@ class UNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
-        h = torch.cat([h, hs.pop()], dim=1)
         h = self.out(h)
 
         return h

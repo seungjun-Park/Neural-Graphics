@@ -83,8 +83,9 @@ def test():
     device = torch.device('cuda')
     model = instantiate_from_config(config.module).eval().to(device)
 
-    data_path = './datasets/arknights100/train/*/images/*.*'
-    file_names = glob.glob(f'{data_path}')
+    # data_path = './datasets/arknights100/train/*/images/*.*'
+    data_path = '../test'
+    file_names = glob.glob(f'{data_path}/*.*')
     with torch.no_grad():
         for i, name in enumerate(file_names):
             img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
@@ -93,16 +94,15 @@ def test():
             img = torchvision.transforms.transforms.Resize([512, 512])(img)
             img = img.unsqueeze(0)
             img = model(img)
-            # img = img.detach().cpu()
+            img = img.detach().cpu()
             if len(img.shape) == 4:
                 img = img[0]
             img = torchvision.transforms.ToPILImage()(img)
-            # first, second = name.split('imgs')
-            p1, p2 = name.rsplit('images', 1)
-            if not os.path.isdir(f'{p1}/edges_v3'):
-                os.mkdir(f'{p1}/edges_v3')
-            img.save(f'{p1}/edges_v3/{p2}.png', 'png')
-
+            # p1, p2 = name.rsplit('images', 1)
+            # if not os.path.isdir(f'{p1}/edges_v3'):
+            #     os.mkdir(f'{p1}/edges_v3')
+            # img.save(f'{p1}/edges_v3/{p2}.png', 'png')
+            img.save(f'{data_path}/{name}_{i}.png', 'png')
 
 def classification_test():
     parsers = get_parser()
