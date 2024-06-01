@@ -29,7 +29,7 @@ class EdgePerceptualLoss(nn.Module):
         self.eips = EIPS(**eips_config).eval()
 
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, split: str = "train") -> torch.Tensor:
-        cats = cats_loss(preds, labels, self.cats_weight)
+        cats = cats_loss(preds, labels, self.cats_weight).mean()
         l2 = F.mse_loss(preds, labels, reduction='mean')
 
         p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()

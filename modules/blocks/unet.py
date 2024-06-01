@@ -68,9 +68,8 @@ class UnetBlock(nn.Module):
 
         if use_conv:
             self.mlp = ConvMLP(
-                in_channels=in_channels,
-                embed_dim=int(in_channels * mlp_ratio),
-                out_channels=out_channels,
+                in_channels=out_channels,
+                embed_dim=int(out_channels * mlp_ratio),
                 dropout=dropout,
                 act=act,
                 num_groups=num_groups,
@@ -81,9 +80,8 @@ class UnetBlock(nn.Module):
 
         else:
             self.mlp = MLP(
-                in_channels=in_channels,
-                embed_dim=int(in_channels * mlp_ratio),
-                out_channels=out_channels,
+                in_channels=out_channels,
+                embed_dim=int(out_channels * mlp_ratio),
                 dropout=dropout,
                 act=act,
                 use_norm=use_norm,
