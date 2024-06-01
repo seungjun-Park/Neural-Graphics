@@ -2,7 +2,7 @@ module:
   target: models.enet.enet.EDNSE
   params:
     lr: 2e-5
-    weight_decay: 1e-4
+    weight_decay: 0.0
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 50
@@ -14,8 +14,8 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        hidden_dims: [ 64, 128, 256, 512 ]
-        embed_dim: 32
+        hidden_dims: [ 32, 64, 128, 256 ]
+        embed_dim: 16
         num_blocks: 2
         num_heads: [2, 4, 8, 16]
         dropout: 0.0
@@ -23,10 +23,10 @@ module:
         drop_path: 0.1
         qkv_bias: True
         bias: True
-        num_groups: 32
+        num_groups: 16
         act: 'gelu'
         use_conv: True
-        mode: 'bilinear'
+        mode: 'nearest'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
@@ -34,7 +34,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        bdcn_weight: 0.0
+        cats_weight: [1.0, 0.05, 2.0]
         l1_weight: 1.0
         lpips_weight: 1.0
         eips_weight: 1.0

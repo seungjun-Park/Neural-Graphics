@@ -32,6 +32,8 @@ class UnetBlock(nn.Module):
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
+                 use_norm: bool = True,
+                 mlp_ratio: float = 4.0
                  ):
         super().__init__()
 
@@ -64,11 +66,36 @@ class UnetBlock(nn.Module):
             dim=dim
         )
 
+        if use_conv:
+            self.mlp = ConvMLP(
+                in_channels=in_channels,
+                embed_dim=int(in_channels * mlp_ratio),
+                out_channels=out_channels,
+                dropout=dropout,
+                act=act,
+                num_groups=num_groups,
+                use_norm=use_norm,
+                dim=dim,
+                use_checkpoint=use_checkpoint,
+            )
+
+        else:
+            self.mlp = MLP(
+                in_channels=in_channels,
+                embed_dim=int(in_channels * mlp_ratio),
+                out_channels=out_channels,
+                dropout=dropout,
+                act=act,
+                use_norm=use_norm,
+                use_checkpoint=use_checkpoint,
+            )
+
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.res_block(x)
         h = h + self.drop_path(self.attn(self.norm(h)))
+        h = h + self.drop_path(self.mlp(h))
         return h
 
 
@@ -95,6 +122,8 @@ class UNet(nn.Module):
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
+                 use_norm: bool = True,
+                 mlp_ratio: float = 4.0
                  ):
         super().__init__()
 
@@ -137,6 +166,8 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
+                        use_norm=use_norm,
+                        mlp_ratio=mlp_ratio
                     )
                 )
 
@@ -170,12 +201,9 @@ class UNet(nn.Module):
                     dim=dim,
                     use_checkpoint=use_checkpoint,
                     attn_mode=attn_mode,
+                    use_norm=use_norm,
+                    mlp_ratio=mlp_ratio
                 ),
-                ResidualBlock(
-                    in_channels=in_ch,
-                    out_channels=in_ch,
-                    in_res=cur_res,
-                )
             )
         )
 
@@ -205,24 +233,17 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
+                        use_norm=use_norm,
+                        mlp_ratio=mlp_ratio
                     )
                 )
 
                 in_ch = out_ch
                 self.decoder.append(nn.Sequential(*up))
 
+        in_ch = in_ch + skip_dims.pop()
+
         self.out = nn.Sequential(
-            ResidualBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                dropout=dropout,
-                drop_path=drop_path,
-                act=act,
-                dim=dim,
-                num_groups=num_groups,
-                use_checkpoint=use_checkpoint,
-                use_conv=use_conv
-            ),
             group_norm(in_ch, num_groups=num_groups),
             get_act(act),
             conv_nd(
@@ -251,6 +272,7 @@ class UNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
+        h = torch.cat([h, hs.pop()], dim=1)
         h = self.out(h)
 
         return h
