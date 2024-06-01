@@ -80,7 +80,7 @@ data:
         root: '/local_datasets/arknights100'
         train: True
         size: 512
-        scale: [ 0.5, 1.0 ]
+        scale: [ 0.9, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
@@ -90,7 +90,7 @@ data:
         root: '/local_datasets/arknights100'
         train: False
         size: 512
-        scale: [ 0.5, 1.0 ]
+        scale: [ 0.9, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
@@ -118,6 +118,15 @@ checkpoints:
       dirpath: './checkpoints/ednse/'
       filename: 'arknights_unet_best'
       monitor: 'val/loss'
+      mode: 'min'
+      save_top_k: 1
+
+  train_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/ednse/'
+      filename: 'arknights_unet_train'
+      monitor: 'train/loss'
       mode: 'min'
       save_top_k: 1
 

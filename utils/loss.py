@@ -218,39 +218,6 @@ def vanilla_d_loss(logits_real: torch.Tensor, logits_fake: torch.Tensor) -> torc
     return d_loss
 
 
-def strength_loss(preds: torch.Tensor, labels: torch.Tensor, threshold: float = 0.8) -> torch.Tensor:
-    mask = (labels <= threshold).float()  # 1 or 0
-    preds = preds * mask
-
-    cost = F.l1_loss(preds, labels, reduction='none')
-    cost = torch.mean(cost.mean(dim=[1, 2, 3]))
-
-    return cost
-
-
-def existence_loss(preds: torch.Tensor, labels: torch.Tensor, threshold: float = 0.8) -> torch.Tensor:
-    labels = torch.where(labels <= threshold, 0.0, labels)
-    preds = torch.where(preds <= threshold, 0.0, preds)
-    cost = F.binary_cross_entropy(preds, labels, reduction='none')
-
-    cost = torch.mean(cost.mean(dim=[1, 2, 3]))
-
-    return cost
-
-
-def smoothing_loss(preds: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-    filter = torch.ones((1, 1, 3, 3)).to(preds.device)
-    filter.requires_grad = False
-
-    preds_smoothing = F.conv2d(preds, weight=filter, bias=None, stride=1, padding=1)
-    labels_smoothing = F.conv2d(labels, weight=filter, bias=None, stride=1, padding=1)
-
-    cost = F.l1_loss(preds_smoothing, labels_smoothing, reduction='none')
-    cost = torch.mean(cost.mean(dim=[1, 2, 3]))
-
-    return cost
-
-
 def bdcn_loss2(inputs, targets):
     targets = targets.long()
     mask = targets.float()
@@ -274,9 +241,8 @@ def bdrloss(prediction, label, radius):
     The boundary tracing loss that handles the confusing pixels.
     '''
 
-    filt = torch.ones(1, 1, 2*radius+1, 2*radius+1)
+    filt = torch.ones(1, 1, 2*radius+1, 2*radius+1).to(prediction.device)
     filt.requires_grad = False
-    filt = filt.to(device)
 
     bdr_pred = prediction * label
     pred_bdr_sum = label * F.conv2d(bdr_pred, filt, bias=None, stride=1, padding=radius)
@@ -292,18 +258,14 @@ def bdrloss(prediction, label, radius):
     return cost
 
 
-def textureloss(prediction: torch.Tensor, label, mask_radius):
+def textureloss(prediction, label, mask_radius):
     '''
     The texture suppression loss that smooths the texture regions.
     '''
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-    filt1 = torch.ones(1, 1, 3, 3)
+    filt1 = torch.ones(1, 1, 3, 3).to(prediction.device)
     filt1.requires_grad = False
-    filt1 = filt1.to(device)
-    filt2 = torch.ones(1, 1, 2*mask_radius+1, 2*mask_radius+1)
+    filt2 = torch.ones(1, 1, 2*mask_radius+1, 2*mask_radius+1).to(prediction.device)
     filt2.requires_grad = False
-    filt2= filt2.to(device)
 
     pred_sums = F.conv2d(prediction, filt1, bias=None, stride=1, padding=1)
     label_sums = F.conv2d(label, filt2, bias=None, stride=1, padding=mask_radius)
@@ -320,21 +282,23 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
     # tracingLoss
     cost_weight, tex_factor, bdr_factor = weights
     balanced_w = 1.1
+
+    label = label.long()
     label = label.float()
-    prediction = prediction.float()
 
     with torch.no_grad():
         mask = label.clone()
 
-        num_positive = torch.sum((mask == 1).to(prediction.dtype))
-        num_negative = torch.sum((mask == 0).to(prediction.dtype))
+        num_positive = torch.sum((mask == 1).float()).float()
+        num_negative = torch.sum((mask == 0).float()).float()
         beta = num_negative / (num_positive + num_negative)
         mask[mask == 1] = beta
         mask[mask == 0] = balanced_w * (1 - beta)
         mask[mask == 2] = 0
 
-    cost = torch.nn.functional.binary_cross_entropy(prediction, label, weight=mask, reduce=False)
-    label_w = (label != 0).to(prediction.dtype)
+    cost = torch.nn.functional.binary_cross_entropy(prediction, label, weight=mask, reduction='none')
+    cost = torch.sum(cost.float().mean((1, 2, 3)))
+    label_w = (label != 0).float()
 
     textcost = textureloss(prediction, label_w, mask_radius=4)
     bdrcost = bdrloss(prediction, label_w, radius=4)
