@@ -269,12 +269,12 @@ def bdcn_loss2(inputs, targets):
 # ------------ cats losses ----------
 
 
-def bdrloss(prediction, label, radius):
+def bdrloss(prediction: torch.Tensor, label, radius):
     '''
     The boundary tracing loss that handles the confusing pixels.
     '''
 
-    filt = torch.ones(1, 1, 2*radius+1, 2*radius+1).to(prediction.device)
+    filt = torch.ones((1, 1, 2*radius+1, 2*radius+1), device=prediction.device)
     filt.requires_grad = False
 
     bdr_pred = prediction * label
@@ -295,9 +295,9 @@ def textureloss(prediction, label, mask_radius):
     '''
     The texture suppression loss that smooths the texture regions.
     '''
-    filt1 = torch.ones(1, 1, 3, 3).to(prediction.device)
+    filt1 = torch.ones((1, 1, 3, 3), device=prediction.device)
     filt1.requires_grad = False
-    filt2 = torch.ones(1, 1, 2*mask_radius+1, 2*mask_radius+1).to(prediction.device)
+    filt2 = torch.ones((1, 1, 2*mask_radius+1, 2*mask_radius+1), device=label.device)
     filt2.requires_grad = False
 
     pred_sums = F.conv2d(prediction, filt1, bias=None, stride=1, padding=1)
