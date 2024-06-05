@@ -2,7 +2,7 @@ module:
   target: models.classification.EIPS
   params:
     # ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
-    margin: 4
+    margin: 0.5
     lr: 2e-5
     weight_decay: 0.
     net_config:
@@ -28,12 +28,9 @@ module:
       use_norm: True
 
     criterion_config:
-      target: utils.loss.EuclideanDistance
+      target: utils.loss.CosineSimilarity
       params:
-        use_square: True
-        use_normalize:  False
-        ed_weight: 1.0
-        ed_dim: [2, 3]
+        cd_dim: 1
         reduction: 'mean'
 
 data:

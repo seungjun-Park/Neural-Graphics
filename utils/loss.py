@@ -114,6 +114,37 @@ class EuclideanDistance(nn.Module):
         return euclidean_dists * self.ed_weight
 
 
+class CosineSimilarity(nn.Module):
+    def __init__(self,
+                 cd_dim: int = 1,
+                 reduction: str = 'mean',
+                 ):
+        super().__init__()
+
+        self.cd_dim = cd_dim
+        self.reduction = reduction.lower()
+
+    def forward(self,
+                inputs: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]],
+                targets: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]]) -> torch.Tensor:
+        if isinstance(inputs, torch.Tensor):
+            inputs = [inputs]
+        if isinstance(targets, torch.Tensor):
+            targets = [targets]
+
+        cos_dists = 0
+
+        for ips, tgs in zip(inputs, targets):
+            cos_dist = cosine_distance(ips,
+                                       tgs,
+                                       dim=self.cd_dim,
+                                       reduction=self.reduction)
+
+            cos_dists += cos_dist
+
+        return cos_dists
+
+
 class EuclideanDistanceWithCosineDistance(nn.Module):
     def __init__(self,
                  use_square: bool = False,
