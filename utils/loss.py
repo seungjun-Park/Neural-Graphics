@@ -174,15 +174,7 @@ def jaccard_distance(inputs: torch.Tensor, targets: torch.Tensor):
 
 def euclidean_distance(inputs: torch.Tensor, targets: torch.Tensor,
                        reduction: str = 'mean', use_square: bool = False):
-    euclidean_dist = (inputs.contiguous() - targets.contiguous()) ** 2
-    if reduction == 'mean':
-        euclidean_dist = torch.mean(euclidean_dist)
-    elif reduction == 'sum':
-        euclidean_dist = torch.sum(euclidean_dist) / euclidean_dist.shape[0]
-    elif reduction == 'none':
-        pass
-    else:
-        raise NotImplementedError(f'reduction: "{reduction}" is not implemented.')
+    euclidean_dist = F.mse_loss(inputs, targets, reduction=reduction)
     if not use_square:
         return torch.sqrt(euclidean_dist)
 
