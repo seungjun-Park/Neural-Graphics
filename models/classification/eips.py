@@ -72,7 +72,12 @@ class EIPS(pl.LightningModule):
         feat_neg = self.encoder(neg)
         loss = self.loss(feat_anc, feat_pos, feat_neg)
 
+        dist_pos = self.encoder(anc, pos).mean()
+        dist_neg = self.encoder(anc, neg).mean()
+
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
+        self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
+        self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
         return loss
 
@@ -84,7 +89,12 @@ class EIPS(pl.LightningModule):
         feat_neg = self.encoder(neg)
         loss = self.loss(feat_anc, feat_pos, feat_neg)
 
+        dist_pos = self.encoder(anc, pos).mean()
+        dist_neg = self.encoder(anc, neg).mean()
+
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
+        self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
+        self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
         opt = torch.optim.AdamW(list(self.encoder.parameters()),
