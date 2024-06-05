@@ -10,4 +10,4 @@ from .fourier_mask import LearnableFourierMask
 from .skip_block import ScaledSkipBlock
 from .norm import SpectralNorm
 from .unet import UNet, UNet2Plus, UNet3Plus
-from .attn_block import AttnBlock, DoubleWindowSelfAttentionBlock, DoubleWindowCrossAttentionBlock, WindowAttention
+from .attn_block import SelfAttentionBlock, DoubleWindowSelfAttentionBlock, DoubleWindowCrossAttentionBlock, WindowAttention, CrossAttentionBlock
