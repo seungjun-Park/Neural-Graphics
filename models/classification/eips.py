@@ -72,8 +72,8 @@ class EIPS(pl.LightningModule):
         feat_neg = self.encoder(neg)
         loss = self.loss(feat_anc, feat_pos, feat_neg)
 
-        dist_pos = self.encoder(anc, pos).mean()
-        dist_neg = self.encoder(anc, neg).mean()
+        dist_pos = self(anc, pos).mean()
+        dist_neg = self(anc, neg).mean()
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
         self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
@@ -89,8 +89,8 @@ class EIPS(pl.LightningModule):
         feat_neg = self.encoder(neg)
         loss = self.loss(feat_anc, feat_pos, feat_neg)
 
-        dist_pos = self.encoder(anc, pos).mean()
-        dist_neg = self.encoder(anc, neg).mean()
+        dist_pos = self(anc, pos).mean()
+        dist_neg = self(anc, neg).mean()
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
         self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
