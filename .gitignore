@@ -178,3 +178,5 @@ datasets/BIPEDv2/test_pair.lst
 datasets/BIPEDv2/test_pairMULTICUEdataset.lst
 datasets/BIPEDv2/edges/test_pair.lst
 datasets/BIPEDv2/edges/test_pairMULTICUEdataset.lst
+HW3_SAC.py
+video/pendulum.mp4

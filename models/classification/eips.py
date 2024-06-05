@@ -12,6 +12,7 @@ from modules.blocks.decoder import SwinDecoder
 class EIPS(pl.LightningModule):
     def __init__(self,
                  net_config: dict,
+                 criterion_config: dict,
                  margin: float = 1.0,
                  lr: float = 2e-5,
                  weight_decay: float = 1e-4,
@@ -26,7 +27,9 @@ class EIPS(pl.LightningModule):
         self.margin = margin
 
         self.encoder = SwinEncoder(**net_config)
-        self.decoder = SwinDecoder(**net_config)
+        self.criterion = instantiate_from_config(criterion_config)
+
+        self.loss = nn.TripletMarginWithDistanceLoss(distance_function=self.criterion, margin=margin)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -55,27 +58,31 @@ class EIPS(pl.LightningModule):
             param.requires_grad = False
         return self
 
-    def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
-        cond = self.encoder(img)
-        logit = self.decoder(edge, cond)
+    def forward(self, x0: torch.Tensor, x1: torch.Tensor) -> torch.Tensor:
+        feat0 = self.encoder(x0)
+        feat1 = self.encoder(x1)
 
-        return F.sigmoid(logit)
+        return self.criterion(feat0, feat1)
 
     def training_step(self, batch, batch_idx):
-        img, edge, label = batch
+        anc, pos, neg = batch
 
-        prob = self(img, edge)
-        loss = F.binary_cross_entropy(prob, label)
+        feat_anc = self.encoder(anc)
+        feat_pos = self.encoder(pos)
+        feat_neg = self.encoder(neg)
+        loss = self.loss(feat_anc, feat_pos, feat_neg)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        img, edge, label = batch
+        anc, pos, neg = batch
 
-        prob = self(img, edge)
-        loss = F.binary_cross_entropy(prob, label)
+        feat_anc = self.encoder(anc)
+        feat_pos = self.encoder(pos)
+        feat_neg = self.encoder(neg)
+        loss = self.loss(feat_anc, feat_pos, feat_neg)
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
 

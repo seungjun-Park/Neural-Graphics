@@ -198,12 +198,9 @@ class SwinEncoder(nn.Module):
         self.encoder.append(nn.Sequential(*down))
 
     def forward(self, x: torch.Tensor) -> Union[torch.Tensor, List[torch.Tensor]]:
-        hs = []
         h = self.embed(x)
 
         for i, module in enumerate(self.encoder):
             h = module(h)
-            if not isinstance(module, PatchMerging):
-                hs.append(h)
 
-        return hs
+        return h

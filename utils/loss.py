@@ -72,6 +72,48 @@ class CosineDistance(nn.Module):
         return cost
 
 
+class EuclideanDistance(nn.Module):
+    def __init__(self,
+                 use_square: bool = False,
+                 use_normalize: bool = False,
+                 ed_weight: float = 1.0,
+                 ed_dim: Union[int, List[int], Tuple[int]] = (2, 3),
+                 reduction: str = 'none',
+                 ):
+        super().__init__()
+
+        self.use_square = use_square
+        self.use_normalize = use_normalize
+        self.ed_weight = ed_weight
+        self.ed_dim = tuple(ed_dim)
+        self.reduction = reduction.lower()
+
+    def forward(self,
+                inputs: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]],
+                targets: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]]) -> torch.Tensor:
+        if isinstance(inputs, torch.Tensor):
+            inputs = [inputs]
+        if isinstance(targets, torch.Tensor):
+            targets = [targets]
+
+        euclidean_dists = 0
+
+        for ips, tgs in zip(inputs, targets):
+            if self.use_normalize:
+                euclidean_dist = normalized_euclidean_distance(ips,
+                                                               tgs,
+                                                               dim=self.ed_dim,
+                                                               reduction=self.reduction,
+                                                               use_square=self.use_square)
+
+            else:
+                euclidean_dist = euclidean_distance(ips, tgs, reduction=self.reduction, use_square=self.use_square)
+
+            euclidean_dists = euclidean_dists + euclidean_dist
+
+        return euclidean_dists * self.ed_weight
+
+
 class EuclideanDistanceWithCosineDistance(nn.Module):
     def __init__(self,
                  use_square: bool = False,
