@@ -26,8 +26,7 @@ class EIPS(pl.LightningModule):
         self.log_interval = log_interval
         self.margin = margin
 
-        self.img_encoder = SwinEncoder(**net_config)
-        self.edge_encoder = SwinEncoder(**net_config)
+        self.encoder = SwinEncoder(**net_config)
         self.criterion = instantiate_from_config(criterion_config)
 
         self.loss = nn.TripletMarginWithDistanceLoss(distance_function=self.criterion, margin=margin)
@@ -68,9 +67,9 @@ class EIPS(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         anc, pos, neg = batch
 
-        feat_anc = self.img_encoder(anc)
-        feat_pos = self.edge_encoder(pos)
-        feat_neg = self.edge_encoder(neg)
+        feat_anc = self.encoder(anc)
+        feat_pos = self.encoder(pos)
+        feat_neg = self.encoder(neg)
         loss = self.loss(feat_anc, feat_pos, feat_neg)
 
         dist_pos = self(anc, pos).mean()
@@ -85,9 +84,9 @@ class EIPS(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         anc, pos, neg = batch
 
-        feat_anc = self.img_encoder(anc)
-        feat_pos = self.edge_encoder(pos)
-        feat_neg = self.edge_encoder(neg)
+        feat_anc = self.encoder(anc)
+        feat_pos = self.encoder(pos)
+        feat_neg = self.encoder(neg)
         loss = self.loss(feat_anc, feat_pos, feat_neg)
 
         dist_pos = self(anc, pos).mean()
@@ -98,8 +97,7 @@ class EIPS(pl.LightningModule):
         self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
-        opt = torch.optim.AdamW(list(self.img_encoder.parameters()) +
-                                list(self.edge_encoder.parameters()),
+        opt = torch.optim.AdamW(list(self.encoder.parameters()),
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
                                 betas=(0.0, 0.99)
