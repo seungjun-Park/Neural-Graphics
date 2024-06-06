@@ -97,6 +97,7 @@ class SwinEncoder(nn.Module):
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  patch_size: Union[int, List[int], Tuple[int]] = 4,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
+                 embed_dim: int = 16,
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
                  num_groups: int = 16,
                  num_heads: Union[int, List[int], Tuple[int]] = 8,
@@ -116,8 +117,6 @@ class SwinEncoder(nn.Module):
                  **ignored_kwargs,
                  ):
         super().__init__()
-
-        embed_dim = hidden_dims[0]
 
         self.embed = nn.Sequential(
                 conv_nd(dim, in_channels=in_channels, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size),
@@ -168,6 +167,8 @@ class SwinEncoder(nn.Module):
 
                 in_ch = out_ch
 
+            self.encoder.append(nn.Sequential(*down))
+
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
                     DownBlock(
@@ -177,8 +178,6 @@ class SwinEncoder(nn.Module):
                     )
                 )
                 cur_res //= 2
-
-            self.encoder.append(nn.Sequential(*down))
 
     def forward(self, x: torch.Tensor) -> Union[torch.Tensor, List[torch.Tensor]]:
         h = self.embed(x) + self.pos_embed
