@@ -125,8 +125,6 @@ class SwinEncoder(nn.Module):
         in_ch = embed_dim
         self.cur_res = in_res // patch_size
 
-        self.pos_embed = nn.Parameter(torch.empty(1, embed_dim, self.cur_res, self.cur_res).normal_(std=0.02))
-
         if not isinstance(num_blocks, ListConfig):
             num_blocks = [num_blocks for i in range(len(hidden_dims))]
         else:
@@ -179,10 +177,23 @@ class SwinEncoder(nn.Module):
 
         self.latent_dim = in_ch
 
-    def forward(self, x: torch.Tensor) -> Union[torch.Tensor, List[torch.Tensor]]:
-        h = self.embed(x) + self.pos_embed
-
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self.embed(x)
         for i, module in enumerate(self.encoder):
             h = module(h)
 
         return h
+
+    def feature_extract(self, x: torch.Tensor, is_deep_supervision: bool = False) -> Union[torch.Tensor, List[torch.Tensor]]:
+        hs = []
+        h = self.embed(x)
+
+        for i, module in enumerate(self.encoder):
+            h = module(h)
+            if not isinstance(module, DownBlock):
+                hs.append(h)
+
+        if is_deep_supervision:
+            return h
+
+        return hs
