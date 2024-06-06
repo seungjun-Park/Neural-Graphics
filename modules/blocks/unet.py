@@ -8,7 +8,7 @@ from omegaconf import ListConfig
 from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock
+from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
 from modules.blocks.res_block import ResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
@@ -53,18 +53,30 @@ class UnetBlock(nn.Module):
             use_conv=use_conv
         )
 
-        self.attn = DoubleWindowSelfAttentionBlock(
-            in_channels=out_channels,
-            in_res=to_2tuple(in_res),
-            num_heads=num_heads,
-            window_size=window_size,
-            qkv_bias=qkv_bias,
-            proj_bias=bias,
-            dropout=attn_dropout,
-            use_checkpoint=use_checkpoint,
-            attn_mode=attn_mode,
-            dim=dim
-        )
+        if in_res > 64:
+            self.attn = DoubleWindowSelfAttentionBlock(
+                in_channels=out_channels,
+                in_res=to_2tuple(in_res),
+                num_heads=num_heads,
+                window_size=window_size,
+                qkv_bias=qkv_bias,
+                proj_bias=bias,
+                dropout=attn_dropout,
+                use_checkpoint=use_checkpoint,
+                attn_mode=attn_mode,
+                dim=dim
+            )
+        else:
+            self.attn = SelfAttentionBlock(
+                in_channels=out_channels,
+                num_heads=num_heads,
+                qkv_bias=qkv_bias,
+                proj_bias=bias,
+                dropout=dropout,
+                use_checkpoint=use_checkpoint,
+                attn_mode=attn_mode,
+                dim=dim,
+            )
 
         if use_conv:
             self.mlp = ConvMLP(
