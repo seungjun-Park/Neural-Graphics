@@ -330,7 +330,7 @@ class ArknightsImageEdgeClassification(Dataset):
         if x.shape[0] == 1:
             x = x.repeat(3, 1, 1)
 
-        i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
+        i, j, h, w = transforms.RandomResizedCrop.get_params(x, scale=self.scale, ratio=self.ratio)
         x = tf.resized_crop(x, i, j, h, w, size=self.size, antialias=True)
 
         return x, label
