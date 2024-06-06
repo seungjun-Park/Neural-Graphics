@@ -320,6 +320,7 @@ class ArknightsImageEdgeClassification(Dataset):
             label = torch.Tensor([1.0])
             if random.random() > 0.5:
                 x = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
+                x = cv2.cvtColor(x, self.color_space)
             else:
                 x = cv2.imread(f'{name}', cv2.IMREAD_GRAYSCALE)
         else:
