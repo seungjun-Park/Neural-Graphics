@@ -28,7 +28,7 @@ class EIPS(pl.LightningModule):
         self.margin = margin
 
         self.encoder = SwinEncoder(**net_config)
-        if 'use_weight' in criterion_config:
+        if 'use_weight' in criterion_config['params']:
             if criterion_config['use_weight']:
                 criterion_config['in_channels'] = self.encoder.latent_dim * (self.encoder.cur_res ** 2)
         self.criterion = instantiate_from_config(criterion_config)
