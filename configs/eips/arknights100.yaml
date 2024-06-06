@@ -9,7 +9,7 @@ module:
       in_channels: 3
       in_res: 512
       window_size: 8
-      patch_size: 1
+      patch_size: 2
       hidden_dims: [ 64, 128, 128, 256, 256 ]
       embed_dim: 32
       num_blocks: 2
