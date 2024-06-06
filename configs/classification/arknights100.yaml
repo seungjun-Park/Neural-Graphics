@@ -9,10 +9,10 @@ module:
       in_res: 512
       window_size: 8
       patch_size: 4
-      hidden_dims: [ 64, 128, 256, 512 ]
-      embed_dim: 32
+      hidden_dims: [ 32, 64, 128, 256 ]
+      embed_dim: 16
       num_blocks: 2
-      num_groups: 32
+      num_groups: 16
       num_heads: [ 2, 4, 8, 16 ]
       dropout: 0.0
       attn_dropout: 0.0
