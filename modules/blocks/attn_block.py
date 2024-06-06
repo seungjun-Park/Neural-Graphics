@@ -209,7 +209,7 @@ class WindowAttention(nn.Module):
         if attn_mode == 'vanilla':
             self.scale = qk_scale or self.d_k ** -0.5
 
-            self.relative_position_bias = nn.Parameter(
+            self.relative_position_bias_table = nn.Parameter(
                 torch.zeros((2 * self.window_size[0] - 1) * (2 * self.window_size[1] - 1), self.num_heads)
             )  # 2*Wh-1 * 2*Ww-1, nH
 
