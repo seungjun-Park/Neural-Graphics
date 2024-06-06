@@ -10,6 +10,8 @@ from omegaconf import ListConfig
 from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
 from modules.blocks.patches import PatchMerging
 from modules.blocks.mlp import ConvMLP, MLP
+from modules.blocks.res_block import ResidualBlock
+from modules.blocks.down import DownBlock
 from utils import conv_nd, group_norm, to_2tuple
 torchvision.models.vit_l_16()
 
@@ -65,49 +67,27 @@ class SwinEncoderBlock(nn.Module):
                 dim=dim
             )
 
-        if use_conv:
-            self.norm1 = group_norm(in_channels, num_groups=num_groups)
-            self.norm2 = group_norm(out_channels, num_groups=num_groups)
+        self.norm1 = group_norm(in_channels, num_groups=num_groups)
 
-            self.mlp = ConvMLP(
-                in_channels=in_channels,
-                embed_dim=int(in_channels * mlp_ratio),
-                out_channels=out_channels,
-                dropout=dropout,
-                act=act,
-                num_groups=num_groups,
-                use_norm=use_norm,
-                dim=dim,
-                use_checkpoint=use_checkpoint,
-            )
-
-        else:
-            self.norm1 = nn.LayerNorm(in_channels)
-            self.norm2 = nn.LayerNorm(out_channels)
-            self.mlp = MLP(
-                in_channels=in_channels,
-                embed_dim=int(in_channels * mlp_ratio),
-                out_channels=out_channels,
-                dropout=dropout,
-                act=act,
-                use_norm=use_norm,
-                use_checkpoint=use_checkpoint,
-            )
+        self.res_block = ResidualBlock(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            dropout=dropout,
+            drop_path=drop_path,
+            act=act,
+            num_groups=num_groups,
+            use_norm=use_norm,
+            use_conv=use_conv,
+            dim=dim,
+            use_checkpoint=use_checkpoint,
+        )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        if in_channels != out_channels:
-            if use_conv:
-                self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1)
-            else:
-                self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=1)
-        else:
-            self.shortcut = nn.Identity()
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = x + self.drop_path(self.attn(self.norm1(x)))
-        z = self.shortcut(h) + self.drop_path(self.mlp(h))
-        return z
+        h = self.res_block(h)
+        return h
 
 
 class SwinEncoder(nn.Module):
@@ -132,6 +112,7 @@ class SwinEncoder(nn.Module):
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
                  use_norm: bool = True,
+                 pool_type: str = 'avg',
                  **ignored_kwargs,
                  ):
         super().__init__()
@@ -149,8 +130,6 @@ class SwinEncoder(nn.Module):
 
         self.pos_embed = nn.Parameter(torch.empty(1, embed_dim, cur_res, cur_res).normal_(std=0.02))
 
-        down = list()
-
         if not isinstance(num_blocks, ListConfig):
             num_blocks = [num_blocks for i in range(len(hidden_dims))]
         else:
@@ -161,42 +140,8 @@ class SwinEncoder(nn.Module):
         else:
             assert len(num_heads) == len(hidden_dims)
 
-        for j in range(num_blocks[0]):
-            down.append(
-                SwinEncoderBlock(
-                    in_channels=in_ch,
-                    in_res=cur_res,
-                    window_size=window_size,
-                    num_groups=num_groups,
-                    num_heads=num_heads[0],
-                    dropout=dropout,
-                    attn_dropout=attn_dropout,
-                    drop_path=drop_path,
-                    qkv_bias=qkv_bias,
-                    bias=bias,
-                    act=act,
-                    mlp_ratio=mlp_ratio,
-                    use_conv=use_conv,
-                    dim=dim,
-                    use_checkpoint=use_checkpoint,
-                    attn_mode=attn_mode,
-                    use_norm=use_norm,
-                )
-            )
-
-        for i, (out_ch, num_block, num_head) in enumerate(zip(hidden_dims[1:], num_blocks[1:], num_heads[1:])):
+        for i, (out_ch, num_block, num_head) in enumerate(zip(hidden_dims, num_blocks, num_heads)):
             down = list()
-            self.encoder.append(
-                PatchMerging(
-                    in_channels=in_ch,
-                    out_channels=out_ch,
-                    num_groups=num_groups,
-                    use_conv=use_conv,
-                    dim=dim,
-                )
-            )
-            cur_res //= 2
-            in_ch = out_ch
 
             for j in range(num_block):
                 down.append(
@@ -220,6 +165,18 @@ class SwinEncoder(nn.Module):
                         use_norm=use_norm,
                     )
                 )
+
+                in_ch = out_ch
+
+            if i != len(hidden_dims) - 1:
+                self.encoder.append(
+                    DownBlock(
+                        in_ch,
+                        dim=dim,
+                        pool_type=pool_type,
+                    )
+                )
+                cur_res //= 2
 
             self.encoder.append(nn.Sequential(*down))
 

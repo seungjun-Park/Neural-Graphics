@@ -131,13 +131,15 @@ class SelfAttentionBlock(nn.Module):
                                        )
 
         self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, stride=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
+        self.spatial_proj = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias, groups=in_channels)
+        self.depth_proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         qkv = self.qkv(x)
         q, k, v = torch.chunk(qkv, 3, dim=1)
         attn = self.attn(q, k, v)
-        attn = self.proj(attn)
+        attn = self.spatial_proj(attn)
+        attn = self.depth_proj(attn)
 
         return attn
 
@@ -164,14 +166,17 @@ class CrossAttentionBlock(nn.Module):
 
         self.q = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=qkv_bias)
         self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, stride=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
+        self.spatial_proj = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias,
+                                    groups=in_channels)
+        self.depth_proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         q = self.q(x)
         kv = self.kv(context)
         k, v = torch.chunk(kv, 2, dim=1)
         attn = self.attn(q, k, v)
-        attn = self.proj(attn)
+        attn = self.spatial_proj(attn)
+        attn = self.depth_proj(attn)
 
         return attn
 
@@ -305,12 +310,233 @@ class WindowAttention(nn.Module):
         return attn
 
 
-class WindowAttentionBlock(nn.Module):
-    def __init__(self):
+class WindowSelfAttentionBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 in_res: Union[List[int], Tuple[int]],
+                 num_heads: int = 8,
+                 window_size: int = 7,
+                 shift_size: int = 0,
+                 pretrained_window_size: int = 0,
+                 qkv_bias=True,
+                 qk_scale=None,
+                 proj_bias=True,
+                 dropout: float = 0.,
+                 use_checkpoint: bool = False,
+                 attn_mode: str = 'vanilla',
+                 dim: int = 2,
+                 ):
         super().__init__()
 
-    def forward(self, x: torch.Tensor):
-        return
+        self.in_channels = in_channels
+        self.in_res = in_res
+        self.num_heads = num_heads
+        self.window_size = window_size
+        self.pretrained_window_size = pretrained_window_size
+        self.shift_size = shift_size
+        self.use_checkpoint = use_checkpoint
+        self.dim = dim
+
+        assert in_channels % num_heads == 0
+
+        if min(self.in_res) <= self.window_size:
+            # if window size is larger than input resolution, we don't partition windows
+            self.shift_size = 0
+            self.window_size = min(self.in_res)
+        assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
+
+        self.attn = WindowAttention(
+            in_channels // 2,
+            window_size=to_2tuple(self.window_size),
+            pretrained_window_size=to_2tuple(self.pretrained_window_size),
+            num_heads=num_heads // 2,
+            qk_scale=qk_scale,
+            drop=dropout,
+            attn_mode=attn_mode,
+            use_checkpoint=use_checkpoint
+        )
+
+        if self.shift_size > 0:
+            # calculate attention mask for SW-MSA
+            H, W = self.in_res
+            img_mask = torch.zeros((1, 1, H, W))  # 1 1 H W
+            h_slices = (slice(0, -self.window_size),
+                        slice(-self.window_size, -self.shift_size),
+                        slice(-self.shift_size, None))
+            w_slices = (slice(0, -self.window_size),
+                        slice(-self.window_size, -self.shift_size),
+                        slice(-self.shift_size, None))
+            cnt = 0
+            for h in h_slices:
+                for w in w_slices:
+                    img_mask[:, :, h, w] = cnt
+                    cnt += 1
+
+            mask_windows = window_partition(img_mask, self.window_size)  # nW, 1, window_size, window_size
+            mask_windows = mask_windows.reshape(-1, self.window_size * self.window_size)
+            attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
+            attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+        else:
+            attn_mask = None
+
+        self.attn_mask = attn_mask
+
+        self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, bias=qkv_bias)
+        self.spatial_proj = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias,
+                                    groups=in_channels)
+        self.depth_proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.use_checkpoint:
+            return checkpoint(self._forward, x)
+        return self._forward(x)
+
+    def _forward(self, x):
+        H, W = self.in_res
+        b, c, h, w = x.shape
+        assert h * w == H * W, "input feature has wrong size"
+
+        qkv = self.qkv(x)
+
+        if self.shift_size > 0:
+            _, _, h, w = qkv.shape
+            shifted_qkv = torch.roll(qkv, shifts=(-self.shift_size, -self.shift_size), dims=(-2, -1))
+            shifted_qkv = window_partition(shifted_qkv, self.window_size)  # nW*B, c, window_size, window_size
+            q, k, v = torch.chunk(shifted_qkv, 3, dim=1)
+            msa = self.attn(q=q, k=k, v=v, mask=self.attn_mask)
+            msa = window_reverse(msa, self.window_size, h, w)  # B c, H' W'
+            msa = torch.roll(msa, shifts=(self.shift_size, self.shift_size), dims=(-2, -1))
+
+        else:
+            # partition windows
+            _, _, h, w = qkv.shape
+            qkv = window_partition(qkv, self.window_size)  # nW*B, C, window_size, window_size
+            q, k, v = torch.chunk(qkv, 3, dim=1)
+
+            # W-MSA/SW-MSA
+            msa = self.attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+            msa = window_reverse(msa, self.window_size, h, w)  # B c, H' W'
+
+        msa = self.spatial_proj(msa)
+        msa = self.depth_proj(msa)
+
+        return msa
+
+
+class WindowCrossAttentionBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 in_res: Union[List[int], Tuple[int]],
+                 num_heads: int = 8,
+                 window_size: int = 7,
+                 shift_size: int = 0,
+                 pretrained_window_size: int = 0,
+                 qkv_bias=True,
+                 qk_scale=None,
+                 proj_bias=True,
+                 dropout: float = 0.,
+                 use_checkpoint: bool = False,
+                 attn_mode: str = 'vanilla',
+                 dim: int = 2,
+                 ):
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.in_res = in_res
+        self.num_heads = num_heads
+        self.window_size = window_size
+        self.pretrained_window_size = pretrained_window_size
+        self.shift_size = shift_size
+        self.use_checkpoint = use_checkpoint
+        self.dim = dim
+
+        assert in_channels % num_heads == 0
+
+        if min(self.in_res) <= self.window_size:
+            # if window size is larger than input resolution, we don't partition windows
+            self.shift_size = 0
+            self.window_size = min(self.in_res)
+        assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
+
+        self.attn = WindowAttention(
+            in_channels // 2,
+            window_size=to_2tuple(self.window_size),
+            pretrained_window_size=to_2tuple(self.pretrained_window_size),
+            num_heads=num_heads // 2,
+            qk_scale=qk_scale,
+            drop=dropout,
+            attn_mode=attn_mode,
+            use_checkpoint=use_checkpoint
+        )
+
+        if self.shift_size > 0:
+            # calculate attention mask for SW-MSA
+            H, W = self.in_res
+            img_mask = torch.zeros((1, 1, H, W))  # 1 1 H W
+            h_slices = (slice(0, -self.window_size),
+                        slice(-self.window_size, -self.shift_size),
+                        slice(-self.shift_size, None))
+            w_slices = (slice(0, -self.window_size),
+                        slice(-self.window_size, -self.shift_size),
+                        slice(-self.shift_size, None))
+            cnt = 0
+            for h in h_slices:
+                for w in w_slices:
+                    img_mask[:, :, h, w] = cnt
+                    cnt += 1
+
+            mask_windows = window_partition(img_mask, self.window_size)  # nW, 1, window_size, window_size
+            mask_windows = mask_windows.reshape(-1, self.window_size * self.window_size)
+            attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
+            attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+        else:
+            attn_mask = None
+
+        self.attn_mask = attn_mask
+
+        self.q = conv_nd(dim, in_channels, in_channels, kernel_size=1, bias=qkv_bias)
+        self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, bias=qkv_bias)
+        self.spatial_proj = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias,
+                                    groups=in_channels)
+        self.depth_proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
+
+    def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
+        if self.use_checkpoint:
+            return checkpoint(self._forward, x, context)
+        return self._forward(x, context)
+
+    def _forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
+        H, W = self.in_res
+        b, c, h, w = x.shape
+        assert h * w == H * W, "input feature has wrong size"
+
+        q = self.q(x)
+        kv = self.kv(context)
+        qkv = torch.cat([q, kv], dim=1)
+
+        if self.shift_size > 0:
+            _, _, h, w = qkv.shape
+            shifted_qkv = torch.roll(qkv, shifts=(-self.shift_size, -self.shift_size), dims=(-2, -1))
+            shifted_qkv = window_partition(shifted_qkv, self.window_size)  # nW*B, c, window_size, window_size
+            q, k, v = torch.chunk(shifted_qkv, 3, dim=1)
+            msa = self.attn(q=q, k=k, v=v, mask=self.attn_mask)
+            msa = window_reverse(msa, self.window_size, h, w)  # B c, H' W'
+            msa = torch.roll(msa, shifts=(self.shift_size, self.shift_size), dims=(-2, -1))
+
+        else:
+            # partition windows
+            _, _, h, w = qkv.shape
+            qkv = window_partition(qkv, self.window_size)  # nW*B, C, window_size, window_size
+            q, k, v = torch.chunk(qkv, 3, dim=1)
+
+            # W-MSA/SW-MSA
+            msa = self.attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+            msa = window_reverse(msa, self.window_size, h, w)  # B c, H' W'
+
+        msa = self.spatial_proj(msa)
+        msa = self.depth_proj(msa)
+
+        return msa
 
 
 class DoubleWindowSelfAttentionBlock(nn.Module):
@@ -348,10 +574,10 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
 
         self.w_attn = WindowAttention(
-            in_channels,
+            in_channels // 2,
             window_size=to_2tuple(self.window_size),
             pretrained_window_size=to_2tuple(self.pretrained_window_size),
-            num_heads=num_heads,
+            num_heads=num_heads // 2,
             qk_scale=qk_scale,
             drop=dropout,
             attn_mode=attn_mode,
@@ -359,10 +585,10 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         )
 
         self.sw_attn = WindowAttention(
-            in_channels,
+            in_channels // 2,
             window_size=to_2tuple(self.window_size),
             pretrained_window_size=to_2tuple(self.pretrained_window_size),
-            num_heads=num_heads,
+            num_heads=num_heads // 2,
             qk_scale=qk_scale,
             drop=dropout,
             attn_mode=attn_mode,
@@ -395,29 +621,35 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         self.attn_mask = attn_mask
 
         self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels * (2 if self.shift_size > 0 else 1), in_channels, kernel_size=1, bias=proj_bias)
+        self.spatial_proj = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias,
+                                    groups=in_channels)
+        self.depth_proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
             return checkpoint(self._forward, x)
         return self._forward(x)
 
-    def _forward(self, x):
+    def _forward(self, x: torch.Tensor) -> torch.Tensor:
         H, W = self.in_res
         b, c, h, w = x.shape
         assert h * w == H * W, "input feature has wrong size"
 
         qkv = self.qkv(x)
+        qkv1, qkv2 = torch.chunk(qkv, 2, dim=1)
 
-        w_msa = self.window_attention(qkv)
-        sw_msa = self.shifted_window_attention(qkv)
+        w_msa = self.window_attention(qkv1)
+        sw_msa = self.shifted_window_attention(qkv2)
 
         if sw_msa is None:
             msa = w_msa
         else:
             msa = torch.cat([w_msa, sw_msa], dim=1)
 
-        return self.proj(msa)
+        msa = self.spatial_proj(msa)
+        msa = self.depth_proj(msa)
+
+        return msa
 
     def window_attention(self, qkv: torch.Tensor) -> torch.Tensor:
         # partition windows
