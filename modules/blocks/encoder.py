@@ -156,7 +156,6 @@ class SwinEncoder(nn.Module):
                         qkv_bias=qkv_bias,
                         bias=bias,
                         act=act,
-                        mlp_ratio=mlp_ratio,
                         use_conv=use_conv,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
