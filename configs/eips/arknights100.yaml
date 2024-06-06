@@ -2,7 +2,7 @@ module:
   target: models.classification.EIPS
   params:
     # ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
-    margin: 0.2
+    margin: 1.0
     lr: 2e-5
     weight_decay: 0.
     net_config:
