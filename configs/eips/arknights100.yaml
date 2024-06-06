@@ -33,7 +33,7 @@ module:
       params:
         use_square: True
         reduction_dim: [1, 2, 3]
-        reduction: 'sum'
+        reduction: 'mean'
         use_weight: True
 
 data:

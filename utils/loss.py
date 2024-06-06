@@ -94,7 +94,7 @@ class EuclideanDistance(nn.Module):
             self.weight = nn.Linear(in_features=in_channels, out_features=1)
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        euclidean_dist = torch.pow((inputs - targets), 2)  # euclidean_dist.shape == [B, *]
+        euclidean_dist = torch.pow((self.normalize_tensor(inputs) - self.normalize_tensor(targets)), 2)  # euclidean_dist.shape == [B, *]
 
         if self.use_weight:
             euclidean_dist = torch.flatten(euclidean_dist, start_dim=1)
@@ -117,6 +117,10 @@ class EuclideanDistance(nn.Module):
                 euclidean_dist = torch.sqrt(euclidean_dist)
 
         return euclidean_dist
+
+    def normalize_tensor(self, x, eps=1e-10):
+        norm_factor = torch.sqrt(torch.sum(x ** 2, dim=1, keepdim=True))
+        return x / (norm_factor + eps)
 
 
 class CosineSimilarity(nn.Module):
