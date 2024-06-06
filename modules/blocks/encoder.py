@@ -30,7 +30,6 @@ class SwinEncoderBlock(nn.Module):
                  qkv_bias: bool = True,
                  bias: bool = True,
                  act: str = 'relu',
-                 mlp_ratio: float = 4.0,
                  use_conv: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
@@ -119,7 +118,7 @@ class SwinEncoder(nn.Module):
         super().__init__()
 
         self.embed = nn.Sequential(
-                conv_nd(dim, in_channels=in_channels, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size),
+                conv_nd(dim, in_channels=in_channels, out_channels=embed_dim, kernel_size=patch_size, stride=patch_size)
             )
 
         self.encoder = nn.ModuleList()
@@ -146,6 +145,7 @@ class SwinEncoder(nn.Module):
                 down.append(
                     SwinEncoderBlock(
                         in_channels=in_ch,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
