@@ -105,7 +105,6 @@ class SwinEncoder(nn.Module):
                  drop_path: float = 0.0,
                  qkv_bias: bool = True,
                  bias: bool = True,
-                 mlp_ratio: float = 4.0,
                  act: str = 'relu',
                  use_conv: bool = True,
                  dim: int = 2,
@@ -124,9 +123,9 @@ class SwinEncoder(nn.Module):
         self.encoder = nn.ModuleList()
 
         in_ch = embed_dim
-        cur_res = in_res // patch_size
+        self.cur_res = in_res // patch_size
 
-        self.pos_embed = nn.Parameter(torch.empty(1, embed_dim, cur_res, cur_res).normal_(std=0.02))
+        self.pos_embed = nn.Parameter(torch.empty(1, embed_dim, self.cur_res, self.cur_res).normal_(std=0.02))
 
         if not isinstance(num_blocks, ListConfig):
             num_blocks = [num_blocks for i in range(len(hidden_dims))]
@@ -146,7 +145,7 @@ class SwinEncoder(nn.Module):
                     SwinEncoderBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
-                        in_res=cur_res,
+                        in_res=self.cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
                         num_heads=num_head,
@@ -176,7 +175,9 @@ class SwinEncoder(nn.Module):
                         pool_type=pool_type,
                     )
                 )
-                cur_res //= 2
+                self.cur_res //= 2
+
+        self.latent_dim = in_ch
 
     def forward(self, x: torch.Tensor) -> Union[torch.Tensor, List[torch.Tensor]]:
         h = self.embed(x) + self.pos_embed

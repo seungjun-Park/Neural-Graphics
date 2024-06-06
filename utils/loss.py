@@ -75,43 +75,47 @@ class CosineDistance(nn.Module):
 class EuclideanDistance(nn.Module):
     def __init__(self,
                  use_square: bool = False,
-                 use_normalize: bool = False,
-                 ed_weight: float = 1.0,
-                 ed_dim: Union[int, List[int], Tuple[int]] = (2, 3),
-                 reduction: str = 'none',
+                 reduction_dim: Union[int, List[int], Tuple[int]] = (2, 3),
+                 reduction: str = 'sum',
+                 in_channels: int = None,
+                 use_weight: bool = True
                  ):
         super().__init__()
 
         self.use_square = use_square
-        self.use_normalize = use_normalize
-        self.ed_weight = ed_weight
-        self.ed_dim = tuple(ed_dim)
+        self.reduction_dim = tuple(reduction_dim)
+        reduction = reduction.lower()
+        assert reduction in ['sum', 'mean']
         self.reduction = reduction.lower()
+        self.use_weight = use_weight
 
-    def forward(self,
-                inputs: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]],
-                targets: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]]) -> torch.Tensor:
-        if isinstance(inputs, torch.Tensor):
-            inputs = [inputs]
-        if isinstance(targets, torch.Tensor):
-            targets = [targets]
+        if use_weight:
+            assert in_channels is not None
+            self.weight = nn.Linear(in_features=in_channels, out_features=1)
 
-        euclidean_dists = 0
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        euclidean_dist = torch.pow((inputs - targets), 2)  # euclidean_dist.shape == [B, *]
 
-        for ips, tgs in zip(inputs, targets):
-            if self.use_normalize:
-                euclidean_dist = normalized_euclidean_distance(ips,
-                                                               tgs,
-                                                               dim=self.ed_dim,
-                                                               reduction=self.reduction,
-                                                               use_square=self.use_square)
+        if self.use_weight:
+            euclidean_dist = torch.flatten(euclidean_dist, start_dim=1)
+            b, n = euclidean_dist.shape
+            euclidean_dist = self.weight(euclidean_dist)
+            if self.reduction == 'mean':
+                euclidean_dist = euclidean_dist / n
+            euclidean_dist = torch.sum(euclidean_dist) / b
 
-            else:
-                euclidean_dist = euclidean_distance(ips, tgs, reduction=self.reduction, use_square=self.use_square)
+        else:
+            if self.reduction == 'sum':
+                euclidean_dist = torch.sum(euclidean_dist, dim=self.reduction_dim)
+                euclidean_dist = torch.sum(euclidean_dist) / euclidean_dist.shape[0]
+            elif self.reduction == 'mean':
+                euclidean_dist = torch.mean(euclidean_dist, dim=self.reduction_dim)
+                euclidean_dist = torch.sum(euclidean_dist) / euclidean_dist.shape[0]
 
-            euclidean_dists = euclidean_dists + euclidean_dist
+            if not self.use_square:
+                euclidean_dist = torch.sqrt(euclidean_dist)
 
-        return euclidean_dists * self.ed_weight
+        return euclidean_dist
 
 
 class CosineSimilarity(nn.Module):

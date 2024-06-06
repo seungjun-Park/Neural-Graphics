@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+from omegaconf import DictConfig
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, to_3tuple, conv_nd, get_act, group_norm, normalize_img
@@ -11,8 +12,8 @@ from modules.blocks.decoder import SwinDecoder
 
 class EIPS(pl.LightningModule):
     def __init__(self,
-                 net_config: dict,
-                 criterion_config: dict,
+                 net_config: DictConfig,
+                 criterion_config: DictConfig,
                  margin: float = 1.0,
                  lr: float = 2e-5,
                  weight_decay: float = 1e-4,
@@ -27,6 +28,9 @@ class EIPS(pl.LightningModule):
         self.margin = margin
 
         self.encoder = SwinEncoder(**net_config)
+        if 'use_weight' in criterion_config:
+            if criterion_config['use_weight']:
+                criterion_config['in_channels'] = self.encoder.latent_dim * (self.encoder.cur_res ** 2)
         self.criterion = instantiate_from_config(criterion_config)
 
         self.loss = nn.TripletMarginWithDistanceLoss(distance_function=self.criterion, margin=margin)
@@ -97,10 +101,14 @@ class EIPS(pl.LightningModule):
         self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
-        opt = torch.optim.AdamW(list(self.encoder.parameters()),
+        params = list(self.encoder.parameters())
+        if isinstance(self.criterion, nn.Module):
+            params += list(self.criterion.parameters())
+
+        opt = torch.optim.AdamW(params,
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
-                                betas=(0.0, 0.99)
+                                betas=(0.5, 0.9)
                                 )
 
         return [opt]

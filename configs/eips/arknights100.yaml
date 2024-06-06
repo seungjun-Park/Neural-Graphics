@@ -9,12 +9,12 @@ module:
       in_channels: 3
       in_res: 512
       window_size: 8
-      patch_size: 2
-      hidden_dims: [ 64, 128, 128, 256, 256 ]
+      patch_size: 4
+      hidden_dims: [ 64, 128, 256, 512]
       embed_dim: 32
       num_blocks: 2
-      num_groups: 16
-      num_heads: [ 4, 8, 8, 16, 16 ]
+      num_groups: 32
+      num_heads: [ 2, 4, 8, 16 ]
       dropout: 0.0
       attn_dropout: 0.0
       drop_path: 0.1
@@ -22,17 +22,19 @@ module:
       bias: True
       act: 'gelu'
       use_conv: True
-      pool_type: 'avg'
+      pool_type: 'conv'
       dim: 2
       use_checkpoint: True
       attn_mode: 'cosine'
       use_norm: True
 
     criterion_config:
-      target: utils.loss.CosineSimilarity
+      target: utils.loss.EuclideanDistance
       params:
-        cd_dim: 1
-        reduction: 'mean'
+        use_square: True
+        reduction_dim: [1, 2, 3]
+        reduction: 'sum'
+        use_weight: True
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -90,5 +92,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 1000
+  max_epochs: 500
   accumulate_grad_batches: 5
