@@ -100,7 +100,7 @@ class EuclideanDistance(nn.Module):
             euclidean_dist = torch.flatten(euclidean_dist, start_dim=1)
             b, n = euclidean_dist.shape
             euclidean_dist = self.weight(euclidean_dist)
-            euclidean_dist = torch.clamp(euclidean_dist, min=0)
+            euclidean_dist = F.relu(euclidean_dist)
             if self.reduction == 'mean':
                 euclidean_dist = euclidean_dist / n
             euclidean_dist = torch.sum(euclidean_dist) / b
