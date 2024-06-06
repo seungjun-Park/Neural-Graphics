@@ -29,8 +29,8 @@ class EIPS(pl.LightningModule):
 
         self.encoder = SwinEncoder(**net_config)
         if 'use_weight' in criterion_config['params']:
-            if criterion_config['use_weight']:
-                criterion_config['in_channels'] = self.encoder.latent_dim * (self.encoder.cur_res ** 2)
+            if criterion_config['params']['use_weight']:
+                criterion_config['params']['in_channels'] = self.encoder.latent_dim * (self.encoder.cur_res ** 2)
         self.criterion = instantiate_from_config(criterion_config)
 
         self.loss = nn.TripletMarginWithDistanceLoss(distance_function=self.criterion, margin=margin)
