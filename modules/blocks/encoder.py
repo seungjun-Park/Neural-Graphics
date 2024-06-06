@@ -194,6 +194,6 @@ class SwinEncoder(nn.Module):
                 hs.append(h)
 
         if is_deep_supervision:
-            return h
+            return hs
 
-        return hs
+        return h

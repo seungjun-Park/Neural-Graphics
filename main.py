@@ -121,45 +121,21 @@ def classification_test():
     device = torch.device('cuda')
     model = instantiate_from_config(config.module).eval().to(device)
 
-    data_path = './datasets/arknights_v2/train/amiya/images/*.*'
-    file_names = glob.glob(f'{data_path}')
-    img_path = './datasets/arknights_v2/train/bagpipe/edges_v2/*.*'
-    img_names = glob.glob(f'{img_path}')
-
-    num_positives = 0
-    num_negatives = 0
-
+    data_path = '../frequency_test/0.png'
+    img = cv2.imread(data_path, cv2.IMREAD_COLOR)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = torchvision.transforms.ToTensor()(img)
+    img = torchvision.transforms.Resize([512, 512])(img)
+    img = img.unsqueeze(0).to(device)
     with torch.no_grad():
-        for i, (img_name, edge_name) in enumerate(zip(img_names, file_names)):
-            img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            img = torchvision.transforms.transforms.ToTensor()(img).to(device)
-            img = torchvision.transforms.transforms.Resize([512, 512])(img)
-            img = img.unsqueeze(0)
-
-            edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
-            edge = torchvision.transforms.transforms.ToTensor()(edge).to(device)
-            edge = torchvision.transforms.transforms.Resize([512, 512])(edge)
-            edge = edge.repeat(3, 1, 1)
-            edge = edge.unsqueeze(0)
-
-            prob = model(img, edge).squeeze(0).detach().cpu()
-
-            if prob < 0.5:
-                num_positives += 1
-            else:
-                num_negatives += 1
-
-            # feats = model.feature_extract(img, True)
-            # for j, feat in enumerate(feats):
-            #     for k, f in enumerate(feat[0]):
-            #         if not os.path.isdir(f'./feats{j}'):
-            #             os.mkdir(f'./feats{j}')
-            #         f = f.unsqueeze(0)
-            #         f = torchvision.transforms.ToPILImage()(f)
-            #         f.save(f'./feats{j}/{k}.png', 'png')
-
-        print(f'accurracy: {num_positives / len(img_names)}')
+        feats = model.feature_extract(img, True)
+        for j, feat in enumerate(feats):
+            for k, f in enumerate(feat[0]):
+                if not os.path.isdir(f'./0/feats_{j}'):
+                    os.mkdir(f'./0/feats_{j}')
+                f = f.unsqueeze(0)
+                f = torchvision.transforms.ToPILImage()(f)
+                f.save(f'./0/feats_{j}/{k}.png', 'png')
 
 
 if __name__ == '__main__':

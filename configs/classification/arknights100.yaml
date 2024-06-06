@@ -4,6 +4,7 @@ module:
     lr: 2e-5
     weight_decay: 0.
     logit_dim: 1
+    # ckpt_path: './checkpoints/classification/arknights100.ckpt'
     encoder_config:
       in_channels: 3
       in_res: 512
@@ -24,7 +25,7 @@ module:
       pool_type: 'max'
       dim: 2
       use_checkpoint: True
-      attn_mode: 'cosine'
+      attn_mode: 'vanilla'
       use_norm: True
 
 data:
@@ -83,5 +84,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 200
+  max_epochs: 100
   accumulate_grad_batches: 5
