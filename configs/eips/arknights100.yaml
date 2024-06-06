@@ -22,7 +22,7 @@ module:
       bias: True
       act: 'gelu'
       use_conv: True
-      pool_type: 'conv'
+      pool_type: 'max'
       dim: 2
       use_checkpoint: True
       attn_mode: 'cosine'

@@ -94,7 +94,7 @@ class EuclideanDistance(nn.Module):
             self.weight = nn.Linear(in_features=in_channels, out_features=1)
 
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        euclidean_dist = torch.pow((self.normalize_tensor(inputs) - self.normalize_tensor(targets)), 2)  # euclidean_dist.shape == [B, *]
+        euclidean_dist = torch.pow(inputs - targets, 2)  # euclidean_dist.shape == [B, *]
 
         if self.use_weight:
             euclidean_dist = torch.flatten(euclidean_dist, start_dim=1)
