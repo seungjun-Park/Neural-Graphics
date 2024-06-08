@@ -24,7 +24,7 @@ class SwinTransformer(pl.LightningModule):
         self.weight_decay = weight_decay
         self.encoder = SwinEncoder(**encoder_config)
         self.num_class = num_class
-        self.norm = group_norm(self.encoder.latent_dim, num_groups=encoder_config['params']['num_groups'])
+        self.norm = group_norm(self.encoder.latent_dim, num_groups=encoder_config['num_groups'])
         self.logit_out = nn.Linear(int(self.encoder.latent_dim * (self.encoder.cur_res ** 2)), num_class)
 
         if ckpt_path is not None:
