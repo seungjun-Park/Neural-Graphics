@@ -72,7 +72,7 @@ class ResidualBlock(nn.Module):
         return self.drop_path(h) + self.shortcut(x)
 
 
-class AttentionResidualBlock(nn.Module):
+class ResidualAttentionBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
                  in_res: Union[List[int], Tuple[int]],

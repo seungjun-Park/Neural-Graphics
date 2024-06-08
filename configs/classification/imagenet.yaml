@@ -1,0 +1,90 @@
+module:
+  target: models.classification.SwinTransformer
+  params:
+    lr: 2e-5
+    weight_decay: 0.
+    num_class: 1000
+    encoder_config:
+      in_channels: 3
+      in_res: 224
+      window_size: 7
+      patch_size: 2
+      hidden_dims: [ 64, 128, 256, 512 ]
+      embed_dim: 32
+      num_blocks: 2
+      num_groups: 32
+      num_heads: [ 2, 4, 8, 16 ]
+      dropout: 0.0
+      attn_dropout: 0.0
+      drop_path: 0.1
+      qkv_bias: True
+      bias: True
+      act: 'gelu'
+      use_conv: True
+      pool_type: 'conv'
+      dim: 2
+      use_checkpoint: True
+      attn_mode: 'cosine'
+      use_norm: True
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 4
+    batch_size: 8
+    wrap: True
+    train:
+      target: modules.datasets.imagenet.ImageNetWrapper
+      params:
+        root: '/local_datasets/ImageNet'
+        split: 'train'
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 224, 224 ]
+
+    validation:
+      target: modules.datasets.imagenet.ImageNetWrapper
+      params:
+        root: '/local_datasets/ImageNet'
+        split: 'val'
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 224, 224 ]
+
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'eips'
+    version: 'arknights'
+
+
+checkpoints:
+  latest_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/eips/'
+      filename: 'arknights'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+  best_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/eips/'
+      filename: 'arknights_best'
+      monitor: 'val/loss'
+      mode: 'min'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 10
+  accumulate_grad_batches: 5

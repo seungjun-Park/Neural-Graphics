@@ -10,7 +10,7 @@ from omegaconf import ListConfig
 from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
 from modules.blocks.patches import PatchMerging
 from modules.blocks.mlp import ConvMLP, MLP
-from modules.blocks.res_block import ResidualBlock, AttentionResidualBlock
+from modules.blocks.res_block import ResidualBlock, ResidualAttentionBlock
 from modules.blocks.down import DownBlock
 from modules.sequential import AttentionSequential
 from utils import conv_nd, group_norm, to_2tuple
@@ -41,7 +41,7 @@ class SwinEncoderBlock(nn.Module):
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.res_block = AttentionResidualBlock(
+        self.res_block = ResidualAttentionBlock(
             in_channels=in_channels,
             in_res=in_res,
             out_channels=out_channels,
@@ -74,7 +74,6 @@ class SwinEncoder(nn.Module):
                  patch_size: Union[int, List[int], Tuple[int]] = 4,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  embed_dim: int = 16,
-                 quant_dim: int = 8,
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
                  num_groups: int = 16,
                  num_heads: Union[int, List[int], Tuple[int]] = 8,
@@ -154,9 +153,6 @@ class SwinEncoder(nn.Module):
                 self.cur_res //= 2
 
         self.latent_dim = in_ch
-        self.quant_dim = quant_dim
-
-        self.quant = conv_nd(dim, in_ch, quant_dim, kernel_size=1, stride=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.embed(x)
@@ -166,7 +162,7 @@ class SwinEncoder(nn.Module):
             else:
                 h = module(h)
 
-        return self.quant(h)
+        return h
 
     def feature_extract(self, x: torch.Tensor, is_deep_supervision: bool = False) -> Union[torch.Tensor, List[torch.Tensor]]:
         hs = []
@@ -181,8 +177,6 @@ class SwinEncoder(nn.Module):
             else:
                 h = module(h)
 
-        h = self.quant(h)
-        hs.append(h)
         if is_deep_supervision:
             return hs, attn_maps
 

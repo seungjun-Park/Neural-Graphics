@@ -25,7 +25,7 @@ def to_x(freq, dim=2, norm='backward', shift=False):
 
     x = irfftn(freq, norm=norm, dim=tuple(range(2, freq.ndim)))
 
-    return img
+    return x
 
 
 def freq_filter(freq, dim=2, bandwidth=[0, 1]):
