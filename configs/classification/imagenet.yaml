@@ -62,8 +62,8 @@ logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
   params:
     save_dir: './logs'
-    name: 'eips'
-    version: 'arknights'
+    name: 'classification'
+    version: 'imagenet'
 
 
 checkpoints:
