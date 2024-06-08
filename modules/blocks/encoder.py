@@ -166,7 +166,7 @@ class SwinEncoder(nn.Module):
             else:
                 h = module(h)
 
-        return h
+        return self.quant(h)
 
     def feature_extract(self, x: torch.Tensor, is_deep_supervision: bool = False) -> Union[torch.Tensor, List[torch.Tensor]]:
         hs = []
@@ -181,6 +181,8 @@ class SwinEncoder(nn.Module):
             else:
                 h = module(h)
 
+        h = self.quant(h)
+        hs.append(h)
         if is_deep_supervision:
             return hs, attn_maps
 
