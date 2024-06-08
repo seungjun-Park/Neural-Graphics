@@ -43,7 +43,7 @@ class SwinEncoderBlock(nn.Module):
 
         self.res_block = AttentionResidualBlock(
             in_channels=in_channels,
-            in_res=to_2tuple(in_res),
+            in_res=in_res,
             out_channels=out_channels,
             num_heads=num_heads,
             window_size=window_size,
