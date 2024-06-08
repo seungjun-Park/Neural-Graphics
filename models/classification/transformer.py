@@ -25,7 +25,7 @@ class SwinTransformer(pl.LightningModule):
         self.encoder = SwinEncoder(**encoder_config)
         self.num_class = num_class
         self.norm = group_norm(self.encoder.latent_dim, num_groups=encoder_config['num_groups'])
-        self.logit_out = nn.Linear(int(self.encoder.latent_dim * (self.encoder.cur_res ** 2)), num_class)
+        self.logit_out = nn.Linear(self.encoder.latent_dim, num_class)
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignored_keys)
@@ -57,6 +57,7 @@ class SwinTransformer(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.encoder(x)
         h = self.norm(h)
+        h = F.adaptive_avg_pool1d(h, 1)
         h = torch.flatten(h, start_dim=1)
         h = self.logit_out(h)
 
