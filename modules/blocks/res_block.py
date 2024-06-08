@@ -111,7 +111,7 @@ class ResidualAttentionBlock(nn.Module):
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        if in_res > 64:
+        if in_res >= window_size:
             self.attn = DoubleWindowSelfAttentionBlock(
                 in_channels=out_channels,
                 in_res=to_2tuple(in_res),

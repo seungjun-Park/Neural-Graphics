@@ -69,6 +69,7 @@ class SwinTransformer(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, labels = batch
+        labels = F.one_hot(labels, num_classes=self.num_class)
         logit = self(x)
         prob = F.softmax(logit, dim=-1)
         loss = F.cross_entropy(prob, labels)
@@ -80,6 +81,7 @@ class SwinTransformer(pl.LightningModule):
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         x, labels = batch
+        labels = F.one_hot(labels, num_classes=self.num_class)
         logit = self(x)
         prob = F.softmax(logit, dim=-1)
         loss = F.cross_entropy(prob, labels)

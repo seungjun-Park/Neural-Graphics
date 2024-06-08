@@ -38,9 +38,4 @@ class ImageNetWrapper(ImageNet):
                 target_transform_list.append(instantiate_from_config(target_transform_config))
             self.target_transform = transforms.Compose(target_transform_list)
 
-    def __getitem__(self, idx):
-        img, target = super().__getitem__(idx)
-        target = torch.nn.functional.one_hot(target, num_classes=len(self.classes))
-        return img, target
-
 
