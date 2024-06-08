@@ -70,16 +70,16 @@ checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/eips/'
-      filename: 'arknights'
+      dirpath: './checkpoints/classification/'
+      filename: 'imagenet'
       monitor: 'step'
       mode: 'max'
       save_top_k: 1
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/eips/'
-      filename: 'arknights_best'
+      dirpath: './checkpoints/classification/'
+      filename: 'imagenet'
       monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
