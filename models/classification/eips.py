@@ -97,8 +97,8 @@ class EIPS(pl.LightningModule):
         feat_neg = self.encoder(neg)
         triplet_loss = F.triplet_margin_with_distance_loss(feat_anc, feat_pos, feat_neg,
                                                            distance_function=self.criterion, margin=self.margin)
-        logit_pos = self.logit(feat_pos)
-        logit_neg = self.logit(feat_neg)
+        logit_pos = self.logit(torch.flatten(feat_pos, start_dim=1))
+        logit_neg = self.logit(torch.flatten(feat_neg, start_dim=1))
         logit = torch.cat([logit_pos, logit_neg], dim=0)
         bce_loss = F.binary_cross_entropy_with_logits(logit, torch.cat([label_pos, label_neg], dim=0))
 
