@@ -113,7 +113,7 @@ class AttentionResidualBlock(nn.Module):
 
         if in_res > 64:
             self.attn = DoubleWindowSelfAttentionBlock(
-                in_channels=in_channels,
+                in_channels=out_channels,
                 in_res=to_2tuple(in_res),
                 num_heads=num_heads,
                 window_size=window_size,
@@ -128,7 +128,7 @@ class AttentionResidualBlock(nn.Module):
             )
         else:
             self.attn = SelfAttentionBlock(
-                in_channels=in_channels,
+                in_channels=out_channels,
                 num_heads=num_heads,
                 qkv_bias=qkv_bias,
                 proj_bias=proj_bias,
