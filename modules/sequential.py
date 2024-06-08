@@ -34,3 +34,17 @@ class ConditionalSequential(nn.Sequential):
             x = layer(x, context)
 
         return x
+
+
+class AttentionSequential(nn.Sequential):
+    def __init__(self,
+                 *args,
+                 **kwargs
+                 ):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, x):
+        for layer in self:
+            x, attn_map = layer(x)
+
+        return x, attn_map

@@ -54,6 +54,16 @@ def window_reverse(windows, window_size, H, W):
     return x
 
 
+def attention_map_window_reverse(windows, window_size, H, W):
+    b, head, l, _ = windows.shape
+    nH, nW = H // window_size, W // window_size
+    b = int(b / (H * W / window_size / window_size))
+    x = windows.reshape(b, nH, nW, head, l, _)
+    x = x.reshape(b, -1, l, _)
+
+    return x
+
+
 class MultiHeadAttention(nn.Module):
     def __init__(self,
                  in_channels: int,
@@ -104,10 +114,10 @@ class MultiHeadAttention(nn.Module):
         attn = self.softmax(attn)
         attn = self.dropout(attn)
 
-        attn = torch.einsum('bhts,bhcs->bhct', attn, v)
-        attn = attn.reshape(b, -1, *spatial)
+        score = torch.einsum('bhts,bhcs->bhct', attn, v)
+        score = score.reshape(b, -1, *spatial)
 
-        return attn
+        return score, attn
 
 
 class SelfAttentionBlock(nn.Module):
@@ -137,11 +147,11 @@ class SelfAttentionBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         qkv = self.qkv(x)
         q, k, v = torch.chunk(qkv, 3, dim=1)
-        attn = self.attn(q, k, v)
+        attn, attn_map = self.attn(q, k, v)
         attn = self.spatial_proj(attn)
         attn = self.depth_proj(attn)
 
-        return attn
+        return attn, attn_map
 
 
 class CrossAttentionBlock(nn.Module):
@@ -174,11 +184,11 @@ class CrossAttentionBlock(nn.Module):
         q = self.q(x)
         kv = self.kv(context)
         k, v = torch.chunk(kv, 2, dim=1)
-        attn = self.attn(q, k, v)
+        attn, attn_map = self.attn(q, k, v)
         attn = self.spatial_proj(attn)
         attn = self.depth_proj(attn)
 
-        return attn
+        return attn, attn_map
 
 
 class WindowAttention(nn.Module):
@@ -304,10 +314,10 @@ class WindowAttention(nn.Module):
         attn = F.softmax(attn, dim=1)
         attn = self.drop(attn)
 
-        attn = torch.einsum('bhts,bhcs->bhct', attn, v)
-        attn = attn.reshape(b, -1, *spatial)
+        score = torch.einsum('bhts,bhcs->bhct', attn, v)
+        score = score.reshape(b, -1, *spatial)
 
-        return attn
+        return score, attn
 
 
 class WindowSelfAttentionBlock(nn.Module):
@@ -391,7 +401,7 @@ class WindowSelfAttentionBlock(nn.Module):
             return checkpoint(self._forward, x)
         return self._forward(x)
 
-    def _forward(self, x):
+    def _forward(self, x: torch.Tensor) -> torch.Tensor:
         H, W = self.in_res
         b, c, h, w = x.shape
         assert h * w == H * W, "input feature has wrong size"
@@ -403,7 +413,8 @@ class WindowSelfAttentionBlock(nn.Module):
             shifted_qkv = torch.roll(qkv, shifts=(-self.shift_size, -self.shift_size), dims=(-2, -1))
             shifted_qkv = window_partition(shifted_qkv, self.window_size)  # nW*B, c, window_size, window_size
             q, k, v = torch.chunk(shifted_qkv, 3, dim=1)
-            msa = self.attn(q=q, k=k, v=v, mask=self.attn_mask)
+            msa, attn_map = self.attn(q=q, k=k, v=v, mask=self.attn_mask)
+            attn_map = attention_map_window_reverse(attn_map, self.window_size, H, W)
             msa = window_reverse(msa, self.window_size, h, w)  # B c, H' W'
             msa = torch.roll(msa, shifts=(self.shift_size, self.shift_size), dims=(-2, -1))
 
@@ -414,13 +425,14 @@ class WindowSelfAttentionBlock(nn.Module):
             q, k, v = torch.chunk(qkv, 3, dim=1)
 
             # W-MSA/SW-MSA
-            msa = self.attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+            msa, attn_map = self.attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
             msa = window_reverse(msa, self.window_size, h, w)  # B c, H' W'
+            attn_map = attention_map_window_reverse(attn_map, self.window_size, H, W)
 
         msa = self.spatial_proj(msa)
         msa = self.depth_proj(msa)
 
-        return msa
+        return msa, attn_map
 
 
 class WindowCrossAttentionBlock(nn.Module):
@@ -519,7 +531,8 @@ class WindowCrossAttentionBlock(nn.Module):
             shifted_qkv = torch.roll(qkv, shifts=(-self.shift_size, -self.shift_size), dims=(-2, -1))
             shifted_qkv = window_partition(shifted_qkv, self.window_size)  # nW*B, c, window_size, window_size
             q, k, v = torch.chunk(shifted_qkv, 3, dim=1)
-            msa = self.attn(q=q, k=k, v=v, mask=self.attn_mask)
+            msa, attn_map = self.attn(q=q, k=k, v=v, mask=self.attn_mask)
+            attn_map = attention_map_window_reverse(attn_map, self.window_size, H, W)
             msa = window_reverse(msa, self.window_size, h, w)  # B c, H' W'
             msa = torch.roll(msa, shifts=(self.shift_size, self.shift_size), dims=(-2, -1))
 
@@ -530,13 +543,14 @@ class WindowCrossAttentionBlock(nn.Module):
             q, k, v = torch.chunk(qkv, 3, dim=1)
 
             # W-MSA/SW-MSA
-            msa = self.attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+            msa, attn_map = self.attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+            attn_map = attention_map_window_reverse(attn_map, self.window_size, H, W)
             msa = window_reverse(msa, self.window_size, h, w)  # B c, H' W'
 
         msa = self.spatial_proj(msa)
         msa = self.depth_proj(msa)
 
-        return msa
+        return msa, attn_map
 
 
 class DoubleWindowSelfAttentionBlock(nn.Module):
@@ -621,9 +635,7 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         self.attn_mask = attn_mask
 
         self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, bias=qkv_bias)
-        self.spatial_proj = conv_nd(dim, in_channels, in_channels, kernel_size=3, stride=1, padding=1, bias=proj_bias,
-                                    groups=in_channels)
-        self.depth_proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
+        self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
@@ -638,18 +650,15 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         qkv = self.qkv(x)
         qkv1, qkv2 = torch.chunk(qkv, 2, dim=1)
 
-        w_msa = self.window_attention(qkv1)
-        sw_msa = self.shifted_window_attention(qkv2)
+        w_msa, w_attn_map = self.window_attention(qkv1)
+        sw_msa, sw_attn_map = self.shifted_window_attention(qkv2)
 
-        if sw_msa is None:
-            msa = w_msa
-        else:
-            msa = torch.cat([w_msa, sw_msa], dim=1)
+        msa = torch.cat([w_msa, sw_msa], dim=1)
+        attn_map = torch.cat([w_attn_map, sw_attn_map], dim=1)
 
-        msa = self.spatial_proj(msa)
-        msa = self.depth_proj(msa)
+        msa = self.proj(msa)
 
-        return msa
+        return msa, attn_map
 
     def window_attention(self, qkv: torch.Tensor) -> torch.Tensor:
         # partition windows
@@ -658,10 +667,11 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         q, k, v = torch.chunk(qkv, 3, dim=1)
 
         # W-MSA/SW-MSA
-        w_msa = self.w_attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+        w_msa, w_attn_map = self.w_attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+        w_attn_map = attention_map_window_reverse(w_attn_map, self.window_size, h, w)  # B c, H' W'
         w_msa = window_reverse(w_msa, self.window_size, h, w)  # B c, H' W'
 
-        return w_msa
+        return w_msa, w_attn_map
 
     def shifted_window_attention(self, qkv: torch.Tensor) -> torch.Tensor:
         if self.shift_size > 0:
@@ -669,14 +679,24 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
             shifted_qkv = torch.roll(qkv, shifts=(-self.shift_size, -self.shift_size), dims=(-2, -1))
             shifted_qkv = window_partition(shifted_qkv, self.window_size)  # nW*B, c, window_size, window_size
             q, k, v = torch.chunk(shifted_qkv, 3, dim=1)
-            sw_msa = self.sw_attn(q=q, k=k, v=v, mask=self.attn_mask)
+            sw_msa, sw_attn_map = self.sw_attn(q=q, k=k, v=v, mask=self.attn_mask)
+            sw_attn_map = attention_map_window_reverse(sw_attn_map, self.window_size, h, w)  # B c, H' W'
             sw_msa = window_reverse(sw_msa, self.window_size, h, w)  # B c, H' W'
             sw_msa = torch.roll(sw_msa, shifts=(self.shift_size, self.shift_size), dims=(-2, -1))
 
-            return sw_msa
+            return sw_msa, sw_attn_map
 
         else:
-            return None
+            _, _, h, w = qkv.shape
+            qkv = window_partition(qkv, self.window_size)  # nW*B, C, window_size, window_size
+            q, k, v = torch.chunk(qkv, 3, dim=1)
+
+            # W-MSA/SW-MSA
+            w_msa, w_attn_map = self.sw_attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+            w_attn_map = attention_map_window_reverse(w_attn_map, self.window_size, h, w)  # B c, H' W'
+            w_msa = window_reverse(w_msa, self.window_size, h, w)  # B c, H' W'
+
+            return w_msa, w_attn_map
 
 
 class DoubleWindowCrossAttentionBlock(nn.Module):
@@ -761,7 +781,7 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
 
         self.q = conv_nd(dim, in_channels, in_channels, kernel_size=1, bias=qkv_bias)
         self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels * (2 if self.shift_size > 0 else 1), in_channels, kernel_size=1, bias=proj_bias)
+        self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
@@ -776,16 +796,17 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
         q = self.q(x)
         kv = self.kv(cond)
         qkv = torch.cat([q, kv], dim=1)
+        qkv1, qkv2 = torch.chunk(qkv, 2, dim=1)
 
-        w_msa = self.window_attention(qkv)
-        sw_msa = self.shifted_window_attention(qkv)
+        w_msa, w_attn_map = self.window_attention(qkv1)
+        sw_msa, sw_attn_map = self.shifted_window_attention(qkv2)
 
-        if sw_msa is None:
-            msa = w_msa
-        else:
-            msa = torch.cat([w_msa, sw_msa], dim=1)
+        msa = torch.cat([w_msa, sw_msa], dim=1)
+        attn_map = torch.cat([w_attn_map, sw_attn_map], dim=1)
 
-        return self.proj(msa)
+        msa = self.proj(msa)
+
+        return msa, attn_map
 
     def window_attention(self, qkv: torch.Tensor) -> torch.Tensor:
         # partition windows
@@ -794,10 +815,11 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
         q, k, v = torch.chunk(qkv, 3, dim=1)
 
         # W-MSA/SW-MSA
-        w_msa = self.w_attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+        w_msa, w_attn_map = self.w_attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+        w_attn_map = attention_map_window_reverse(w_attn_map, self.window_size, h, w)
         w_msa = window_reverse(w_msa, self.window_size, h, w)  # B c, H' W'
 
-        return w_msa
+        return w_msa, w_attn_map
 
     def shifted_window_attention(self, qkv: torch.Tensor) -> torch.Tensor:
         if self.shift_size > 0:
@@ -805,12 +827,22 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
             shifted_qkv = torch.roll(qkv, shifts=(-self.shift_size, -self.shift_size), dims=(-2, -1))
             shifted_qkv = window_partition(shifted_qkv, self.window_size)  # nW*B, c, window_size, window_size
             q, k, v = torch.chunk(shifted_qkv, 3, dim=1)
-            sw_msa = self.sw_attn(q=q, k=k, v=v, mask=self.attn_mask)
+            sw_msa, sw_attn_map = self.sw_attn(q=q, k=k, v=v, mask=self.attn_mask)
+            sw_attn_map = attention_map_window_reverse(sw_attn_map, self.window_size, h, w)
             sw_msa = window_reverse(sw_msa, self.window_size, h, w)  # B c, H' W'
             sw_msa = torch.roll(sw_msa, shifts=(self.shift_size, self.shift_size), dims=(-2, -1))
 
-            return sw_msa
+            return sw_msa, sw_attn_map
 
         else:
-            return None
+            _, _, h, w = qkv.shape
+            qkv = window_partition(qkv, self.window_size)  # nW*B, C, window_size, window_size
+            q, k, v = torch.chunk(qkv, 3, dim=1)
+
+            # W-MSA/SW-MSA
+            w_msa, w_attn_map = self.sw_attn(q=q, k=k, v=v)  # nW*B, C, window_size*window_size
+            w_attn_map = attention_map_window_reverse(w_attn_map, self.window_size, h, w)  # B c, H' W'
+            w_msa = window_reverse(w_msa, self.window_size, h, w)  # B c, H' W'
+
+            return w_msa, w_attn_map
 

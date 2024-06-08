@@ -237,6 +237,7 @@ class ArknightsImageEdgeSimilarity(Dataset):
         pos = cv2.imread(f'{pos_name}', cv2.IMREAD_GRAYSCALE)
         pos = self.to_tensor(pos)
         pos = pos.repeat(3, 1, 1)
+        pos_label = torch.tensor([0.0])
 
         idx = random.randrange(0, len(self))
         while True:
@@ -248,10 +249,13 @@ class ArknightsImageEdgeSimilarity(Dataset):
 
         if p == 0:
             neg_name = self.edge_names[idx]
+            neg_label = torch.tensor([0.0])
         elif p == 1:
             neg_name = self.img_names[index]
+            neg_label = torch.tensor([1.0])
         else:
             neg_name = self.img_names[idx]
+            neg_label = torch.tensor([1.0])
 
         neg = cv2.imread(f'{neg_name}', cv2.IMREAD_GRAYSCALE)
         neg = self.to_tensor(neg)
@@ -262,7 +266,7 @@ class ArknightsImageEdgeSimilarity(Dataset):
         pos = tf.resized_crop(pos, i, j, h, w, size=self.size, antialias=True)
         neg = tf.resized_crop(neg, i, j, h, w, size=self.size, antialias=True)
 
-        return img, pos, neg
+        return img, pos, neg, pos_label, neg_label
 
     def __len__(self):
         return len(self.img_names)

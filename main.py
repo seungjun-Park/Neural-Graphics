@@ -1,5 +1,6 @@
 import argparse
 import glob
+import math
 import os.path
 import random
 
@@ -128,11 +129,15 @@ def classification_test():
     img = torchvision.transforms.Resize([512, 512])(img)
     img = img.unsqueeze(0).to(device)
     with torch.no_grad():
-        feats = model.feature_extract(img, True)
-        for j, feat in enumerate(feats):
+        feats, attn_maps = model.feature_extract(img, True)
+        for j, feat in enumerate(attn_maps):
             for k, f in enumerate(feat[0]):
                 if not os.path.isdir(f'./0/feats_{j}'):
                     os.mkdir(f'./0/feats_{j}')
+                l, _ = f.shape
+                h = int(math.sqrt(_))
+                f = f.mean(-1)
+                f = f.reshape(h, h)
                 f = f.unsqueeze(0)
                 f = torchvision.transforms.ToPILImage()(f)
                 f.save(f'./0/feats_{j}/{k}.png', 'png')

@@ -4,7 +4,7 @@ module:
     lr: 2e-5
     weight_decay: 0.
     logit_dim: 1
-    # ckpt_path: './checkpoints/classification/arknights100.ckpt'
+    ckpt_path: './checkpoints/classification/arknights100.ckpt'
     encoder_config:
       in_channels: 3
       in_res: 512

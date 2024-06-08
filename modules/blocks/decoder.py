@@ -11,7 +11,8 @@ from modules.blocks.down import DownBlock
 from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, DoubleWindowCrossAttentionBlock
 from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.patches import PatchMerging
-from utils import get_act, conv_nd, group_norm, to_2tuple, ConditionalSequential
+from modules.sequential import ConditionalSequential
+from utils import get_act, conv_nd, group_norm, to_2tuple
 
 
 class SwinDecoderBlock(nn.Module):

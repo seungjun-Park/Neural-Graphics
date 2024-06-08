@@ -28,12 +28,8 @@ class EIPS(pl.LightningModule):
         self.margin = margin
 
         self.encoder = SwinEncoder(**net_config)
-        if 'use_weight' in criterion_config['params']:
-            if criterion_config['params']['use_weight']:
-                criterion_config['params']['in_channels'] = self.encoder.latent_dim * (self.encoder.cur_res ** 2)
+        self.logit = nn.Linear(int(self.encoder.quant_dim * (self.encoder.cur_res ** 2)), 1)
         self.criterion = instantiate_from_config(criterion_config)
-
-        self.loss = nn.TripletMarginWithDistanceLoss(distance_function=self.criterion, margin=margin)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -69,39 +65,56 @@ class EIPS(pl.LightningModule):
         return self.criterion(feat0, feat1)
 
     def training_step(self, batch, batch_idx):
-        anc, pos, neg = batch
+        anc, pos, neg, label_pos, label_neg = batch
 
         feat_anc = self.encoder(anc)
         feat_pos = self.encoder(pos)
         feat_neg = self.encoder(neg)
-        loss = self.loss(feat_anc, feat_pos, feat_neg)
+        triplet_loss = F.triplet_margin_with_distance_loss(feat_anc, feat_pos, feat_neg, distance_function=self.criterion, margin=self.margin)
+        logit_pos = self.logit(feat_pos)
+        logit_neg = self.logit(feat_neg)
+        logit = torch.cat([logit_pos, logit_neg], dim=0)
+        bce_loss = F.binary_cross_entropy_with_logits(logit, torch.cat([label_pos, label_neg], dim=0))
 
-        dist_pos = self(anc, pos).mean()
-        dist_neg = self(anc, neg).mean()
+        loss = bce_loss + triplet_loss
+
+        dist_pos = self.criterion(anc, pos).mean()
+        dist_neg = self.criterion(anc, neg).mean()
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
+        self.log('train/bce_loss', bce_loss, logger=True, rank_zero_only=True)
+        self.log('train/triplet_loss', triplet_loss, logger=True, rank_zero_only=True)
         self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
         self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        anc, pos, neg = batch
+        anc, pos, neg, label_pos, label_neg = batch
 
         feat_anc = self.encoder(anc)
         feat_pos = self.encoder(pos)
         feat_neg = self.encoder(neg)
-        loss = self.loss(feat_anc, feat_pos, feat_neg)
+        triplet_loss = F.triplet_margin_with_distance_loss(feat_anc, feat_pos, feat_neg,
+                                                           distance_function=self.criterion, margin=self.margin)
+        logit_pos = self.logit(feat_pos)
+        logit_neg = self.logit(feat_neg)
+        logit = torch.cat([logit_pos, logit_neg], dim=0)
+        bce_loss = F.binary_cross_entropy_with_logits(logit, torch.cat([label_pos, label_neg], dim=0))
 
-        dist_pos = self(anc, pos).mean()
-        dist_neg = self(anc, neg).mean()
+        loss = bce_loss + triplet_loss
+
+        dist_pos = self.criterion(anc, pos).mean()
+        dist_neg = self.criterion(anc, neg).mean()
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
+        self.log('val/bce_loss', bce_loss, logger=True, rank_zero_only=True)
+        self.log('val/triplet_loss', triplet_loss, logger=True, rank_zero_only=True)
         self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
         self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
-        params = list(self.encoder.parameters())
+        params = list(self.encoder.parameters()) + list(self.logit.parameters())
         if isinstance(self.criterion, nn.Module):
             params += list(self.criterion.parameters())
 

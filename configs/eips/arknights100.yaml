@@ -29,12 +29,10 @@ module:
       use_norm: True
 
     criterion_config:
-      target: utils.loss.EuclideanDistance
+      target: utils.loss.CosineSimilarity
       params:
-        use_square: True
-        reduction_dim: [1, 2, 3]
+        dim: 1
         reduction: 'mean'
-        use_weight: True
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
