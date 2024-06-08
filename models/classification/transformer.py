@@ -57,7 +57,7 @@ class SwinTransformer(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.encoder(x)
         h = self.norm(h)
-        h = F.adaptive_avg_pool1d(h, 1)
+        h = F.adaptive_avg_pool2d(h, 1)
         h = torch.flatten(h, start_dim=1)
         h = self.logit_out(h)
 
