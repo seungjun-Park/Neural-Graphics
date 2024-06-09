@@ -67,7 +67,7 @@ logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
   params:
     save_dir: './logs'
-    name: 'classification'
+    name: 'recon'
     version: 'imagenet'
 
 
@@ -75,7 +75,7 @@ checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/classification/'
+      dirpath: './checkpoints/recon/'
       filename: 'imagenet'
       monitor: 'step'
       mode: 'max'
@@ -84,7 +84,7 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/classification/'
+      dirpath: './checkpoints/recon/'
       filename: 'imagenet'
       monitor: 'val/loss'
       mode: 'min'
