@@ -19,11 +19,11 @@ class PositionalEncoding(nn.Module):
             in_res = [in_res]
 
         if use_learnable_params:
-            self.pos_enc = nn.Parameter(torch.zeros(1, in_channels, *in_res), requires_grad=True)
+            pos_enc = nn.Parameter(torch.zeros(1, in_channels, *in_res), requires_grad=True)
         else:
-            self.pos_enc = self._make_fixed_positional_encoding(in_channels, in_res)
+            pos_enc = self._make_fixed_positional_encoding(in_channels, in_res)
 
-        self.register_buffer('pos_enc', self.pos_enc)
+        self.register_buffer('pos_enc', pos_enc)
 
     def _make_fixed_positional_encoding(self, in_channels: int, in_res: Union[List[int], Tuple[int]]) -> torch.Tensor:
         l = np.prod(in_res)
