@@ -23,6 +23,8 @@ class PositionalEncoding(nn.Module):
         else:
             self.pos_enc = self._make_fixed_positional_encoding(in_channels, in_res)
 
+        self.register_buffer('pos_enc', self.pos_enc)
+
     def _make_fixed_positional_encoding(self, in_channels: int, in_res: Union[List[int], Tuple[int]]) -> torch.Tensor:
         l = np.prod(in_res)
         encodings = torch.zeros(l, in_channels)
