@@ -86,15 +86,15 @@ class ReconNet(pl.LightningModule):
 
         loss = F.l1_loss(img, pred) + self.lpips(img, pred).mean()
 
-        self.log_img(img, label, pred)
+        self.log_img(img, pred)
         self.log('val/loss', loss, rank_zero_only=True, logger=True)
 
     @torch.no_grad()
     def log_img(self, img, pred):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', img[0], self.global_step // 2, dataformats='CHW')
-        tb.add_image(f'{prefix}/pred', pred[0], self.global_step // 2, dataformats='CHW')
+        tb.add_image(f'{prefix}/img', torch.clamp(img[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/pred', torch.clamp(pred[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.net.parameters()),
