@@ -81,7 +81,7 @@ class ReconNet(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
-        img, label, cond = batch
+        img, label = batch
         pred = self(img)
 
         loss = F.l1_loss(img, pred) + self.lpips(img, pred).mean()
