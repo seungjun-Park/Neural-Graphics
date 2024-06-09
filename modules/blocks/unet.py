@@ -200,7 +200,7 @@ class UNet(nn.Module):
         skip_dims = [embed_dim]
         cur_res = in_res
 
-        self.pos_enc = PositionalEncoding(embed_dim, in_res=in_res, use_learnable_params=use_learnable_positional_encoding)
+        self.pos_enc = PositionalEncoding(embed_dim, in_res=to_2tuple(in_res), use_learnable_params=use_learnable_positional_encoding)
 
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
