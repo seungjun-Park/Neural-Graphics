@@ -1,0 +1,96 @@
+module:
+  target: models.reconstruction.ReconNet
+  params:
+    lr: 2e-5
+    weight_decay: 0.0
+    lr_decay_epoch: 100
+    use_fp16: False
+    log_interval: 100
+    net_config:
+      target: modules.blocks.UNet
+      params:
+        in_channels: 3
+        in_res: 224
+        window_size: 7
+        out_channels: 1
+        hidden_dims: [ 32, 64, 128, 256 ]
+        embed_dim: 32
+        num_blocks: 2
+        num_heads: [ 2, 4, 8, 16 ]
+        dropout: 0.0
+        attn_dropout: 0.0
+        drop_path: 0.0
+        qkv_bias: True
+        bias: True
+        num_groups: 32
+        act: 'gelu'
+        use_conv: True
+        mode: 'nearest'
+        dim: 2
+        use_checkpoint: True
+        attn_mode: 'cosine'
+        use_residual_attention: True
+        use_learnable_positional_encoding: False
+
+data:
+  target: modules.datasets.util.DataModuleFromConfig
+  params:
+    num_workers: 4
+    batch_size: 8
+    wrap: True
+    train:
+      target: modules.datasets.imagenet.ImageNetWrapper
+      params:
+        root: '/local_datasets/ImageNet'
+        split: 'train'
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 224, 224 ]
+
+    validation:
+      target: modules.datasets.imagenet.ImageNetWrapper
+      params:
+        root: '/local_datasets/ImageNet'
+        split: 'val'
+        transform_configs:
+          transforms:
+            - target: torchvision.transforms.transforms.ToTensor
+            - target: torchvision.transforms.transforms.Resize
+              params:
+                size: [ 224, 224 ]
+
+
+logger:
+  target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
+  params:
+    save_dir: './logs'
+    name: 'classification'
+    version: 'imagenet'
+
+
+checkpoints:
+  latest_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/classification/'
+      filename: 'imagenet'
+      monitor: 'step'
+      mode: 'max'
+      save_top_k: 1
+
+  best_checkpoint:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/classification/'
+      filename: 'imagenet'
+      monitor: 'val/loss'
+      mode: 'min'
+      save_top_k: 1
+
+trainer:
+  accelerator: 'gpu'
+  max_epochs: 2
+  accumulate_grad_batches: 5

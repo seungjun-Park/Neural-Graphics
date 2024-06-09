@@ -28,6 +28,7 @@ class EIPS(pl.LightningModule):
         self.margin = margin
 
         self.encoder = SwinEncoder(**net_config)
+        self.decoder = SwinDecoder(**net_config)
         self.logit = nn.Linear(int(self.encoder.quant_dim * (self.encoder.cur_res ** 2)), 1)
         self.criterion = instantiate_from_config(criterion_config)
 
@@ -65,53 +66,30 @@ class EIPS(pl.LightningModule):
         return self.criterion(feat0, feat1)
 
     def training_step(self, batch, batch_idx):
-        anc, pos, neg, label_pos, label_neg = batch
+        anc, pos, neg = batch
 
         feat_anc = self.encoder(anc)
-        feat_pos = self.encoder(pos)
-        feat_neg = self.encoder(neg)
-        triplet_loss = F.triplet_margin_with_distance_loss(feat_anc, feat_pos, feat_neg, distance_function=self.criterion, margin=self.margin)
-        logit_pos = self.logit(torch.flatten(feat_pos, start_dim=1))
-        logit_neg = self.logit(torch.flatten(feat_neg, start_dim=1))
-        logit = torch.cat([logit_pos, logit_neg], dim=0)
-        bce_loss = F.binary_cross_entropy_with_logits(logit, torch.cat([label_pos, label_neg], dim=0))
-
-        loss = bce_loss + triplet_loss
-
-        dist_pos = self.criterion(anc, pos).mean()
-        dist_neg = self.criterion(anc, neg).mean()
+        dist_pos = self.decoder(feat_anc, pos).abs()
+        dist_neg = self.decoder(feat_anc, neg).abs()
+        loss = torch.clamp_min(self.margin + dist_pos - dist_neg, 0)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
-        self.log('train/bce_loss', bce_loss, logger=True, rank_zero_only=True)
-        self.log('train/triplet_loss', triplet_loss, logger=True, rank_zero_only=True)
-        self.log('train/dist_pos', dist_pos, logger=True, rank_zero_only=True)
-        self.log('train/dist_neg', dist_neg, logger=True, rank_zero_only=True)
+        self.log('train/dist_pos', dist_pos.detach().mean(), logger=True, rank_zero_only=True)
+        self.log('train/dist_neg', dist_neg.detach().mean(), logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        anc, pos, neg, label_pos, label_neg = batch
+        anc, pos, neg = batch
 
         feat_anc = self.encoder(anc)
-        feat_pos = self.encoder(pos)
-        feat_neg = self.encoder(neg)
-        triplet_loss = F.triplet_margin_with_distance_loss(feat_anc, feat_pos, feat_neg,
-                                                           distance_function=self.criterion, margin=self.margin)
-        logit_pos = self.logit(torch.flatten(feat_pos, start_dim=1))
-        logit_neg = self.logit(torch.flatten(feat_neg, start_dim=1))
-        logit = torch.cat([logit_pos, logit_neg], dim=0)
-        bce_loss = F.binary_cross_entropy_with_logits(logit, torch.cat([label_pos, label_neg], dim=0))
-
-        loss = bce_loss + triplet_loss
-
-        dist_pos = self.criterion(anc, pos).mean()
-        dist_neg = self.criterion(anc, neg).mean()
+        dist_pos = self.decoder(feat_anc, pos).abs()
+        dist_neg = self.decoder(feat_anc, neg).abs()
+        loss = torch.clamp_min(self.margin + dist_pos - dist_neg, 0).mean()
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
-        self.log('val/bce_loss', bce_loss, logger=True, rank_zero_only=True)
-        self.log('val/triplet_loss', triplet_loss, logger=True, rank_zero_only=True)
-        self.log('val/dist_pos', dist_pos, logger=True, rank_zero_only=True)
-        self.log('val/dist_neg', dist_neg, logger=True, rank_zero_only=True)
+        self.log('val/dist_pos', dist_pos.detach().mean(), logger=True, rank_zero_only=True)
+        self.log('val/dist_neg', dist_neg.detach().mean(), logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
         params = list(self.encoder.parameters()) + list(self.logit.parameters())
