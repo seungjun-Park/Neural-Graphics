@@ -12,7 +12,7 @@ module:
         in_channels: 3
         in_res: 224
         window_size: 7
-        out_channels: 1
+        out_channels: 3
         hidden_dims: [ 32, 64, 128, 256 ]
         num_blocks: 2
         num_heads: [ 2, 4, 8, 16 ]

@@ -287,7 +287,7 @@ class UNet(nn.Module):
                         mlp_ratio=mlp_ratio
                     ) if not use_residual_attention else
                     ResidualAttentionUnetBlock(
-                        in_channels=in_ch,
+                        in_channels=in_ch + skip_dims.pop(),
                         out_channels=in_ch,
                         in_res=cur_res,
                         window_size=window_size,
