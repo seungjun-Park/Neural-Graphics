@@ -8,8 +8,8 @@ from omegaconf import ListConfig
 from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
-from modules.blocks.res_block import ResidualBlock, ResidualAttentionBlock
+from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock, ResidualSelfAttentionBlock
+from modules.blocks.res_block import ResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
 from modules.blocks.positional_encoding import PositionalEncoding
@@ -122,31 +122,27 @@ class ResidualAttentionUnetBlock(nn.Module):
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
                  drop_path: float = 0.0,
-                 qkv_bias: bool = True,
                  bias: bool = True,
                  act: str = 'relu',
                  use_conv: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
-                 use_norm: bool = True,
                  ):
         super().__init__()
 
-        self.block = ResidualAttentionBlock(
+        self.block = ResidualSelfAttentionBlock(
             in_channels=in_channels,
             in_res=in_res,
             out_channels=out_channels,
             num_heads=num_heads,
             window_size=window_size,
-            qkv_bias=qkv_bias,
             proj_bias=bias,
             dropout=dropout,
             attn_dropout=attn_dropout,
             drop_path=drop_path,
             act=act,
             num_groups=num_groups,
-            use_norm=use_norm,
             use_conv=use_conv,
             dim=dim,
             use_checkpoint=use_checkpoint,
@@ -163,6 +159,7 @@ class UNet(nn.Module):
                  in_res: Union[int, List[int], Tuple[int]],
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  out_channels: int = None,
+                 embed_dim: int = 16,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
                  num_heads: Union[int, List[int], Tuple[int]] = 8,
@@ -182,7 +179,6 @@ class UNet(nn.Module):
                  use_norm: bool = True,
                  mlp_ratio: float = 4.0,
                  use_residual_attention: bool = False,
-                 use_learnable_positional_encoding: bool = False,
                  ):
         super().__init__()
 
@@ -190,17 +186,16 @@ class UNet(nn.Module):
         self.in_res = in_res
         self.out_channels = out_channels
         self.hidden_dims = hidden_dims
-        embed_dim = hidden_dims[0]
 
         self.embed = nn.Sequential(
             conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
+            group_norm(embed_dim, num_groups),
+            get_act(act)
         )
 
         in_ch = embed_dim
         skip_dims = [embed_dim]
         cur_res = in_res
-
-        self.pos_enc = PositionalEncoding(embed_dim, in_res=to_2tuple(in_res), use_learnable_params=use_learnable_positional_encoding)
 
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
@@ -211,7 +206,7 @@ class UNet(nn.Module):
                 down.append(
                     UnetBlock(
                         in_channels=in_ch,
-                        out_channels=in_ch,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -231,7 +226,7 @@ class UNet(nn.Module):
                     ) if not use_residual_attention else
                     ResidualAttentionUnetBlock(
                         in_channels=in_ch,
-                        out_channels=in_ch,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -239,27 +234,23 @@ class UNet(nn.Module):
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
-                        qkv_bias=qkv_bias,
                         bias=bias,
                         act=act,
                         use_conv=use_conv,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
-                        use_norm=use_norm,
                     )
                 )
-
+                in_ch = out_ch
                 skip_dims.append(in_ch)
                 self.encoder.append(AttentionSequential(*down))
 
             if i != len(hidden_dims) - 1:
-                out_ch = hidden_dims[i + 1]
                 self.encoder.append(
-                    DownBlock(in_ch, out_channels=out_ch, dim=dim, pool_type=pool_type)
+                    DownBlock(in_ch, dim=dim, pool_type=pool_type)
                 )
-                in_ch = out_ch
-                skip_dims.append(out_ch)
+                skip_dims.append(in_ch)
                 cur_res //= 2
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
@@ -268,7 +259,7 @@ class UNet(nn.Module):
                 up.append(
                     UnetBlock(
                         in_channels=in_ch + skip_dims.pop(),
-                        out_channels=in_ch,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -288,7 +279,7 @@ class UNet(nn.Module):
                     ) if not use_residual_attention else
                     ResidualAttentionUnetBlock(
                         in_channels=in_ch + skip_dims.pop(),
-                        out_channels=in_ch,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -296,30 +287,24 @@ class UNet(nn.Module):
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
-                        qkv_bias=qkv_bias,
                         bias=bias,
                         act=act,
                         use_conv=use_conv,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
-                        use_norm=use_norm,
                     )
                 )
-
+                in_ch = out_ch
                 self.decoder.append(AttentionSequential(*up))
 
             if i != 0:
-                out_ch = hidden_dims[i - 1]
                 self.decoder.append(
-                    UpBlock(in_ch + skip_dims.pop(), out_channels=out_ch, dim=dim, mode=mode)
+                    UpBlock(in_ch + skip_dims.pop(), out_channels=in_ch, dim=dim, mode=mode)
                 )
-                in_ch = out_ch
                 cur_res *= 2
 
         self.out = nn.Sequential(
-            group_norm(in_ch, num_groups=num_groups),
-            get_act(act),
             conv_nd(
                 dim,
                 in_ch,
@@ -333,7 +318,6 @@ class UNet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = []
         h = self.embed(x)
-        h = self.pos_enc(h)
 
         for i, block in enumerate(self.encoder):
             if isinstance(block, AttentionSequential):
