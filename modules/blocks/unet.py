@@ -307,7 +307,7 @@ class UNet(nn.Module):
         self.out = nn.Sequential(
             conv_nd(
                 dim,
-                in_ch,
+                in_ch + skip_dims.pop(),
                 out_channels,
                 kernel_size=3,
                 stride=1,
@@ -332,7 +332,7 @@ class UNet(nn.Module):
                 h, attn_map = block(h)
             else:
                 h = block(h)
-
+        h = torch.cat([h, hs.pop()], dim=1)
         h = self.out(h)
 
         return h

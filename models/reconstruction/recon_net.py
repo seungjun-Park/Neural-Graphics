@@ -65,7 +65,7 @@ class ReconNet(pl.LightningModule):
         return self
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
-        return self.net(x)
+        return F.sigmoid(self.net(x))
 
     def training_step(self, batch, batch_idx) -> Optional[Any]:
         img, label = batch
