@@ -7,10 +7,10 @@ import torchvision.models
 from timm.models.layers import DropPath
 from omegaconf import ListConfig
 
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
+from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock, ResidualSelfAttentionBlock
 from modules.blocks.patches import PatchMerging
 from modules.blocks.mlp import ConvMLP, MLP
-from modules.blocks.res_block import ResidualBlock, ResidualAttentionBlock
+from modules.blocks.res_block import ResidualBlock
 from modules.blocks.down import DownBlock
 from modules.sequential import AttentionSequential
 from utils import conv_nd, group_norm, to_2tuple
@@ -41,20 +41,18 @@ class SwinEncoderBlock(nn.Module):
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.res_block = ResidualAttentionBlock(
+        self.res_block = ResidualSelfAttentionBlock(
             in_channels=in_channels,
             in_res=in_res,
             out_channels=out_channels,
             num_heads=num_heads,
             window_size=window_size,
-            qkv_bias=qkv_bias,
             proj_bias=bias,
             dropout=dropout,
             attn_dropout=attn_dropout,
             drop_path=drop_path,
             act=act,
             num_groups=num_groups,
-            use_norm=use_norm,
             use_conv=use_conv,
             dim=dim,
             use_checkpoint=use_checkpoint,
