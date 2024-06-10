@@ -71,12 +71,16 @@ class ReconNet(pl.LightningModule):
         img, label = batch
         pred = self(img)
 
-        loss = F.l1_loss(img, pred) + self.lpips(img, pred).mean()
+        lpips_loss = self.lpips(img, pred).mean()
+        l1_loss = F.l1_loss(img, pred)
+        loss = l1_loss + lpips_loss
 
         if self.global_step % self.log_interval == 0:
             self.log_img(img, pred)
 
         self.log('train/loss', loss, rank_zero_only=True, logger=True)
+        self.log('train/lpips_loss', lpips_loss, rank_zero_only=True, logger=True)
+        self.log('train/l1_loss', l1_loss, rank_zero_only=True, logger=True)
 
         return loss
 
@@ -84,10 +88,14 @@ class ReconNet(pl.LightningModule):
         img, label = batch
         pred = self(img)
 
-        loss = F.l1_loss(img, pred) + self.lpips(img, pred).mean()
+        lpips_loss = self.lpips(img, pred).mean()
+        l1_loss = F.l1_loss(img, pred)
+        loss = l1_loss + lpips_loss
 
         self.log_img(img, pred)
         self.log('val/loss', loss, rank_zero_only=True, logger=True)
+        self.log('val/lpips_loss', lpips_loss, rank_zero_only=True, logger=True)
+        self.log('val/l1_loss', l1_loss, rank_zero_only=True, logger=True)
 
     @torch.no_grad()
     def log_img(self, img, pred):
