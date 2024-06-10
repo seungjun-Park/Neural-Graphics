@@ -838,60 +838,49 @@ class ResidualSelfAttentionBlock(nn.Module):
 
         assert out_channels % num_heads == 0
 
-        if in_res <= 32:
-            self.attn = MultiHeadAttention(
-                in_channels=out_channels,
-                num_heads=num_heads,
-                dropout=attn_dropout,
-                attn_mode=attn_mode,
-                use_checkpoint=use_checkpoint,
-            )
+        if min(self.in_res) <= self.window_size:
+            # if window size is larger than input resolution, we don't partition windows
+            self.shift_size = 0
+            self.window_size = min(self.in_res)
+        assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
+
+        self.attn = DoubleWindowAttention(
+            out_channels,
+            window_size=self.window_size,
+            shift_size=self.shift_size,
+            pretrained_window_size=self.pretrained_window_size,
+            num_heads=num_heads,
+            qk_scale=qk_scale,
+            dropout=attn_dropout,
+            attn_mode=attn_mode,
+            use_checkpoint=use_checkpoint
+        )
+
+        if self.shift_size > 0:
+            self.proj = conv_nd(dim, out_channels * 2, out_channels, kernel_size=1, stride=1, bias=proj_bias)
+
+            # calculate attention mask for SW-MSA
+            H, W = self.in_res
+            img_mask = torch.zeros((1, 1, H, W))  # 1 1 H W
+            h_slices = (slice(0, -self.window_size),
+                        slice(-self.window_size, -self.shift_size),
+                        slice(-self.shift_size, None))
+            w_slices = (slice(0, -self.window_size),
+                        slice(-self.window_size, -self.shift_size),
+                        slice(-self.shift_size, None))
+            cnt = 0
+            for h in h_slices:
+                for w in w_slices:
+                    img_mask[:, :, h, w] = cnt
+                    cnt += 1
+
+            mask_windows = window_partition(img_mask, self.window_size)  # nW, 1, window_size, window_size
+            mask_windows = mask_windows.reshape(-1, self.window_size * self.window_size)
+            attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
+            attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+        else:
             self.proj = nn.Identity()
             attn_mask = None
-        else:
-            if min(self.in_res) <= self.window_size:
-                # if window size is larger than input resolution, we don't partition windows
-                self.shift_size = 0
-                self.window_size = min(self.in_res)
-            assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
-
-            self.attn = DoubleWindowAttention(
-                out_channels,
-                window_size=self.window_size,
-                shift_size=self.shift_size,
-                pretrained_window_size=self.pretrained_window_size,
-                num_heads=num_heads,
-                qk_scale=qk_scale,
-                dropout=attn_dropout,
-                attn_mode=attn_mode,
-                use_checkpoint=use_checkpoint
-            )
-
-            if self.shift_size > 0:
-                self.proj = conv_nd(dim, out_channels * 2, out_channels, kernel_size=1, stride=1, bias=proj_bias)
-
-                # calculate attention mask for SW-MSA
-                H, W = self.in_res
-                img_mask = torch.zeros((1, 1, H, W))  # 1 1 H W
-                h_slices = (slice(0, -self.window_size),
-                            slice(-self.window_size, -self.shift_size),
-                            slice(-self.shift_size, None))
-                w_slices = (slice(0, -self.window_size),
-                            slice(-self.window_size, -self.shift_size),
-                            slice(-self.shift_size, None))
-                cnt = 0
-                for h in h_slices:
-                    for w in w_slices:
-                        img_mask[:, :, h, w] = cnt
-                        cnt += 1
-
-                mask_windows = window_partition(img_mask, self.window_size)  # nW, 1, window_size, window_size
-                mask_windows = mask_windows.reshape(-1, self.window_size * self.window_size)
-                attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
-                attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
-            else:
-                self.proj = nn.Identity()
-                attn_mask = None
 
         self.attn_mask = attn_mask
 

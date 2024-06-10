@@ -10,13 +10,13 @@ module:
       target: modules.blocks.UNet
       params:
         in_channels: 3
-        in_res: 224
-        window_size: 7
+        in_res: 512
+        window_size: 8
         out_channels: 3
         embed_dim: 32
-        hidden_dims: [ 64, 128, 256, 512 ]
+        hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
         num_blocks: 1
-        num_heads: [ 2, 4, 8, 16 ]
+        num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
@@ -35,7 +35,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 8
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.imagenet.ImageNetWrapper
@@ -47,7 +47,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 224, 224 ]
+                size: [ 512, 512 ]
 
     validation:
       target: modules.datasets.imagenet.ImageNetWrapper
@@ -59,7 +59,7 @@ data:
             - target: torchvision.transforms.transforms.ToTensor
             - target: torchvision.transforms.transforms.Resize
               params:
-                size: [ 224, 224 ]
+                size: [ 512, 512 ]
 
 
 logger:
@@ -91,5 +91,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 2
+  max_epochs: 1
   accumulate_grad_batches: 5
