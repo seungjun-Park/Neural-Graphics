@@ -10,7 +10,7 @@ from torch.utils.checkpoint import checkpoint
 
 from modules.blocks.mlp import MLP, ConvMLP
 from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, functional_conv_nd, get_act
-from timm.models import DropPath
+from timm.models.layers import DropPath
 
 
 def window_partition(x, window_size):
