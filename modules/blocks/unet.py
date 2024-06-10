@@ -318,6 +318,7 @@ class UNet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = []
         h = self.embed(x)
+        hs.append(h)
 
         for i, block in enumerate(self.encoder):
             if isinstance(block, AttentionSequential):
