@@ -849,10 +849,11 @@ class ResidualSelfAttentionBlock(nn.Module):
             self.proj = nn.Identity()
             attn_mask = None
         else:
-            if min(self.in_res) <= self.window_size:
+            min_in_res = min(self.in_res) if isinstance(self.in_res, List) else self.in_res
+            if min_in_res <= self.window_size:
                 # if window size is larger than input resolution, we don't partition windows
                 self.shift_size = 0
-                self.window_size = min(self.in_res)
+                self.window_size = min_in_res
             assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
 
             self.attn = DoubleWindowAttention(
