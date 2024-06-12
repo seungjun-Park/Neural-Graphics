@@ -6,14 +6,13 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 100
-    ckpt_path: './checkpoints/recon/imagenet.ckpt'
     net_config:
       target: modules.blocks.UNet
       params:
-        in_channels: 3
+        in_channels: 1
         in_res: 512
         window_size: 8
-        out_channels: 3
+        out_channels: 1
         embed_dim: 32
         hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
         num_blocks: 1
@@ -39,28 +38,24 @@ data:
     batch_size: 2
     wrap: True
     train:
-      target: modules.datasets.imagenet.ImageNetWrapper
+      target: modules.datasets.arknights.ArknightsEdge
       params:
-        root: '/local_datasets/ImageNet'
-        split: 'train'
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 512, 512 ]
+        root: '/local_datasets/arknights100'
+        train: True
+        size: 512
+        scale: [0.5, 1.0]
+        ratio: [1.0, 1.0]
+        color_space: 'rgb'
 
     validation:
-      target: modules.datasets.imagenet.ImageNetWrapper
+      target: modules.datasets.arknights.ArknightsEdge
       params:
-        root: '/local_datasets/ImageNet'
-        split: 'val'
-        transform_configs:
-          transforms:
-            - target: torchvision.transforms.transforms.ToTensor
-            - target: torchvision.transforms.transforms.Resize
-              params:
-                size: [ 512, 512 ]
+        root: '/local_datasets/arknights100'
+        train: False
+        size: 512
+        scale: [ 0.5, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
+        color_space: 'rgb'
 
 
 logger:
@@ -68,7 +63,7 @@ logger:
   params:
     save_dir: './logs'
     name: 'recon'
-    version: 'imagenet'
+    version: 'edge'
 
 
 checkpoints:
@@ -76,22 +71,21 @@ checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
       dirpath: './checkpoints/recon/'
-      filename: 'imagenet'
-      monitor: 'step'
-      mode: 'max'
+      filename: 'edge'
+      monitor: 'train/loss'
+      mode: 'min'
       save_top_k: 1
-      every_n_train_steps: 1000
 
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
       dirpath: './checkpoints/recon/'
-      filename: 'imagenet'
+      filename: 'edge_best'
       monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 1
+  max_epochs: 200
   accumulate_grad_batches: 5

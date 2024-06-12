@@ -84,7 +84,8 @@ def test():
     device = torch.device('cuda')
     model = instantiate_from_config(config.module).eval().to(device)
 
-    data_path = './datasets/arknights_v2/train/*/images/'
+
+    data_path = './datasets/arknights100/train/texas/edges'
     # data_path = '../test'
     file_names = glob.glob(f'{data_path}/*.*')
     with torch.no_grad():
@@ -99,11 +100,11 @@ def test():
             if len(img.shape) == 4:
                 img = img[0]
             img = torchvision.transforms.ToPILImage()(img)
-            p1, p2 = name.rsplit('images', 1)
-            if not os.path.isdir(f'{p1}/edges_v4'):
-                os.mkdir(f'{p1}/edges_v4')
-            img.save(f'{p1}/edges_v4/{p2}.png', 'png')
-            # img.save(f'{data_path}/{name}_{i}.png', 'png')
+            # p1, p2 = name.rsplit('images', 1)
+            # if not os.path.isdir(f'{p1}/edges_v4'):
+            #     os.mkdir(f'{p1}/edges_v4')
+            # img.save(f'{p1}/edges_v4/{p2}.png', 'png')
+            img.save(f'../model_test/{i}.png', 'png')
 
 
 def classification_test():
@@ -120,7 +121,7 @@ def classification_test():
     # calling these ourselves should not be necessary but it is.
     # lightning still takes care of proper multiprocessing though
     device = torch.device('cuda')
-    model = instantiate_from_config(config.module).eval().to(device)
+    model = instantiate_from_config(config.module).eval().to(device).net
 
     data_path = '../frequency_test/0.png'
     img = cv2.imread(data_path, cv2.IMREAD_COLOR)
@@ -128,16 +129,26 @@ def classification_test():
     img = torchvision.transforms.ToTensor()(img)
     img = torchvision.transforms.Resize([512, 512])(img)
     img = img.unsqueeze(0).to(device)
+    feat = model.embed(img)
+    feats, attn_maps = [], []
+    for i, module in enumerate(model.encoder):
+        if i % 2 == 0:
+            feat, attn_map = module(feat)
+            feats.append(feat)
+            attn_maps.append(attn_map)
+        else:
+            feat = module(feat)
+
     with torch.no_grad():
-        feats, attn_maps = model.feature_extract(img, True)
-        for j, feat in enumerate(attn_maps):
+        for j, feat in enumerate(feats):
             for k, f in enumerate(feat[0]):
                 if not os.path.isdir(f'./0/feats_{j}'):
                     os.mkdir(f'./0/feats_{j}')
-                l, _ = f.shape
-                h = int(math.sqrt(_))
-                f = f.mean(-1)
-                f = f.reshape(h, h)
+                # l, _ = f.shape
+                # h = int(math.sqrt(_))
+                # f = f.mean(-1)
+                # f = f.reshape(h, h)
+                f = (f - torch.min(f)) / (torch.max(f) - torch.min(f))
                 f = f.unsqueeze(0)
                 f = torchvision.transforms.ToPILImage()(f)
                 f.save(f'./0/feats_{j}/{k}.png', 'png')

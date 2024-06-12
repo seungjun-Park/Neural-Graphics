@@ -342,3 +342,62 @@ class ArknightsImageEdgeClassification(Dataset):
 
     def __len__(self):
         return len(self.img_names)
+
+
+class ArknightsEdge(Dataset):
+    def __init__(self,
+                 root,
+                 train=True,
+                 size: Union[int, List[int], Tuple[int]] = 224,
+                 scale: Union[List[float], Tuple[float]] = (0.08, 1.0),
+                 ratio: Union[List[float], Tuple[float]] = (0.75, 1.3333333333333333),
+                 color_space: str = 'rgb',
+                 ):
+        super().__init__()
+        color_space = color_space.lower()
+        if color_space == 'rgb':
+            self.color_space = cv2.COLOR_BGR2RGB
+        elif color_space == 'rgba':
+            self.color_space = cv2.COLOR_BGR2RGBA
+        elif color_space == 'gray':
+            self.color_space = cv2.COLOR_BGR2GRAY
+        elif color_space == 'xyz':
+            self.color_space = cv2.COLOR_BGR2XYZ
+        elif color_space == 'ycrcb':
+            self.color_space = cv2.COLOR_BGR2YCrCb
+        elif color_space == 'hsv':
+            self.color_space = cv2.COLOR_BGR2HSV
+        elif color_space == 'lab':
+            self.color_space = cv2.COLOR_BGR2LAB
+        elif color_space == 'luv':
+            self.color_space = cv2.COLOR_BGR2LUV
+        elif color_space == 'hls':
+            self.color_space = cv2.COLOR_BGR2HLS
+        elif color_space == 'yuv':
+            self.color_space = cv2.COLOR_BGR2YUV
+
+        self.to_tensor = transforms.ToTensor()
+
+        self.size = list(to_2tuple(size))
+        self.scale = list(to_2tuple(scale))
+        self.ratio = list(to_2tuple(ratio))
+
+        if train:
+            root = os.path.join(root, 'train')
+        else:
+            root = os.path.join(root, 'val')
+
+        self.edge_names = glob.glob(f'{root}/*/edges/*.*')
+
+    def __getitem__(self, index):
+        name = self.edge_names[index]
+        edge = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
+        edge = cv2.cvtColor(edge, self.color_space)
+        edge = self.to_tensor(edge)
+        i, j, h, w = transforms.RandomResizedCrop.get_params(edge, scale=self.scale, ratio=self.ratio)
+        edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
+
+        return edge, None
+
+    def __len__(self):
+        return len(self.edge_names)
