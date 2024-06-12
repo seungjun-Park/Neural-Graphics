@@ -237,6 +237,7 @@ class ArknightsImageEdgeSimilarity(Dataset):
             edge_name = self.edge_names[index]
             edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
             edge = cv2.cvtColor(edge, self.color_space)
+            edge = self.to_tensor(edge)
             label = torch.Tensor([1.0])
 
         else:
@@ -255,9 +256,9 @@ class ArknightsImageEdgeSimilarity(Dataset):
             else:
                 edge_name = self.img_names[idx]
 
-            edge_name = self.edge_names[index]
             edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
             edge = cv2.cvtColor(edge, self.color_space)
+            edge = self.to_tensor(edge)
             label = torch.Tensor([-1.0])
 
         i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
