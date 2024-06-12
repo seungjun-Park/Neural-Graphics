@@ -233,40 +233,38 @@ class ArknightsImageEdgeSimilarity(Dataset):
         img = cv2.cvtColor(img, self.color_space)
         img = self.to_tensor(img)
 
-        pos_name = self.edge_names[index]
-        pos = cv2.imread(f'{pos_name}', cv2.IMREAD_GRAYSCALE)
-        pos = self.to_tensor(pos)
-        pos = pos.repeat(3, 1, 1)
-        pos_label = torch.tensor([0.0])
+        if random.random() > 0.5:
+            edge_name = self.edge_names[index]
+            edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
+            edge = cv2.cvtColor(edge, self.color_space)
+            label = torch.Tensor([1.0])
 
-        idx = random.randrange(0, len(self))
-        while True:
-            if idx != index:
-                break
-            idx = random.randrange(0, len(self))
-
-        p = np.random.choice([0, 1, 2])
-
-        if p == 0:
-            neg_name = self.edge_names[idx]
-            neg_label = torch.tensor([0.0])
-        elif p == 1:
-            neg_name = self.img_names[index]
-            neg_label = torch.tensor([1.0])
         else:
-            neg_name = self.img_names[idx]
-            neg_label = torch.tensor([1.0])
+            idx = random.randrange(0, len(self))
+            while True:
+                if idx != index:
+                    break
+                idx = random.randrange(0, len(self))
 
-        neg = cv2.imread(f'{neg_name}', cv2.IMREAD_GRAYSCALE)
-        neg = self.to_tensor(neg)
-        neg = neg.repeat(3, 1, 1)
+            p = np.random.choice([0, 1, 2])
+
+            if p == 0:
+                edge_name = self.edge_names[idx]
+            elif p == 1:
+                edge_name = self.img_names[index]
+            else:
+                edge_name = self.img_names[idx]
+
+            edge_name = self.edge_names[index]
+            edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
+            edge = cv2.cvtColor(edge, self.color_space)
+            label = torch.Tensor([-1.0])
 
         i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
         img = tf.resized_crop(img, i, j, h, w, size=self.size, antialias=True)
-        pos = tf.resized_crop(pos, i, j, h, w, size=self.size, antialias=True)
-        neg = tf.resized_crop(neg, i, j, h, w, size=self.size, antialias=True)
+        edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
 
-        return img, pos, neg, pos_label, neg_label
+        return img, edge, label
 
     def __len__(self):
         return len(self.img_names)

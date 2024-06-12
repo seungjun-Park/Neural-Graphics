@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import torchvision
 from omegaconf import OmegaConf
 from pytorch_lightning.trainer import Trainer
+import matplotlib.pyplot as plt
 
 from utils import instantiate_from_config
 from models.classification.transformer import SwinTransformer
@@ -85,7 +86,7 @@ def test():
     model = instantiate_from_config(config.module).eval().to(device)
 
 
-    data_path = './datasets/arknights100/train/texas/edges'
+    data_path = './datasets/arknights100/train/texas/images'
     # data_path = '../test'
     file_names = glob.glob(f'{data_path}/*.*')
     with torch.no_grad():
@@ -123,7 +124,7 @@ def classification_test():
     device = torch.device('cuda')
     model = instantiate_from_config(config.module).eval().to(device).net
 
-    data_path = '../frequency_test/0.png'
+    data_path = '../frequency_test/1.png'
     img = cv2.imread(data_path, cv2.IMREAD_COLOR)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = torchvision.transforms.ToTensor()(img)
@@ -142,8 +143,8 @@ def classification_test():
     with torch.no_grad():
         for j, feat in enumerate(feats):
             for k, f in enumerate(feat[0]):
-                if not os.path.isdir(f'./0/feats_{j}'):
-                    os.mkdir(f'./0/feats_{j}')
+                if not os.path.isdir(f'./1/feats_{j}'):
+                    os.mkdir(f'./1/feats_{j}')
                 # l, _ = f.shape
                 # h = int(math.sqrt(_))
                 # f = f.mean(-1)
@@ -151,7 +152,10 @@ def classification_test():
                 f = (f - torch.min(f)) / (torch.max(f) - torch.min(f))
                 f = f.unsqueeze(0)
                 f = torchvision.transforms.ToPILImage()(f)
-                f.save(f'./0/feats_{j}/{k}.png', 'png')
+                plt.imshow(f, cmap='inferno')
+                plt.savefig(f'./1/feats_{j}/{k}.png')
+                plt.close()
+                # f.save(f'./0/feats_{j}/{k}.png', 'png')
 
 
 if __name__ == '__main__':

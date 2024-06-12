@@ -2,8 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, List, Tuple, Dict
-
 from torch.fft import rfftn, ifftn
+
+from modules.blocks.attn_block import ResidualCrossAttentionBlock
+from modules.sequential import AttentionSequential
+from utils import conv_nd
 
 
 # Frequency Distance loss
@@ -30,6 +33,50 @@ def LFD(target, pred, dim=2, type='l1'):
     lfd = torch.log(fd + 1)
 
     return lfd
+
+
+class CriterionBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 in_res: Union[int, List[int], Tuple[int]],
+                 num_heads: int = 8,
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 bias: bool = True,
+                 dropout: float = 0.,
+                 attn_dropout: float = 0.,
+                 drop_path: float = 0.,
+                 act: str = 'relu',
+                 num_groups: int = 32,
+                 use_conv: bool = True,
+                 attn_mode: str = 'vanilla',
+                 dim: int = 2,
+                 use_checkpoint: bool = True,
+                 ):
+        super().__init__()
+
+        self.attn = ResidualCrossAttentionBlock(
+            in_channels=in_channels,
+            in_res=in_res,
+            num_heads=num_heads,
+            window_size=window_size,
+            proj_bias=bias,
+            dropout=dropout,
+            attn_dropout=attn_dropout,
+            drop_path=drop_path,
+            act=act,
+            num_groups=num_groups,
+            use_conv=use_conv,
+            dim=dim,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+        )
+
+        self.out = conv_nd(dim, in_channels, 1, kernel_size=1, stride=1)
+
+    def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
+        h, attn_map = self.attn(x, context)
+        h = self.out(h)
+        return h
 
 
 class CosineDistance(nn.Module):

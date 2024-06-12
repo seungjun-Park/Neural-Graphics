@@ -2,19 +2,29 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, to_3tuple, conv_nd, get_act, group_norm, normalize_img
-from modules.blocks.encoder import SwinEncoder
-from modules.blocks.decoder import SwinDecoder
+from modules.sequential import AttentionSequential
+from utils.loss import CriterionBlock
 
 
 class EIPS(pl.LightningModule):
     def __init__(self,
-                 net_config: DictConfig,
-                 criterion_config: DictConfig,
-                 margin: float = 1.0,
+                 encoder_img_config: DictConfig,
+                 encoder_edge_config: DictConfig,
+                 num_heads: Union[int, List[int], Tuple[int]] = 8,
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 bias: bool = True,
+                 dropout: float = 0.,
+                 attn_dropout: float = 0.,
+                 drop_path: float = 0.0,
+                 act: str = 'relu',
+                 num_groups: int = 32,
+                 use_conv: bool = True,
+                 attn_mode: str = 'vanilla',
+                 dim: int = 2,
                  lr: float = 2e-5,
                  weight_decay: float = 1e-4,
                  log_interval: int = 100,
@@ -25,12 +35,33 @@ class EIPS(pl.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
         self.log_interval = log_interval
-        self.margin = margin
 
-        self.encoder = SwinEncoder(**net_config)
-        self.decoder = SwinDecoder(**net_config)
-        self.logit = nn.Linear(int(self.encoder.quant_dim * (self.encoder.cur_res ** 2)), 1)
-        self.criterion = instantiate_from_config(criterion_config)
+        self.encoder_img = instantiate_from_config(**encoder_img_config).eval()
+        self.encoder_edge = instantiate_from_config(**encoder_edge_config).eval()
+
+        self.criterion_blocks = nn.ModuleList()
+        encoder_params = encoder_img_config['params']
+        cur_res = encoder_params['in_res']
+        for i, hidden_dim in enumerate(encoder_params['hidden_dims']):
+            self.criterion_blocks.append(
+                CriterionBlock(
+                    in_channels=hidden_dim,
+                    in_res=cur_res,
+                    num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
+                    window_size=window_size,
+                    bias=bias,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    drop_path=drop_path,
+                    act=act,
+                    num_groups=num_groups,
+                    use_conv=use_conv,
+                    attn_mode=attn_mode,
+                    dim=dim,
+                )
+            )
+
+            cur_res //= 2
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -59,42 +90,51 @@ class EIPS(pl.LightningModule):
             param.requires_grad = False
         return self
 
-    def forward(self, x0: torch.Tensor, x1: torch.Tensor) -> torch.Tensor:
-        feat0 = self.encoder(x0)
-        feat1 = self.encoder(x1)
+    def _spatial_average(self, x: torch.Tensor, keepdim=True):
+        return x.mean([2, 3], keepdim=keepdim)
 
-        return self.criterion(feat0, feat1)
+    def _normalize_feature(self, feature: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
+        norm_factor = torch.sqrt(torch.sum(feature ** 2, dim=1, keepdim=True))
+        return feature / (norm_factor + eps)
+
+    def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
+        feat_imgs, _ = self.encoder_img.feature_extract(img)
+        feat_edges, _ = self.encoder_edge.feature_extract(edge)
+        criterion_feats = []
+        for i, (feat_img, feat_edge, criterion_block) in enumerate(zip(feat_imgs, feat_edges, self.criterion_blocks)):
+            criterion_feat = criterion_block(self._normalize_feature(feat_edge), self._normalize_feature(feat_img))
+            criterion_feats.append(self._spatial_average(criterion_feat))
+
+        criterion = criterion_feats[0]
+        for i in range(1, len(criterion_feats)):
+            criterion += criterion_feats[i]
+
+        return F.sigmoid(criterion)
 
     def training_step(self, batch, batch_idx):
-        anc, pos, neg = batch
+        img, edge, label = batch
 
-        feat_anc = self.encoder(anc)
-        dist_pos = self.decoder(feat_anc, pos).abs()
-        dist_neg = self.decoder(feat_anc, neg).abs()
-        loss = torch.clamp_min(self.margin + dist_pos - dist_neg, 0)
+        dist = self(img, edge).mean()
+
+        loss = dist * label
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
-        self.log('train/dist_pos', dist_pos.detach().mean(), logger=True, rank_zero_only=True)
-        self.log('train/dist_neg', dist_neg.detach().mean(), logger=True, rank_zero_only=True)
+        self.log('train/dist', dist.detach().mean(), logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        anc, pos, neg = batch
+        img, edge, label = batch
 
-        feat_anc = self.encoder(anc)
-        dist_pos = self.decoder(feat_anc, pos).abs()
-        dist_neg = self.decoder(feat_anc, neg).abs()
-        loss = torch.clamp_min(self.margin + dist_pos - dist_neg, 0).mean()
+        dist = self(img, edge)
+
+        loss = dist * label
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
-        self.log('val/dist_pos', dist_pos.detach().mean(), logger=True, rank_zero_only=True)
-        self.log('val/dist_neg', dist_neg.detach().mean(), logger=True, rank_zero_only=True)
+        self.log('val/dist', dist.detach().mean(), logger=True, rank_zero_only=True)
 
     def configure_optimizers(self) -> Any:
-        params = list(self.encoder.parameters()) + list(self.logit.parameters())
-        if isinstance(self.criterion, nn.Module):
-            params += list(self.criterion.parameters())
+        params = list(self.criterion_blocks.parameters())
 
         opt = torch.optim.AdamW(params,
                                 lr=self.lr,

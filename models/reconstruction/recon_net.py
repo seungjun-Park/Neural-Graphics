@@ -6,6 +6,7 @@ import pytorch_lightning as pl
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img, to_rgb
 from taming.modules.losses.vqperceptual import LPIPS
+from modules.sequential import AttentionSequential
 
 
 class ReconNet(pl.LightningModule):
@@ -63,6 +64,23 @@ class ReconNet(pl.LightningModule):
         for param in self.parameters():
             param.requires_grad = False
         return self
+
+    def feature_extract(self, x: torch.Tensor, use_deep_supervision: bool = True):
+        hs = []
+        attn_maps = []
+        h = self.net.embed(x)
+        for i, module in enumerate(self.net.encoder):
+            if isinstance(module, AttentionSequential):
+                h, attn_map = module(h)
+                hs.append(h)
+                attn_maps.append(attn_map)
+            else:
+                h = module(h)
+
+        if use_deep_supervision:
+            return hs, attn_maps
+
+        return h, attn_map
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         return F.sigmoid(self.net(x))
