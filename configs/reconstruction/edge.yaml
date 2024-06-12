@@ -9,10 +9,10 @@ module:
     net_config:
       target: modules.blocks.UNet
       params:
-        in_channels: 1
+        in_channels: 3
         in_res: 512
         window_size: 8
-        out_channels: 1
+        out_channels: 3
         embed_dim: 32
         hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
         num_blocks: 1
