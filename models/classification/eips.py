@@ -40,7 +40,7 @@ class EIPS(pl.LightningModule):
         self.encoder_edge = instantiate_from_config(encoder_edge_config).eval()
 
         self.criterion_blocks = nn.ModuleList()
-        encoder_params = encoder_img_config['params']
+        encoder_params = encoder_img_config['params']['net_config']['params']
         cur_res = encoder_params['in_res']
         for i, hidden_dim in enumerate(encoder_params['hidden_dims']):
             self.criterion_blocks.append(
