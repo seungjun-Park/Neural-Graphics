@@ -397,7 +397,7 @@ class ArknightsEdge(Dataset):
         i, j, h, w = transforms.RandomResizedCrop.get_params(edge, scale=self.scale, ratio=self.ratio)
         edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
 
-        return edge, None
+        return edge, torch.tensor([None])
 
     def __len__(self):
         return len(self.edge_names)

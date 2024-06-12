@@ -19,7 +19,7 @@ module:
         num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
         dropout: 0.0
         attn_dropout: 0.0
-        drop_path: 0.0
+        drop_path: 0.1
         qkv_bias: True
         bias: True
         num_groups: 32
