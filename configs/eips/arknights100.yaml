@@ -133,7 +133,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/eips/'
       filename: 'arknights100_best'
-      monitor: 'val/dist_pos'
+      monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
