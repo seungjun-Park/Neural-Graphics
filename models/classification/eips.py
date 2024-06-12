@@ -109,7 +109,7 @@ class EIPS(pl.LightningModule):
         for i in range(1, len(criterion_feats)):
             criterion += criterion_feats[i]
 
-        return F.sigmoid(criterion)
+        return F.tanh(criterion)
 
     def training_step(self, batch, batch_idx):
         img, edge, label = batch
@@ -119,7 +119,6 @@ class EIPS(pl.LightningModule):
         loss = (dist * label).mean()
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
-        self.log('train/dist', dist.detach().mean(), logger=True, rank_zero_only=True)
 
         return loss
 
@@ -131,7 +130,13 @@ class EIPS(pl.LightningModule):
         loss = (dist * label).mean()
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
-        self.log('val/dist', dist.detach().mean(), logger=True, rank_zero_only=True)
+
+    @torch.no_grad()
+    def log_img(self, img, edge):
+        prefix = 'train' if self.training else 'val'
+        tb = self.logger.experiment
+        tb.add_image(f'{prefix}/img', torch.clamp(img[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/edge', torch.clamp(edge[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
         params = list(self.criterion_blocks.parameters())
