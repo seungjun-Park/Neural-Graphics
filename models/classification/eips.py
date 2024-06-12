@@ -109,7 +109,7 @@ class EIPS(pl.LightningModule):
         for i in range(1, len(criterion_feats)):
             criterion += criterion_feats[i]
 
-        return F.sigmoid(criterion)
+        return F.sigmoid(criterion.mean())
 
     def training_step(self, batch, batch_idx):
         img, edge, label = batch
@@ -126,7 +126,7 @@ class EIPS(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         img, edge, label = batch
 
-        dist = self(img, edge)
+        dist = self(img, edge).mean()
 
         loss = dist * label
 
