@@ -36,8 +36,8 @@ class EIPS(pl.LightningModule):
         self.weight_decay = weight_decay
         self.log_interval = log_interval
 
-        self.encoder_img = instantiate_from_config(**encoder_img_config).eval()
-        self.encoder_edge = instantiate_from_config(**encoder_edge_config).eval()
+        self.encoder_img = instantiate_from_config(encoder_img_config).eval()
+        self.encoder_edge = instantiate_from_config(encoder_edge_config).eval()
 
         self.criterion_blocks = nn.ModuleList()
         encoder_params = encoder_img_config['params']
