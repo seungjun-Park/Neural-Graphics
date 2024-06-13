@@ -41,15 +41,15 @@ class EIPS(pl.LightningModule):
         model_img = instantiate_from_config(encoder_img_config).eval()
         model_edge = instantiate_from_config(encoder_edge_config).eval()
 
-        self.encoder_img = [model_img.net.embed, *model_img.net.encoder]
-        self.encoder_edge = [model_edge.net.embed, *model_edge.net.encoder]
+        self.encoder_img = nn.ModuleList([model_img.net.embed, *model_img.net.encoder])
+        self.encoder_edge = nn.ModuleList([model_edge.net.embed, *model_edge.net.encoder])
 
         self.cross_attn_blocks = nn.ModuleList()
         self.similarity_blocks = nn.ModuleList()
         encoder_params = encoder_img_config['params']['net_config']['params']
         self.cur_res = encoder_params['in_res']
         hidden_dims = encoder_params['hidden_dims']
-        skip_dims = [0]
+        in_ch = 0
         for i, hidden_dim in enumerate(hidden_dims):
             self.cross_attn_blocks.append(
                 ResidualCrossAttentionBlock(
@@ -69,13 +69,10 @@ class EIPS(pl.LightningModule):
                 )
             )
 
-            if i != 0:
-                skip_dims.append(hidden_dim)
-
             self.similarity_blocks.append(
                 AttentionSequential(
                     ResidualSelfAttentionBlock(
-                        in_channels=hidden_dim + skip_dims.pop(0),
+                        in_channels=in_ch + hidden_dim,
                         in_res=self.cur_res,
                         out_channels=hidden_dim,
                         num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
@@ -93,9 +90,11 @@ class EIPS(pl.LightningModule):
                 )
             )
 
+            in_ch = hidden_dim
+
             if i != len(hidden_dims) - 1:
                 self.similarity_blocks.append(
-                    DownBlock(hidden_dim, dim=dim, num_groups=num_groups, pool_type=pool_type)
+                    DownBlock(in_ch, dim=dim, num_groups=num_groups, pool_type=pool_type)
                 )
                 self.cur_res //= 2
 
@@ -160,7 +159,7 @@ class EIPS(pl.LightningModule):
         feat_imgs, feat_edges = self._feature_extract(img, edge)
         cross_attn_feats = []
         for i, (feat_img, feat_edge, cross_attn_block) in enumerate(zip(feat_imgs, feat_edges, self.cross_attn_blocks)):
-            cross_attn_feats = cross_attn_block(self._normalize_feature(feat_edge), self._normalize_feature(feat_img))
+            cross_attn_feats.append(cross_attn_block(self._normalize_feature(feat_edge), self._normalize_feature(feat_img))[0])
 
         feat = cross_attn_feats.pop(0)
         for i, module in enumerate(self.similarity_blocks):
