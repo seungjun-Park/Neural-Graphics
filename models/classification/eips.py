@@ -7,7 +7,8 @@ from omegaconf import DictConfig, ListConfig
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, to_3tuple, conv_nd, get_act, group_norm, normalize_img
 from modules.sequential import AttentionSequential
-from utils.loss import CriterionBlock
+from modules.blocks.attn_block import ResidualSelfAttentionBlock, ResidualCrossAttentionBlock
+from modules.blocks.down import DownBlock
 
 
 class EIPS(pl.LightningModule):
@@ -24,6 +25,7 @@ class EIPS(pl.LightningModule):
                  num_groups: int = 32,
                  use_conv: bool = True,
                  attn_mode: str = 'vanilla',
+                 pool_type: str = 'max',
                  dim: int = 2,
                  lr: float = 2e-5,
                  weight_decay: float = 1e-4,
@@ -36,20 +38,26 @@ class EIPS(pl.LightningModule):
         self.weight_decay = weight_decay
         self.log_interval = log_interval
 
-        self.encoder_img = instantiate_from_config(encoder_img_config).eval()
-        self.encoder_edge = instantiate_from_config(encoder_edge_config).eval()
+        model_img = instantiate_from_config(encoder_img_config).eval()
+        model_edge = instantiate_from_config(encoder_edge_config).eval()
 
-        self.criterion_blocks = nn.ModuleList()
+        self.encoder_img = [model_img.net.embed, *model_img.net.encoder]
+        self.encoder_edge = [model_edge.net.embed, *model_edge.net.encoder]
+
+        self.cross_attn_blocks = nn.ModuleList()
+        self.similarity_blocks = nn.ModuleList()
         encoder_params = encoder_img_config['params']['net_config']['params']
-        cur_res = encoder_params['in_res']
-        for i, hidden_dim in enumerate(encoder_params['hidden_dims']):
-            self.criterion_blocks.append(
-                CriterionBlock(
+        self.cur_res = encoder_params['in_res']
+        hidden_dims = encoder_params['hidden_dims']
+        skip_dims = [0]
+        for i, hidden_dim in enumerate(hidden_dims):
+            self.cross_attn_blocks.append(
+                ResidualCrossAttentionBlock(
                     in_channels=hidden_dim,
-                    in_res=cur_res,
+                    in_res=self.cur_res,
                     num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
                     window_size=window_size,
-                    bias=bias,
+                    proj_bias=bias,
                     dropout=dropout,
                     attn_dropout=attn_dropout,
                     drop_path=drop_path,
@@ -61,7 +69,37 @@ class EIPS(pl.LightningModule):
                 )
             )
 
-            cur_res //= 2
+            if i != 0:
+                skip_dims.append(hidden_dim)
+
+            self.similarity_blocks.append(
+                AttentionSequential(
+                    ResidualSelfAttentionBlock(
+                        in_channels=hidden_dim + skip_dims.pop(0),
+                        in_res=self.cur_res,
+                        out_channels=hidden_dim,
+                        num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
+                        window_size=window_size,
+                        proj_bias=bias,
+                        dropout=dropout,
+                        attn_dropout=attn_dropout,
+                        drop_path=drop_path,
+                        act=act,
+                        num_groups=num_groups,
+                        use_conv=use_conv,
+                        attn_mode=attn_mode,
+                        dim=dim
+                    )
+                )
+            )
+
+            if i != len(hidden_dims) - 1:
+                self.similarity_blocks.append(
+                    DownBlock(hidden_dim, dim=dim, num_groups=num_groups, pool_type=pool_type)
+                )
+                self.cur_res //= 2
+
+        self.logit = nn.Linear(in_features=int(hidden_dim * (self.cur_res ** 2)), out_features=1)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path)
@@ -97,26 +135,53 @@ class EIPS(pl.LightningModule):
         norm_factor = torch.sqrt(torch.sum(feature ** 2, dim=1, keepdim=True))
         return feature / (norm_factor + eps)
 
+    @torch.no_grad()
+    def _feature_extract(self, img: torch.Tensor, edge: torch.Tensor) -> List[torch.Tensor]:
+        feats_img, feats_edge = [], []
+        feat_img = img
+        feat_edge = edge
+
+        for i, (module_img, module_edge) in enumerate(zip(self.encoder_img, self.encoder_edge)):
+            if isinstance(module_img, AttentionSequential):
+                feat_img, attn_map_img = module_img(feat_img)
+                feats_img.append(feat_img)
+            else:
+                feat_img = module_img(feat_img)
+
+            if isinstance(module_edge, AttentionSequential):
+                feat_edge, attn_map_edge = module_img(feat_edge)
+                feats_edge.append(feat_edge)
+            else:
+                feat_edge = module_img(feat_edge)
+
+        return feats_img, feats_edge
+
     def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
-        feat_imgs, _ = self.encoder_img.feature_extract(img)
-        feat_edges, _ = self.encoder_edge.feature_extract(edge)
-        criterion_feats = []
-        for i, (feat_img, feat_edge, criterion_block) in enumerate(zip(feat_imgs, feat_edges, self.criterion_blocks)):
-            criterion_feat = criterion_block(self._normalize_feature(feat_edge), self._normalize_feature(feat_img))
-            criterion_feats.append(self._spatial_average(criterion_feat))
+        feat_imgs, feat_edges = self._feature_extract(img, edge)
+        cross_attn_feats = []
+        for i, (feat_img, feat_edge, cross_attn_block) in enumerate(zip(feat_imgs, feat_edges, self.cross_attn_blocks)):
+            cross_attn_feats = cross_attn_block(self._normalize_feature(feat_edge), self._normalize_feature(feat_img))
 
-        criterion = criterion_feats[0]
-        for i in range(1, len(criterion_feats)):
-            criterion += criterion_feats[i]
+        feat = cross_attn_feats.pop(0)
+        for i, module in enumerate(self.similarity_blocks):
+            if isinstance(module, AttentionSequential):
+                if i != 0:
+                    feat = torch.cat([feat, cross_attn_feats.pop(0)], dim=1)
+                feat, attn_map = module(feat)
+            else:
+                feat = module(feat)
 
-        return F.tanh(criterion)
+        feat = torch.flatten(feat, start_dim=1)
+        feat = self.logit(feat)
+
+        return F.sigmoid(feat)
 
     def training_step(self, batch, batch_idx):
         img, edge, label = batch
 
-        dist = self(img, edge)
+        similarity = self(img, edge)
 
-        loss = (dist * label).mean()
+        loss = ((similarity - 0.5) * label).mean()
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
 
@@ -125,9 +190,9 @@ class EIPS(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         img, edge, label = batch
 
-        dist = self(img, edge)
+        similarity = self(img, edge)
 
-        loss = (dist * label).mean()
+        loss = ((similarity - 0.5) * label).mean()
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
 
@@ -139,9 +204,8 @@ class EIPS(pl.LightningModule):
         tb.add_image(f'{prefix}/edge', torch.clamp(edge[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
-        params = list(self.criterion_blocks.parameters())
-
-        opt = torch.optim.AdamW(params,
+        opt = torch.optim.AdamW(list(self.cross_attn_blocks.parameters()) +
+                                list(self.similarity_blocks.parameters()),
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
                                 betas=(0.5, 0.9)
