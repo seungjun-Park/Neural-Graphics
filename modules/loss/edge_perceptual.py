@@ -25,24 +25,24 @@ class EdgePerceptualLoss(nn.Module):
         self.lpips_weight = lpips_weight
         self.eips_weight = eips_weight
 
-        self.lpips = LPIPS().eval()
+        # self.lpips = LPIPS().eval()
         self.eips = EIPS(**eips_config).eval()
 
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, split: str = "train") -> torch.Tensor:
-        cats = cats_loss(preds, labels, self.cats_weight).mean()
+        # cats = cats_loss(preds, labels, self.cats_weight).mean()
         l2 = F.mse_loss(preds, labels, reduction='mean')
 
         p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
 
         eips = self.eips(imgs.contiguous(), preds.repeat(1, 3, 1, 1)).mean()
 
-        loss = p_loss * self.lpips_weight + l2 * self.l1_weight + cats + eips * self.eips_weight
+        loss = p_loss * self.lpips_weight + l2 * self.l1_weight + eips * self.eips_weight # + cats
 
         log = {"{}/loss".format(split): loss.clone().detach(),
                "{}/l2_loss".format(split): l2.detach().mean(),
                "{}/p_loss".format(split): p_loss.detach().mean(),
                "{}/eips".format(split): eips.detach().mean(),
-               "{}/cats_loss".format(split): cats.detach().mean(),
+               # "{}/cats_loss".format(split): cats.detach().mean(),
                }
 
         return loss, log
