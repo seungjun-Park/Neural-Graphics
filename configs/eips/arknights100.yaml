@@ -15,6 +15,7 @@ module:
     lr: 2e-5
     weight_decay: 0.
     log_interval: 100
+    ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
 
     encoder_img_config:
       target: models.reconstruction.ReconNet
@@ -49,6 +50,7 @@ module:
             use_checkpoint: True
             attn_mode: 'cosine'
             use_residual_attention: True
+
     encoder_edge_config:
       target: models.reconstruction.ReconNet
       params:

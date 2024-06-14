@@ -158,7 +158,48 @@ def classification_test():
                 # f.save(f'./0/feats_{j}/{k}.png', 'png')
 
 
+def eips_test():
+    parsers = get_parser()
+
+    opt, unknown = parsers.parse_known_args()
+
+    # init and save configs
+    configs = [OmegaConf.load(cfg) for cfg in opt.base]
+    cli = OmegaConf.from_dotlist(unknown)
+    config = OmegaConf.merge(*configs, cli)
+
+    # datamodule
+    # NOTE according to https://pytorch-lightning.readthedocs.io/en/latest/datamodules.html
+    # calling these ourselves should not be necessary but it is.
+    # lightning still takes care of proper multiprocessing though
+    device = torch.device('cuda')
+    model = instantiate_from_config(config.module).eval().to(device)
+
+
+    img_path = './datasets/arknights_v2/train/texas/images'
+    edge_path = './datasets/arknights_v2/train/texas/edges'
+    img_names = glob.glob(f'{img_path}/*.*')
+    edge_names = glob.glob(f'{edge_path}/*.*')
+    with torch.no_grad():
+        for i, (img_name, edge_name) in enumerate(zip(img_names, edge_names)):
+            img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = torchvision.transforms.transforms.ToTensor()(img).to(device)
+            img = torchvision.transforms.transforms.Resize([512, 512])(img)
+            img = img.unsqueeze(0)
+
+            edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
+            edge = cv2.cvtColor(edge, cv2.COLOR_BGR2RGB)
+            edge = torchvision.transforms.transforms.ToTensor()(edge).to(device)
+            edge = torchvision.transforms.transforms.Resize([512, 512])(edge)
+            edge = edge.unsqueeze(0)
+
+            similarity = model(img, edge)[0]
+            print(f'similarity: {similarity}')
+
+
 if __name__ == '__main__':
     main()
     # test()
     # classification_test()
+    # eips_test()

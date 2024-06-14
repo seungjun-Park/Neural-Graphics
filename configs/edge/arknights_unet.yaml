@@ -13,63 +13,115 @@ module:
         in_channels: 3
         in_res: 512
         window_size: 8
-        out_channels: 1
-        hidden_dims: [ 32, 64, 128, 128, 256, 256 ]
-        embed_dim: 16
-        num_blocks: 2
-        num_heads: [2, 4, 8, 8, 16, 16]
+        out_channels: 3
+        embed_dim: 32
+        hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
+        num_blocks: 1
+        num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.1
         qkv_bias: True
         bias: True
-        num_groups: 16
+        num_groups: 32
         act: 'gelu'
         use_conv: True
         mode: 'nearest'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
+        use_residual_attention: True
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        cats_weight: [1.0, 0.05, 1.5]
-        l1_weight: 1.0
+        cats_weight: [0, 0., 0.]
+        l1_weight: 0.0
         lpips_weight: 0.0
         eips_weight: 1.0
         eips_config:
           ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
-          margin: 2.5
+          num_heads: 8
+          window_size: 8
+          bias: True
+          dropout: 0.
+          attn_dropout: 0.
+          drop_path: 0.0
+          act: 'gelu'
+          num_groups: 32
+          use_conv: True
+          attn_mode: 'cosine'
+          dim: 2
           lr: 2e-5
           weight_decay: 0.
-          net_config:
-            in_channels: 3
-            in_res: 512
-            window_size: 8
-            patch_size: 4
-            hidden_dims: [ 64, 128, 256, 512 ]
-            num_blocks: [ 2, 2, 2, 2 ]
-            num_groups: 64
-            num_heads: [ 2, 4, 8, 16 ]
-            dropout: 0.0
-            attn_dropout: 0.0
-            drop_path: 0.1
-            qkv_bias: True
-            bias: True
-            act: 'gelu'
-            use_conv: True
-            pool_type: 'conv'
-            dim: 2
-            use_checkpoint: True
-            attn_mode: 'cosine'
-            use_norm: True
+          log_interval: 100
 
-          criterion_config:
-            target: utils.loss.CosineSimilarity
+          encoder_img_config:
+            target: models.reconstruction.ReconNet
             params:
-              cd_dim: 1
-              reduction: 'mean'
+              lr: 2e-5
+              weight_decay: 0.0
+              lr_decay_epoch: 100
+              use_fp16: False
+              log_interval: 100
+              ckpt_path: './checkpoints/recon/imagenet.ckpt'
+              net_config:
+                target: modules.blocks.UNet
+                params:
+                  in_channels: 3
+                  in_res: 512
+                  window_size: 8
+                  out_channels: 3
+                  embed_dim: 32
+                  hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
+                  num_blocks: 1
+                  num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
+                  dropout: 0.0
+                  attn_dropout: 0.0
+                  drop_path: 0.0
+                  qkv_bias: True
+                  bias: True
+                  num_groups: 32
+                  act: 'gelu'
+                  use_conv: True
+                  mode: 'nearest'
+                  dim: 2
+                  use_checkpoint: True
+                  attn_mode: 'cosine'
+                  use_residual_attention: True
+          encoder_edge_config:
+            target: models.reconstruction.ReconNet
+            params:
+              lr: 2e-5
+              weight_decay: 0.0
+              lr_decay_epoch: 100
+              use_fp16: False
+              log_interval: 100
+              ckpt_path: './checkpoints/recon/edge.ckpt'
+              net_config:
+                target: modules.blocks.UNet
+                params:
+                  in_channels: 3
+                  in_res: 512
+                  window_size: 8
+                  out_channels: 3
+                  embed_dim: 32
+                  hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
+                  num_blocks: 1
+                  num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
+                  dropout: 0.0
+                  attn_dropout: 0.0
+                  drop_path: 0.0
+                  qkv_bias: True
+                  bias: True
+                  num_groups: 32
+                  act: 'gelu'
+                  use_conv: True
+                  mode: 'nearest'
+                  dim: 2
+                  use_checkpoint: True
+                  attn_mode: 'cosine'
+                  use_residual_attention: True
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -83,7 +135,7 @@ data:
         root: '/local_datasets/arknights100'
         train: True
         size: 512
-        scale: [ 0.99, 1.0 ]
+        scale: [ 0.9, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
@@ -93,7 +145,7 @@ data:
         root: '/local_datasets/arknights100'
         train: False
         size: 512
-        scale: [ 0.99, 1.0 ]
+        scale: [ 0.9, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
@@ -110,7 +162,7 @@ checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
       dirpath: './checkpoints/ednse/'
-      filename: 'arknights_unet_last'
+      filename: 'arknights_unet'
       monitor: 'step'
       mode: 'max'
       save_top_k: 1
@@ -124,16 +176,7 @@ checkpoints:
       mode: 'min'
       save_top_k: 1
 
-  train_checkpoint:
-    target: pytorch_lightning.callbacks.ModelCheckpoint
-    params:
-      dirpath: './checkpoints/ednse/'
-      filename: 'arknights_unet_train'
-      monitor: 'train/loss'
-      mode: 'min'
-      save_top_k: 1
-
 trainer:
   accelerator: 'gpu'
-  max_epochs: 100
+  max_epochs: 200
   accumulate_grad_batches: 5
