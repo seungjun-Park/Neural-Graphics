@@ -32,15 +32,16 @@ class EdgePerceptualLoss(nn.Module):
         # cats = cats_loss(preds, labels, self.cats_weight).mean()
         l2 = F.mse_loss(preds, labels, reduction='mean')
 
-        p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
+        # p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
 
         eips = self.eips(imgs.contiguous(), preds.repeat(1, 3, 1, 1)).mean()
 
-        loss = p_loss * self.lpips_weight + l2 * self.l1_weight + eips * self.eips_weight # + cats
+        # loss = p_loss * self.lpips_weight + l2 * self.l1_weight + eips * self.eips_weight # + cats
+        loss = l2 * self.l1_weight + eips * self.eips_weight  # + cats
 
         log = {"{}/loss".format(split): loss.clone().detach(),
                "{}/l2_loss".format(split): l2.detach().mean(),
-               "{}/p_loss".format(split): p_loss.detach().mean(),
+               # "{}/p_loss".format(split): p_loss.detach().mean(),
                "{}/eips".format(split): eips.detach().mean(),
                # "{}/cats_loss".format(split): cats.detach().mean(),
                }
