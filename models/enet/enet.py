@@ -80,7 +80,7 @@ class EDNSE(pl.LightningModule):
 
         opt_net, opt_disc = self.optimizers()
 
-        net_loss, net_loss_log = self.loss(pred, label, img, training=self.training, opt_idx=0)
+        net_loss, net_loss_log = self.loss(pred, label, img, training=True, opt_idx=0)
         net_loss = net_loss / self.accumulate_grad_batches
         self.manual_backward(net_loss)
 
@@ -88,7 +88,7 @@ class EDNSE(pl.LightningModule):
             opt_net.step()
             opt_net.zero_grad()
 
-        disc_loss, disc_loss_log = self.loss(pred, label, img, training=self.training, opt_idx=1)
+        disc_loss, disc_loss_log = self.loss(pred, label, img, training=True, opt_idx=1)
         disc_loss = disc_loss / self.disc_update_frequency
         self.manual_backward(disc_loss)
 
@@ -106,8 +106,8 @@ class EDNSE(pl.LightningModule):
         img, label, cond = batch
         pred = self(img)
 
-        net_loss, net_loss_log = self.loss(pred, label, img, training=self.training, opt_idx=0)
-        disc_loss, disc_loss_log = self.loss(pred, label, img, training=self.training, opt_idx=1)
+        net_loss, net_loss_log = self.loss(pred, label, img, training=False, opt_idx=0)
+        disc_loss, disc_loss_log = self.loss(pred, label, img, training=False, opt_idx=1)
 
         self.log_img(img, label, pred)
         self.log_dict(net_loss_log, rank_zero_only=True, logger=True)
