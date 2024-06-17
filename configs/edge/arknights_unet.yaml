@@ -6,6 +6,8 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 50
+    accumulate_grad_batches: 5
+    disc_update_frequency: 2
     # ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
     net_config:
       target: modules.blocks.UNet
@@ -17,7 +19,7 @@ module:
         embed_dim: 16
         hidden_dims: [ 32, 32, 64, 64, 128, 128, 256 ]
         num_blocks: 1
-        num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
+        num_heads: 8
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.1
@@ -38,90 +40,28 @@ module:
         cats_weight: [0, 0., 0.]
         l1_weight: 0.0
         lpips_weight: 0.0
-        eips_weight: 1.0
-        eips_config:
-          ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
-          num_heads: 8
+        disc_weight: 1e-5
+        disc_config:
+          in_channels: 3
+          in_res: 512
           window_size: 8
+          out_channels: 1
+          embed_dim: 16
+          hidden_dims: [ 32, 32, 64, 64, 128, 128, 256 ]
+          num_blocks: 1
+          num_heads: 8
+          dropout: 0.0
+          attn_dropout: 0.0
+          drop_path: 0.1
+          qkv_bias: True
           bias: True
-          dropout: 0.
-          attn_dropout: 0.
-          drop_path: 0.0
+          num_groups: 16
           act: 'gelu'
-          num_groups: 32
           use_conv: True
-          attn_mode: 'cosine'
+          mode: 'nearest'
           dim: 2
-          lr: 2e-5
-          weight_decay: 0.
-          log_interval: 100
-
-          encoder_img_config:
-            target: models.reconstruction.ReconNet
-            params:
-              lr: 2e-5
-              weight_decay: 0.0
-              lr_decay_epoch: 100
-              use_fp16: False
-              log_interval: 100
-              ckpt_path: './checkpoints/recon/imagenet.ckpt'
-              net_config:
-                target: modules.blocks.UNet
-                params:
-                  in_channels: 3
-                  in_res: 512
-                  window_size: 8
-                  out_channels: 3
-                  embed_dim: 32
-                  hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
-                  num_blocks: 1
-                  num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
-                  dropout: 0.0
-                  attn_dropout: 0.0
-                  drop_path: 0.0
-                  qkv_bias: True
-                  bias: True
-                  num_groups: 32
-                  act: 'gelu'
-                  use_conv: True
-                  mode: 'nearest'
-                  dim: 2
-                  use_checkpoint: True
-                  attn_mode: 'cosine'
-                  use_residual_attention: True
-          encoder_edge_config:
-            target: models.reconstruction.ReconNet
-            params:
-              lr: 2e-5
-              weight_decay: 0.0
-              lr_decay_epoch: 100
-              use_fp16: False
-              log_interval: 100
-              ckpt_path: './checkpoints/recon/edge.ckpt'
-              net_config:
-                target: modules.blocks.UNet
-                params:
-                  in_channels: 3
-                  in_res: 512
-                  window_size: 8
-                  out_channels: 3
-                  embed_dim: 32
-                  hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
-                  num_blocks: 1
-                  num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
-                  dropout: 0.0
-                  attn_dropout: 0.0
-                  drop_path: 0.0
-                  qkv_bias: True
-                  bias: True
-                  num_groups: 32
-                  act: 'gelu'
-                  use_conv: True
-                  mode: 'nearest'
-                  dim: 2
-                  use_checkpoint: True
-                  attn_mode: 'cosine'
-                  use_residual_attention: True
+          use_checkpoint: True
+          attn_mode: 'cosine'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -135,7 +75,7 @@ data:
         root: '/local_datasets/arknights100'
         train: True
         size: 512
-        scale: [ 0.9, 1.0 ]
+        scale: [ 0.5, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
@@ -145,7 +85,7 @@ data:
         root: '/local_datasets/arknights100'
         train: False
         size: 512
-        scale: [ 0.9, 1.0 ]
+        scale: [ 0.5, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
@@ -179,4 +119,4 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   max_epochs: 200
-  accumulate_grad_batches: 5
+  # accumulate_grad_batches: 5

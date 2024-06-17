@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img, to_rgb
+from modules.loss.edge_perceptual import EdgePerceptualLoss
 
 
 class EDNSE(pl.LightningModule):
@@ -17,6 +18,8 @@ class EDNSE(pl.LightningModule):
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  use_fp16: bool = False,
+                 disc_update_frequency: int = 2,
+                 accumulate_grad_batches: int = 1,
                  ignore_keys: Union[List[str], Tuple[str]] = (),
                  ):
         super().__init__()
@@ -25,6 +28,11 @@ class EDNSE(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
+        self.automatic_optimization = False
+
+        self.accumulate_grad_batches = accumulate_grad_batches
+        self.disc_update_frequency = disc_update_frequency
+
         # self.save_hyperparameters()
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
@@ -70,31 +78,65 @@ class EDNSE(pl.LightningModule):
         img, label, cond = batch
         pred = self(img)
 
-        loss, loss_log = self.loss(pred, label, img, split='train')
+        opt_net, opt_disc = self.optimizers()
+
+        net_loss, net_loss_log = self.loss(pred, label, img, training=self.training, opt_idx=0)
+        net_loss = net_loss / self.accumulate_grad_batches
+        self.manual_backward(net_loss)
+
+        if (batch_idx + 1) % self.accumulate_grad_batches == 0:
+            opt_net.step()
+            opt_net.zero_grad()
+
+        disc_loss, disc_loss_log = self.loss(pred, label, img, training=self.training, opt_idx=1)
+        disc_loss = disc_loss / self.disc_update_frequency
+        self.manual_backward(disc_loss)
+
+        if (batch_idx + 1) % self.disc_update_frequency == 0:
+            opt_disc.step()
+            opt_disc.zero_grad()
 
         if self.global_step % self.log_interval == 0:
             self.log_img(img, label, pred)
 
-        self.log_dict(loss_log, rank_zero_only=True, logger=True)
-
-        return loss
+        self.log_dict(net_loss_log, rank_zero_only=True, logger=True)
+        self.log_dict(disc_loss_log, rank_zero_only=True, logger=True)
 
     def validation_step(self, batch, batch_idx) -> Optional[Any]:
         img, label, cond = batch
         pred = self(img)
 
-        loss, loss_log = self.loss(pred, label, img, split='val')
+        opt_net, opt_disc = self.optimizers()
 
-        self.log_img(img, label, pred)
-        self.log_dict(loss_log, rank_zero_only=True, logger=True)
+        net_loss, net_loss_log = self.loss(pred, label, img, training=self.training, opt_idx=0)
+        net_loss = net_loss / self.accumulate_grad_batches
+        self.manual_backward(net_loss)
+
+        if (batch_idx + 1) % self.accumulate_grad_batches == 0:
+            opt_net.step()
+            opt_net.zero_grad()
+
+        disc_loss, disc_loss_log = self.loss(pred, label, img, training=self.training, opt_idx=1)
+        disc_loss = disc_loss / self.disc_update_frequency
+        self.manual_backward(disc_loss)
+
+        if (batch_idx + 1) % self.disc_update_frequency == 0:
+            opt_disc.step()
+            opt_disc.zero_grad()
+
+        if self.global_step % self.log_interval == 0:
+            self.log_img(img, label, pred)
+
+        self.log_dict(net_loss_log, rank_zero_only=True, logger=True)
+        self.log_dict(disc_loss_log, rank_zero_only=True, logger=True)
 
     @torch.no_grad()
     def log_img(self, img, gt, pred):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', img[0], self.global_step // 2, dataformats='CHW')
-        tb.add_image(f'{prefix}/gt', gt[0], self.global_step // 2, dataformats='CHW')
-        tb.add_image(f'{prefix}/pred', pred[0], self.global_step // 2, dataformats='CHW')
+        tb.add_image(f'{prefix}/img', img[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/gt', gt[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/pred', pred[0], self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.net.parameters()),
@@ -102,5 +144,13 @@ class EDNSE(pl.LightningModule):
                                     weight_decay=self.weight_decay,
                                     betas=(0.5, 0.9)
                                     )
+
+        if isinstance(self.loss, EdgePerceptualLoss):
+            opt_disc = torch.optim.AdamW(list(self.loss.disc.parameters()),
+                                         lr=self.lr,
+                                         weight_decay=self.weight_decay,
+                                         betas=(0.5, 0.9)
+                                         )
+            return [opt_net, opt_disc]
 
         return [opt_net]

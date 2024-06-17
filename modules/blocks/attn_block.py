@@ -1033,14 +1033,8 @@ class ResidualCrossAttentionBlock(nn.Module):
 
         if in_channels == out_channels:
             self.q = nn.Identity()
-            self.k = nn.Identity()
         elif use_conv:
             self.q = nn.Sequential(
-                conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1),
-                group_norm(out_channels, num_groups=num_groups),
-                get_act(act)
-            )
-            self.k = nn.Sequential(
                 conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1),
                 group_norm(out_channels, num_groups=num_groups),
                 get_act(act)
@@ -1048,12 +1042,6 @@ class ResidualCrossAttentionBlock(nn.Module):
         else:
             self.q = nn.Sequential(
                 conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=1),
-                group_norm(out_channels, num_groups=num_groups),
-                get_act(act)
-            )
-
-            self.k = nn.Sequential(
-                conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1),
                 group_norm(out_channels, num_groups=num_groups),
                 get_act(act)
             )
@@ -1071,10 +1059,9 @@ class ResidualCrossAttentionBlock(nn.Module):
         assert h * w == H * W, "input feature has wrong size"
 
         q = self.q(x)
-        k = self.k(context)
         v = self.v(context)
 
-        attn, attn_map = self.attn(q=q, k=k, v=v, mask=self.attn_mask)
+        attn, attn_map = self.attn(q=q, k=v, v=v, mask=self.attn_mask)
         attn = self.proj(attn)
 
         return self.out(self.drop_path(attn) + q), attn_map
