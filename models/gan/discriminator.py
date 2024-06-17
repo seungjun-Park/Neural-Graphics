@@ -156,7 +156,7 @@ class SwinDiscriminator(nn.Module):
             self.encoder.append(
                 ResidualSelfAttentionBlock(
                     in_channels=in_ch,
-                    in_res=in_res,
+                    in_res=cur_res,
                     out_channels=out_ch,
                     num_heads=num_heads,
                     window_size=window_size,
@@ -176,7 +176,7 @@ class SwinDiscriminator(nn.Module):
             self.decoder.append(
                 ResidualSelfAttentionBlock(
                     in_channels=in_ch,
-                    in_res=in_res,
+                    in_res=cur_res,
                     out_channels=out_ch,
                     num_heads=num_heads,
                     window_size=window_size,
@@ -196,7 +196,7 @@ class SwinDiscriminator(nn.Module):
             self.decoder.append(
                 ResidualCrossAttentionBlock(
                     in_channels=out_ch,
-                    in_res=in_res,
+                    in_res=cur_res,
                     out_channels=out_ch,
                     num_heads=num_heads,
                     window_size=window_size,
