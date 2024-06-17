@@ -52,7 +52,7 @@ class EdgePerceptualLoss(nn.Module):
         if opt_idx == 1:
             # second pass for discriminator update
             logits_real = self.disc(imgs=imgs, edges=labels.repeat(1, 3, 1, 1))
-            logits_fake = self.disc(imgs=imgs, edges=preds.repeat(1, 3, 1, 1))
+            logits_fake = self.disc(imgs=imgs, edges=preds.repeat(1, 3, 1, 1).detach())
 
             d_loss = hinge_d_loss(logits_real, logits_fake)
 
