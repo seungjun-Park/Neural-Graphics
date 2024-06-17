@@ -241,7 +241,7 @@ class SwinDiscriminator(nn.Module):
         for i, module in enumerate(self.decoder):
             if isinstance(module, ResidualSelfAttentionBlock):
                 feat_edge, attn_map = module(feat_edge)
-            if isinstance(module, ResidualCrossAttentionBlock):
+            elif isinstance(module, ResidualCrossAttentionBlock):
                 feat_edge, attn_map = module(feat_edge, feat_imgs.pop(0))
             else:
                 feat_edge = module(feat_edge)
