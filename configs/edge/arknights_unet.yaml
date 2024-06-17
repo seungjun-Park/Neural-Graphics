@@ -28,6 +28,7 @@ module:
         num_groups: 16
         act: 'gelu'
         use_conv: True
+        pool_type: 'conv'
         mode: 'nearest'
         dim: 2
         use_checkpoint: True
@@ -52,12 +53,11 @@ module:
           dropout: 0.0
           attn_dropout: 0.0
           drop_path: 0.1
-          qkv_bias: True
           bias: True
           num_groups: 16
           act: 'gelu'
           use_conv: True
-          mode: 'nearest'
+          pool_type: 'conv'
           dim: 2
           use_checkpoint: True
           attn_mode: 'cosine'
