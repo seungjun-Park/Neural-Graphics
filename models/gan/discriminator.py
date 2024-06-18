@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import ListConfig
 
 from typing import Union, List, Tuple
 from utils import conv_nd, to_2tuple, get_act, instantiate_from_config, group_norm
@@ -133,18 +134,16 @@ class SwinDiscriminator(nn.Module):
 
         self.encoder.append(
             nn.Sequential(
-                nn.utils.spectral_norm(
-                    conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
-                ),
+                conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
+                group_norm(embed_dim, num_groups=num_groups),
                 get_act(act)
             )
         )
 
         self.decoder.append(
             nn.Sequential(
-                nn.utils.spectral_norm(
-                    conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
-                ),
+                conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
+                group_norm(embed_dim, num_groups=num_groups),
                 get_act(act)
             )
         )
@@ -158,7 +157,7 @@ class SwinDiscriminator(nn.Module):
                     in_channels=in_ch,
                     in_res=cur_res,
                     out_channels=out_ch,
-                    num_heads=num_heads,
+                    num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
                     window_size=window_size,
                     proj_bias=bias,
                     dropout=dropout,
@@ -178,7 +177,7 @@ class SwinDiscriminator(nn.Module):
                     in_channels=in_ch,
                     in_res=cur_res,
                     out_channels=out_ch,
-                    num_heads=num_heads,
+                    num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
                     window_size=window_size,
                     proj_bias=bias,
                     dropout=dropout,
@@ -198,7 +197,7 @@ class SwinDiscriminator(nn.Module):
                     in_channels=out_ch,
                     in_res=cur_res,
                     out_channels=out_ch,
-                    num_heads=num_heads,
+                    num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
                     window_size=window_size,
                     proj_bias=bias,
                     dropout=dropout,
