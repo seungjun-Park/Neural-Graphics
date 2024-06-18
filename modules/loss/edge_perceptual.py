@@ -43,7 +43,7 @@ class EdgePerceptualLoss(nn.Module):
 
             g_weight = adopt_weight(self.disc_weight, global_step, self.disc_start_iter)
 
-            loss = p_loss * self.lpips_weight + l1_loss * self.l2_weight + g_weight * g_loss
+            loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight + g_weight * g_loss
 
             log = {"{}/loss".format(split): loss.clone().detach(),
                    "{}/l1_loss".format(split): l1_loss.detach().mean(),
