@@ -14,7 +14,7 @@ class EdgePerceptualLoss(nn.Module):
     def __init__(self,
                  disc_config: DictConfig,
                  cats_weight: float = 1.0,
-                 l2_weight: float = 1.0,
+                 l1_weight: float = 1.0,
                  lpips_weight: float = 1.0,
                  disc_weight: float = 1.0,
                  disc_start_iter: int = 0,
@@ -22,7 +22,7 @@ class EdgePerceptualLoss(nn.Module):
 
         super().__init__()
         self.cats_weight = cats_weight
-        self.l2_weight = l2_weight
+        self.l1_weight = l1_weight
         self.lpips_weight = lpips_weight
         self.disc_weight = disc_weight
         self.disc_start_iter = disc_start_iter
@@ -35,7 +35,7 @@ class EdgePerceptualLoss(nn.Module):
         split = 'train' if training else 'val'
 
         if opt_idx == 0:
-            l2_loss = F.mse_loss(preds, labels, reduction='mean')
+            l1_loss = F.l1_loss(preds, labels, reduction='mean')
 
             p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
 
@@ -43,10 +43,10 @@ class EdgePerceptualLoss(nn.Module):
 
             g_weight = adopt_weight(self.disc_weight, global_step, self.disc_start_iter)
 
-            loss = p_loss * self.lpips_weight + l2_loss * self.l2_weight + g_weight * g_loss
+            loss = p_loss * self.lpips_weight + l1_loss * self.l2_weight + g_weight * g_loss
 
             log = {"{}/loss".format(split): loss.clone().detach(),
-                   "{}/l1_loss".format(split): l2_loss.detach().mean(),
+                   "{}/l1_loss".format(split): l1_loss.detach().mean(),
                    "{}/p_loss".format(split): p_loss.detach().mean(),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
                    # "{}/cats_loss".format(split): cats.detach().mean(),
