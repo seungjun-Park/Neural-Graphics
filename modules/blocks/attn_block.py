@@ -1017,7 +1017,7 @@ class ResidualCrossAttentionBlock(nn.Module):
         self.attn_mask = attn_mask
 
         self.v = nn.Sequential(
-            conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1),
+            conv_nd(dim, in_channels * 2, out_channels, kernel_size=3, stride=1, padding=1),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
             conv_nd(dim, out_channels, out_channels, kernel_size=3, stride=1, padding=1),
@@ -1059,7 +1059,7 @@ class ResidualCrossAttentionBlock(nn.Module):
         assert h * w == H * W, "input feature has wrong size"
 
         q = self.q(x)
-        v = self.v(context)
+        v = self.v(torch.cat([x, context], dim=1))
 
         attn, attn_map = self.attn(q=q, k=v, v=v, mask=self.attn_mask)
         attn = self.proj(attn)
