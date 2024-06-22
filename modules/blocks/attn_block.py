@@ -687,7 +687,7 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         self.attn_mask = attn_mask
 
         self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else 1, in_channels, kernel_size=1, stride=1, bias=proj_bias)
+        self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
@@ -781,7 +781,7 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
 
         self.q = conv_nd(dim, in_channels, in_channels, kernel_size=1, bias=qkv_bias)
         self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, bias=proj_bias)
+        self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:

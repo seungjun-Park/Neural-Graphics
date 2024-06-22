@@ -151,38 +151,6 @@ class UNet(nn.Module):
                 skip_dims.append(in_ch)
                 cur_res //= 2
 
-        self.middle = nn.Sequential(
-            UnetBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                in_res=cur_res,
-                window_size=window_size,
-                num_groups=num_groups,
-                num_heads=num_heads[-1] if isinstance(num_heads, ListConfig) else num_heads,
-                dropout=dropout,
-                attn_dropout=attn_dropout,
-                drop_path=drop_path,
-                qkv_bias=qkv_bias,
-                bias=bias,
-                act=act,
-                use_conv=use_conv,
-                dim=dim,
-                use_checkpoint=use_checkpoint,
-                attn_mode=attn_mode,
-            ),
-            ResidualBlock(
-                in_channels=in_ch,
-                out_channels=in_ch,
-                dropout=dropout,
-                drop_path=drop_path,
-                act=act,
-                dim=dim,
-                num_groups=num_groups,
-                use_conv=use_conv,
-                use_checkpoint=use_checkpoint,
-            )
-        )
-
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
                 up = list()
@@ -244,8 +212,6 @@ class UNet(nn.Module):
         for i, block in enumerate(self.encoder):
             h = block(h)
             hs.append(h)
-
-        h = self.middle(h)
 
         for i, block in enumerate(self.decoder):
             h = torch.cat([h, hs.pop()], dim=1)
