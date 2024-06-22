@@ -134,11 +134,11 @@ class DecoderBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         h = self.residual_block(x)
-        h, attn_map = self.attn(h)
-        h = x + self.drop_path(h)
-        z, attn_map = self.cross_attn(h, context)
+        z, attn_map = self.attn(h)
         z = h + self.drop_path(z)
-        return z
+        r, attn_map = self.cross_attn(z, context)
+        r = z + self.drop_path(r)
+        return r
 
 
 class Discriminator(nn.Module):
