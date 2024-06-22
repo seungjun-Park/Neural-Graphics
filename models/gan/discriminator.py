@@ -244,7 +244,7 @@ class Discriminator(nn.Module):
         h = context
         for i, module in enumerate(self.encoder):
             h = module(h)
-            if isinstance(h, EncoderBlock):
+            if isinstance(module, EncoderBlock):
                 hs.append(h)
         h = x
         for i, module in enumerate(self.decoder):
