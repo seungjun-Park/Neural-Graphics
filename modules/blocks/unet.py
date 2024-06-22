@@ -34,16 +34,12 @@ class UnetBlock(nn.Module):
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
-                 use_norm: bool = True,
-                 mlp_ratio: float = 4.0
                  ):
         super().__init__()
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.norm = group_norm(out_channels, num_groups=num_groups)
-
-        self.res_block = ResidualBlock(
+        self.residual_block = ResidualBlock(
             in_channels=in_channels,
             out_channels=out_channels,
             dropout=dropout,
@@ -51,106 +47,30 @@ class UnetBlock(nn.Module):
             act=act,
             dim=dim,
             num_groups=num_groups,
+            use_conv=use_conv,
             use_checkpoint=use_checkpoint,
-            use_conv=use_conv
         )
 
-        if in_res > 64:
-            self.attn = DoubleWindowSelfAttentionBlock(
-                in_channels=out_channels,
-                in_res=to_2tuple(in_res),
-                num_heads=num_heads,
-                window_size=window_size,
-                qkv_bias=qkv_bias,
-                proj_bias=bias,
-                dropout=attn_dropout,
-                use_checkpoint=use_checkpoint,
-                attn_mode=attn_mode,
-                dim=dim
-            )
-        else:
-            self.attn = SelfAttentionBlock(
-                in_channels=out_channels,
-                num_heads=num_heads,
-                qkv_bias=qkv_bias,
-                proj_bias=bias,
-                dropout=dropout,
-                use_checkpoint=use_checkpoint,
-                attn_mode=attn_mode,
-                dim=dim,
-            )
-
-        if use_conv:
-            self.mlp = ConvMLP(
-                in_channels=out_channels,
-                embed_dim=int(out_channels * mlp_ratio),
-                dropout=dropout,
-                act=act,
-                num_groups=num_groups,
-                use_norm=use_norm,
-                dim=dim,
-                use_checkpoint=use_checkpoint,
-            )
-
-        else:
-            self.mlp = MLP(
-                in_channels=out_channels,
-                embed_dim=int(out_channels * mlp_ratio),
-                dropout=dropout,
-                act=act,
-                use_norm=use_norm,
-                use_checkpoint=use_checkpoint,
-            )
+        self.attn = DoubleWindowSelfAttentionBlock(
+            in_channels=out_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.res_block(x)
-        h = h + self.drop_path(self.attn(self.norm(h)))
-        h = h + self.drop_path(self.mlp(h))
-        return h
-
-
-class ResidualAttentionUnetBlock(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 in_res: Union[int, List[int], Tuple[int]],
-                 out_channels: int = None,
-                 window_size: Union[int, List[int], Tuple[int]] = 7,
-                 num_groups: int = 16,
-                 num_heads: int = -1,
-                 dropout: float = 0.0,
-                 attn_dropout: float = 0.0,
-                 drop_path: float = 0.0,
-                 bias: bool = True,
-                 act: str = 'relu',
-                 use_conv: bool = True,
-                 dim: int = 2,
-                 use_checkpoint: bool = True,
-                 attn_mode: str = 'cosine',
-                 ):
-        super().__init__()
-
-        self.block = ResidualSelfAttentionBlock(
-            in_channels=in_channels,
-            in_res=in_res,
-            out_channels=out_channels,
-            num_heads=num_heads,
-            window_size=window_size,
-            proj_bias=bias,
-            dropout=dropout,
-            attn_dropout=attn_dropout,
-            drop_path=drop_path,
-            act=act,
-            num_groups=num_groups,
-            use_conv=use_conv,
-            dim=dim,
-            use_checkpoint=use_checkpoint,
-            attn_mode=attn_mode,
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.block(x)
+        h = self.residual_block(x)
+        z, attn_map = self.attn(h)
+        z = h + self.drop_path(z)
+        return z
 
 
 class UNet(nn.Module):
@@ -176,9 +96,6 @@ class UNet(nn.Module):
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
-                 use_norm: bool = True,
-                 mlp_ratio: float = 4.0,
-                 use_residual_attention: bool = False,
                  ):
         super().__init__()
 
@@ -221,34 +138,15 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
-                        use_norm=use_norm,
-                        mlp_ratio=mlp_ratio
-                    ) if not use_residual_attention else
-                    ResidualAttentionUnetBlock(
-                        in_channels=in_ch,
-                        out_channels=out_ch,
-                        in_res=cur_res,
-                        window_size=window_size,
-                        num_groups=num_groups,
-                        num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
-                        dropout=dropout,
-                        attn_dropout=attn_dropout,
-                        drop_path=drop_path,
-                        bias=bias,
-                        act=act,
-                        use_conv=use_conv,
-                        dim=dim,
-                        use_checkpoint=use_checkpoint,
-                        attn_mode=attn_mode,
                     )
                 )
                 in_ch = out_ch
                 skip_dims.append(in_ch)
-                self.encoder.append(AttentionSequential(*down))
+                self.encoder.append(nn.Sequential(*down))
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
-                    DownBlock(in_ch, dim=dim, pool_type=pool_type)
+                    DownBlock(in_ch, dim=dim, pool_type=pool_type, scale_factor=2)
                 )
                 skip_dims.append(in_ch)
                 cur_res //= 2
@@ -274,40 +172,21 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
-                        use_norm=use_norm,
-                        mlp_ratio=mlp_ratio
-                    ) if not use_residual_attention else
-                    ResidualAttentionUnetBlock(
-                        in_channels=in_ch + skip_dims.pop(),
-                        out_channels=out_ch,
-                        in_res=cur_res,
-                        window_size=window_size,
-                        num_groups=num_groups,
-                        num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
-                        dropout=dropout,
-                        attn_dropout=attn_dropout,
-                        drop_path=drop_path,
-                        bias=bias,
-                        act=act,
-                        use_conv=use_conv,
-                        dim=dim,
-                        use_checkpoint=use_checkpoint,
-                        attn_mode=attn_mode,
                     )
                 )
                 in_ch = out_ch
-                self.decoder.append(AttentionSequential(*up))
+                self.decoder.append(nn.Sequential(*up))
 
             if i != 0:
                 self.decoder.append(
-                    UpBlock(in_ch + skip_dims.pop(), out_channels=in_ch, dim=dim, mode=mode)
+                    UpBlock(in_ch + skip_dims.pop(), out_channels=in_ch, dim=dim, mode=mode, scale_factor=2)
                 )
                 cur_res *= 2
 
         self.out = nn.Sequential(
             conv_nd(
                 dim,
-                in_ch + skip_dims.pop(),
+                in_ch,
                 out_channels,
                 kernel_size=3,
                 stride=1,
@@ -318,7 +197,6 @@ class UNet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = []
         h = self.embed(x)
-        hs.append(h)
 
         for i, block in enumerate(self.encoder):
             if isinstance(block, AttentionSequential):
@@ -333,7 +211,7 @@ class UNet(nn.Module):
                 h, attn_map = block(h)
             else:
                 h = block(h)
-        h = torch.cat([h, hs.pop()], dim=1)
+
         h = self.out(h)
 
         return h

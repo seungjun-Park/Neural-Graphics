@@ -18,7 +18,6 @@ class EDNSE(pl.LightningModule):
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  use_fp16: bool = False,
-                 disc_update_frequency: int = 2,
                  accumulate_grad_batches: int = 1,
                  ignore_keys: Union[List[str], Tuple[str]] = (),
                  ):
@@ -31,9 +30,6 @@ class EDNSE(pl.LightningModule):
         self.automatic_optimization = False
 
         self.accumulate_grad_batches = accumulate_grad_batches
-        self.disc_update_frequency = disc_update_frequency
-
-        # self.save_hyperparameters()
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
@@ -89,10 +85,10 @@ class EDNSE(pl.LightningModule):
             opt_net.zero_grad()
 
         disc_loss, disc_loss_log = self.loss(pred, label, img, training=True, opt_idx=1, global_step=self.global_step)
-        disc_loss = disc_loss / self.disc_update_frequency
+        disc_loss = disc_loss / self.accumulate_grad_batches
         self.manual_backward(disc_loss)
 
-        if (batch_idx + 1) % self.disc_update_frequency == 0:
+        if (batch_idx + 1) % self.accumulate_grad_batches == 0:
             opt_disc.step()
             opt_disc.zero_grad()
 

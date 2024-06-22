@@ -41,16 +41,14 @@ class MLP(nn.Module):
     def _forward(self, x):
         # x.shape == b, l, c
         h = x
-        if self.use_norm:
-            h = self.norm1(h)
-        h = self.act(h)
         h = self.fc1(h)
+        h = self.norm1(h)
+        h = self.act(h)
         h = F.dropout(h, p=self.dropout)
 
-        if self.use_norm:
-            h = self.norm2(h)
-        h = self.act(h)
         h = self.fc2(h)
+        h = self.norm2(h)
+        h = self.act(h)
         h = F.dropout(h, p=self.dropout)
 
         return h
@@ -95,16 +93,14 @@ class ConvMLP(nn.Module):
         # x.shape == b, c, *...
 
         h = x
-        if self.use_norm:
-            h = self.norm1(h)
-        h = self.act(h)
         h = self.conv1(h)
+        h = self.norm1(h)
+        h = self.act(h)
         h = F.dropout(h, p=self.dropout)
 
-        if self.use_norm:
-            h = self.norm2(h)
-        h = self.act(h)
         h = self.conv2(h)
+        h = self.norm2(h)
+        h = self.act(h)
         h = F.dropout(h, p=self.dropout)
 
         return h

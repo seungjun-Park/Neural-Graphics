@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 from utils import cats_loss, bdcn_loss2, adopt_weight
 from utils.loss import hinge_d_loss, vanilla_d_loss, san_d_loss
 from taming.modules.losses import LPIPS
-from models.gan.discriminator import SwinDiscriminator
+from models.gan.discriminator import Discriminator
 
 
 class EdgePerceptualLoss(nn.Module):
@@ -28,7 +28,7 @@ class EdgePerceptualLoss(nn.Module):
         self.disc_start_iter = disc_start_iter
 
         self.lpips = LPIPS().eval()
-        self.disc = SwinDiscriminator(**disc_config)
+        self.disc = Discriminator(**disc_config)
 
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, training: bool = False, opt_idx: int = 0,
                 global_step: int = 0) -> torch.Tensor:
@@ -39,7 +39,7 @@ class EdgePerceptualLoss(nn.Module):
 
             p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
 
-            g_loss = -torch.mean(self.disc(imgs.contiguous(), preds.repeat(1, 3, 1, 1)))
+            g_loss = -torch.mean(self.disc(preds.repeat(1, 3, 1, 1), imgs.contiguous(), training=False)['logit'])
 
             g_weight = adopt_weight(self.disc_weight, global_step, self.disc_start_iter)
 
@@ -56,14 +56,14 @@ class EdgePerceptualLoss(nn.Module):
 
         if opt_idx == 1:
             # second pass for discriminator update
-            logits_real = self.disc(imgs=imgs, edges=labels.repeat(1, 3, 1, 1))
-            logits_fake = self.disc(imgs=imgs, edges=preds.repeat(1, 3, 1, 1).detach())
+            logits_real = self.disc(labels.repeat(1, 3, 1, 1), imgs, training=True)
+            logits_fake = self.disc(preds.repeat(1, 3, 1, 1).detach(), imgs, training=True)
 
-            d_loss = hinge_d_loss(logits_real, logits_fake) * adopt_weight(1.0, global_step, self.disc_start_iter)
+            d_loss = san_d_loss(logits_real, logits_fake) * adopt_weight(1.0, global_step, self.disc_start_iter)
 
             log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
-                   "{}/logits_real".format(split): logits_real.detach().mean(),
-                   "{}/logits_fake".format(split): logits_fake.detach().mean()
+                   "{}/logits_real".format(split): logits_real['logits'].detach().mean(),
+                   "{}/logits_fake".format(split): logits_fake['logits'].detach().mean()
                    }
 
             return d_loss, log

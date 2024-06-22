@@ -82,7 +82,7 @@ class MultiHeadAttention(nn.Module):
         self.attn_mode = attn_mode
         self.use_checkpoint = use_checkpoint
 
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
         if attn_mode == 'vanilla':
             self.scale = 1 / math.sqrt(self.d_k)
@@ -312,7 +312,7 @@ class WindowAttention(nn.Module):
             attn = attn.reshape(b // nW, nW, self.num_heads, l, l) + mask.unsqueeze(1).unsqueeze(0).to(attn.device)
             attn = attn.reshape(-1, self.num_heads, l, l)
 
-        attn = F.softmax(attn, dim=1)
+        attn = F.softmax(attn, dim=-1)
         attn = self.dropout(attn)
 
         score = torch.einsum('bhts,bhcs->bhct', attn, v)

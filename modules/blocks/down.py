@@ -27,7 +27,8 @@ class DownBlock(nn.Module):
                                    in_channels,
                                    out_channels,
                                    kernel_size=scale_factor,
-                                   stride=scale_factor)
+                                   stride=scale_factor,
+                                   bias=False)
             self.norm = group_norm(out_channels, num_groups)
 
         else:
