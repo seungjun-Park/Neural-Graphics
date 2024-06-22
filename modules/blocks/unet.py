@@ -111,7 +111,7 @@ class UNet(nn.Module):
         )
 
         in_ch = embed_dim
-        skip_dims = [embed_dim]
+        skip_dims = []
         cur_res = in_res
 
         self.encoder = nn.ModuleList()
@@ -242,20 +242,14 @@ class UNet(nn.Module):
         h = self.embed(x)
 
         for i, block in enumerate(self.encoder):
-            if isinstance(block, AttentionSequential):
-                h, attn_map = block(h)
-            else:
-                h = block(h)
+            h = block(h)
             hs.append(h)
 
         h = self.middle(h)
 
         for i, block in enumerate(self.decoder):
             h = torch.cat([h, hs.pop()], dim=1)
-            if isinstance(block, AttentionSequential):
-                h, attn_map = block(h)
-            else:
-                h = block(h)
+            h = block(h)
 
         h = self.out(h)
 
