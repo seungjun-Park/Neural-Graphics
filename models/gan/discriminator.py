@@ -148,7 +148,6 @@ class Discriminator(nn.Module):
                  embed_dim: int = 32,
                  quant_dim: int = 8,
                  hidden_dims: Union[List[int], Tuple[int]] = (),
-                 patch_size: Union[int, List[int], Tuple[int]] = 4,
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  num_heads: int = 8,
                  dropout: float = 0.0,
@@ -165,8 +164,6 @@ class Discriminator(nn.Module):
                  attn_mode: str = 'vanilla'
                  ):
         super().__init__()
-
-        cur_res = in_res
 
         self.encoder = nn.ModuleList()
         self.encoder.append(
@@ -187,7 +184,7 @@ class Discriminator(nn.Module):
         )
 
         in_ch = embed_dim
-        cur_res //= patch_size
+        cur_res = in_res
 
         for i, out_ch in enumerate(hidden_dims):
             self.encoder.append(
@@ -247,7 +244,7 @@ class Discriminator(nn.Module):
         h = context
         for i, module in enumerate(self.encoder):
             h = module(h)
-            if not isinstance(h, DownBlock):
+            if isinstance(h, EncoderBlock):
                 hs.append(h)
         h = x
         for i, module in enumerate(self.decoder):
