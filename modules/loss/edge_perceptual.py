@@ -39,7 +39,7 @@ class EdgePerceptualLoss(nn.Module):
 
             p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
 
-            g_loss = -torch.mean(self.disc(preds.repeat(1, 3, 1, 1), imgs.contiguous(), training=False)['logit'])
+            g_loss = -torch.mean(self.disc(preds.repeat(1, 3, 1, 1), imgs.contiguous(), training=False)['logits'])
 
             g_weight = adopt_weight(self.disc_weight, global_step, self.disc_start_iter)
 
