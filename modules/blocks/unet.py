@@ -216,6 +216,17 @@ class UNet(nn.Module):
                 cur_res *= 2
 
         self.out = nn.Sequential(
+            ResidualBlock(
+                in_channels=in_ch,
+                out_channels=in_ch,
+                dropout=dropout,
+                drop_path=drop_path,
+                act=act,
+                dim=dim,
+                num_groups=num_groups,
+                use_conv=use_conv,
+                use_checkpoint=use_checkpoint,
+            ),
             conv_nd(
                 dim,
                 in_ch,
