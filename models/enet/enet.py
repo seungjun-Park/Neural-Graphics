@@ -19,6 +19,7 @@ class EDNSE(pl.LightningModule):
                  ckpt_path: str = None,
                  use_fp16: bool = False,
                  accumulate_grad_batches: int = 1,
+                 disc_update_freq: int = 1,
                  ignore_keys: Union[List[str], Tuple[str]] = (),
                  ):
         super().__init__()
@@ -30,6 +31,7 @@ class EDNSE(pl.LightningModule):
         self.automatic_optimization = False
 
         self.accumulate_grad_batches = accumulate_grad_batches
+        self.disc_update_freq = disc_update_freq
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
@@ -76,6 +78,14 @@ class EDNSE(pl.LightningModule):
 
         opt_net, opt_disc = self.optimizers()
 
+        disc_loss, disc_loss_log = self.loss(pred, label, img, training=True, opt_idx=1, global_step=self.global_step)
+        disc_loss = disc_loss / self.disc_update_freq
+        self.manual_backward(disc_loss)
+
+        if (batch_idx + 1) % self.disc_update_freq == 0:
+            opt_disc.step()
+            opt_disc.zero_grad()
+
         net_loss, net_loss_log = self.loss(pred, label, img, training=True, opt_idx=0, global_step=self.global_step)
         net_loss = net_loss / self.accumulate_grad_batches
         self.manual_backward(net_loss)
@@ -83,14 +93,6 @@ class EDNSE(pl.LightningModule):
         if (batch_idx + 1) % self.accumulate_grad_batches == 0:
             opt_net.step()
             opt_net.zero_grad()
-
-        disc_loss, disc_loss_log = self.loss(pred, label, img, training=True, opt_idx=1, global_step=self.global_step)
-        disc_loss = disc_loss / self.accumulate_grad_batches
-        self.manual_backward(disc_loss)
-
-        if (batch_idx + 1) % self.accumulate_grad_batches == 0:
-            opt_disc.step()
-            opt_disc.zero_grad()
 
         if self.global_step % self.log_interval == 0:
             self.log_img(img, label, pred)

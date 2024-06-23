@@ -236,8 +236,10 @@ class Discriminator(nn.Module):
                 self.decoder.append(DownBlock(in_channels=in_ch, dim=dim, scale_factor=2, num_groups=num_groups, pool_type=pool_type))
                 cur_res //= 2
 
-        self.quant_conv = conv_nd(dim, in_channels=in_ch, out_channels=quant_dim, kernel_size=1, stride=1, padding=0)
-        self.fc_w = nn.Parameter(torch.randn(1, int(quant_dim * cur_res ** 2)))
+        in_ch = int(in_ch * cur_res ** 2)
+
+        self.logit = nn.Linear(in_features=in_ch, out_features=1)
+        self.fc_w = nn.Parameter(torch.randn(1, 1))
 
     def forward(self, x: torch.Tensor, context: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
         hs = []
@@ -252,8 +254,8 @@ class Discriminator(nn.Module):
                 h = module(h, hs.pop(0))
             else:
                 h = module(h)
-        h = self.quant_conv(h)
         h = torch.flatten(h, start_dim=1)
+        h = self.logit(h)
 
         direction = torch.norm(self.fc_w, dim=1, p=2.0, keepdim=True)
         scale = torch.norm(self.fc_w, dim=1, keepdim=True)

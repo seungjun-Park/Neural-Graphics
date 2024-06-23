@@ -7,6 +7,7 @@ module:
     use_fp16: False
     log_interval: 50
     accumulate_grad_batches: 5
+    disc_update_freq: 2
     # ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
     net_config:
       target: modules.blocks.UNet
@@ -21,7 +22,7 @@ module:
         num_heads: [2, 2, 4, 4, 8, 8, 16]
         dropout: 0.0
         attn_dropout: 0.0
-        drop_path: 0.1
+        drop_path: 0.0
         qkv_bias: True
         bias: True
         num_groups: 16
@@ -39,8 +40,8 @@ module:
         cats_weight: [0, 0., 0.]
         l1_weight: 1.0
         lpips_weight: 1.0
-        disc_weight: 0.5
-        disc_start_iter: 3000
+        disc_weight: 1.0
+        disc_start_iter: 1000
         disc_config:
           in_channels: 3
           in_res: 512
@@ -117,5 +118,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 200
+  max_epochs: 300
   # accumulate_grad_batches: 5
