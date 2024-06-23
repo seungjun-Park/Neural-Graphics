@@ -111,7 +111,7 @@ class UNet(nn.Module):
         )
 
         in_ch = embed_dim
-        skip_dims = []
+        skip_dims = [embed_dim]
         cur_res = in_res
 
         self.encoder = nn.ModuleList()
@@ -185,7 +185,7 @@ class UNet(nn.Module):
 
         self.out = nn.Sequential(
             ResidualBlock(
-                in_channels=in_ch,
+                in_channels=in_ch + skip_dims.pop(),
                 out_channels=in_ch,
                 dropout=dropout,
                 drop_path=drop_path,
@@ -208,6 +208,7 @@ class UNet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = []
         h = self.embed(x)
+        hs.append(h)
 
         for i, block in enumerate(self.encoder):
             h = block(h)
@@ -217,6 +218,7 @@ class UNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
+        h = torch.cat([h, hs.pop()], dim=1)
         h = self.out(h)
 
         return h
