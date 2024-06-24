@@ -238,7 +238,7 @@ class Discriminator(nn.Module):
 
         self.logit = ResidualBlock(
             in_channels=in_ch,
-            out_channels=in_ch,
+            out_channels=quant_dim,
             dropout=dropout,
             drop_path=drop_path,
             act=act,
@@ -248,7 +248,7 @@ class Discriminator(nn.Module):
             use_checkpoint=use_checkpoint,
         )
 
-        self.fc_w = nn.Parameter(torch.randn(1, int(in_ch * cur_res ** 2)))
+        self.fc_w = nn.Parameter(torch.randn(1, int(quant_dim * cur_res ** 2)))
 
     def forward(self, x: torch.Tensor, context: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
         hs = []
