@@ -236,10 +236,19 @@ class Discriminator(nn.Module):
                 self.decoder.append(DownBlock(in_channels=in_ch, dim=dim, scale_factor=2, num_groups=num_groups, pool_type=pool_type))
                 cur_res //= 2
 
-        in_ch = int(in_ch * cur_res ** 2)
+        self.logit = ResidualBlock(
+            in_channels=in_ch,
+            out_channels=in_ch,
+            dropout=dropout,
+            drop_path=drop_path,
+            act=act,
+            dim=dim,
+            num_groups=num_groups,
+            use_conv=use_conv,
+            use_checkpoint=use_checkpoint,
+        )
 
-        self.logit = nn.Linear(in_features=in_ch, out_features=1)
-        self.fc_w = nn.Parameter(torch.randn(1, 1))
+        self.fc_w = nn.Parameter(torch.randn(1, int(in_ch * cur_res ** 2)))
 
     def forward(self, x: torch.Tensor, context: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
         hs = []
@@ -254,11 +263,12 @@ class Discriminator(nn.Module):
                 h = module(h, hs.pop(0))
             else:
                 h = module(h)
-        h = torch.flatten(h, start_dim=1)
         h = self.logit(h)
+        h = torch.flatten(h, start_dim=1)
 
-        direction = torch.norm(self.fc_w, dim=1, p=2.0, keepdim=True)
-        scale = torch.norm(self.fc_w, dim=1, keepdim=True)
+        weights = self.fc_w
+        direction = F.normalize(weights, dim=1)
+        scale = torch.norm(self.fc_w, dim=1)
         h = h * scale
         if training:
             logits = (h.detach() * direction)

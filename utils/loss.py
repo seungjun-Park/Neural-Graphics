@@ -311,13 +311,13 @@ def san_d_loss(out_real: Dict[str, torch.Tensor], out_fake: Dict[str, torch.Tens
 
 
 def wasserstein_d_loss(dir_real: torch.Tensor, dir_fake: torch.Tensor) -> torch.Tensor:
-    return 0.5 * (-dir_real.mean() + dir_fake.mean())
+    return -dir_real.mean() + dir_fake.mean()
 
 
 def hinge_d_loss(logits_real: torch.Tensor, logits_fake: torch.Tensor) -> torch.Tensor:
     loss_real = torch.mean(F.relu(1. - logits_real))
     loss_fake = torch.mean(F.relu(1. + logits_fake))
-    d_loss = 0.5 * (loss_real + loss_fake)
+    d_loss = (loss_real + loss_fake)
     return d_loss
 
 

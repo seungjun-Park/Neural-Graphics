@@ -13,7 +13,6 @@ class MLP(nn.Module):
                  out_channels: int = None,
                  dropout: float = 0.0,
                  act: str = 'relu',
-                 use_norm: bool = True,
                  use_checkpoint: bool = True,
                  ):
         super().__init__()
@@ -21,15 +20,13 @@ class MLP(nn.Module):
         embed_dim = in_channels if embed_dim is None else embed_dim
         out_channels = in_channels if out_channels is None else out_channels
         self.dropout = dropout
-        self.use_norm = use_norm
         self.use_checkpoint = use_checkpoint
 
         self.fc1 = nn.Linear(in_channels, embed_dim)
         self.fc2 = nn.Linear(embed_dim, out_channels)
 
-        if use_norm:
-            self.norm1 = nn.LayerNorm(in_channels)
-            self.norm2 = nn.LayerNorm(embed_dim)
+        self.norm1 = nn.LayerNorm(in_channels)
+        self.norm2 = nn.LayerNorm(embed_dim)
 
         self.act = get_act(act)
 
@@ -62,7 +59,6 @@ class ConvMLP(nn.Module):
                  dropout: float = 0.0,
                  act: str = 'relu',
                  num_groups: int = 1,
-                 use_norm: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  ):
@@ -70,7 +66,6 @@ class ConvMLP(nn.Module):
 
         embed_dim = in_channels if embed_dim is None else embed_dim
         out_channels = in_channels if out_channels is None else out_channels
-        self.use_norm = use_norm
         self.use_checkpoint = use_checkpoint
 
         self.conv1 = conv_nd(dim, in_channels, embed_dim, kernel_size=1, stride=1, padding=0)
@@ -80,9 +75,8 @@ class ConvMLP(nn.Module):
 
         self.dropout = dropout
 
-        if use_norm:
-            self.norm1 = group_norm(in_channels, num_groups=num_groups)
-            self.norm2 = group_norm(embed_dim, num_groups=num_groups)
+        self.norm1 = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(embed_dim, num_groups=num_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
