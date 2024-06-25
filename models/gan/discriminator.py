@@ -146,8 +146,9 @@ class Discriminator(nn.Module):
                  in_channels: int = 3,
                  in_res: int = 512,
                  embed_dim: int = 32,
-                 quant_dim: int = 8,
+                 quant_dim: int = None,
                  hidden_dims: Union[List[int], Tuple[int]] = (),
+                 num_blocks: Union[int, List[int], Tuple[int]] = (),
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  num_heads: int = 8,
                  dropout: float = 0.0,
@@ -187,65 +188,67 @@ class Discriminator(nn.Module):
         cur_res = in_res
 
         for i, out_ch in enumerate(hidden_dims):
-            self.encoder.append(
-                EncoderBlock(
-                    in_channels=in_ch,
-                    out_channels=out_ch,
-                    in_res=cur_res,
-                    window_size=window_size,
-                    num_groups=num_groups,
-                    num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
-                    dropout=dropout,
-                    attn_dropout=attn_dropout,
-                    drop_path=drop_path,
-                    qkv_bias=qkv_bias,
-                    bias=bias,
-                    act=act,
-                    use_conv=use_conv,
-                    dim=dim,
-                    use_checkpoint=use_checkpoint,
-                    attn_mode=attn_mode,
+            for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
+                self.encoder.append(
+                    EncoderBlock(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        in_res=cur_res,
+                        window_size=window_size,
+                        num_groups=num_groups,
+                        num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
+                        dropout=dropout,
+                        attn_dropout=attn_dropout,
+                        drop_path=drop_path,
+                        qkv_bias=qkv_bias,
+                        bias=bias,
+                        act=act,
+                        use_conv=use_conv,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
+                        attn_mode=attn_mode,
+                    )
                 )
-            )
 
-            self.decoder.append(
-                DecoderBlock(
-                    in_channels=in_ch,
-                    out_channels=out_ch,
-                    in_res=cur_res,
-                    window_size=window_size,
-                    num_groups=num_groups,
-                    num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
-                    dropout=dropout,
-                    attn_dropout=attn_dropout,
-                    drop_path=drop_path,
-                    qkv_bias=qkv_bias,
-                    bias=bias,
-                    act=act,
-                    use_conv=use_conv,
-                    dim=dim,
-                    use_checkpoint=use_checkpoint,
-                    attn_mode=attn_mode,
+                self.decoder.append(
+                    DecoderBlock(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        in_res=cur_res,
+                        window_size=window_size,
+                        num_groups=num_groups,
+                        num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
+                        dropout=dropout,
+                        attn_dropout=attn_dropout,
+                        drop_path=drop_path,
+                        qkv_bias=qkv_bias,
+                        bias=bias,
+                        act=act,
+                        use_conv=use_conv,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
+                        attn_mode=attn_mode,
+                    )
                 )
-            )
 
-            in_ch = out_ch
+                in_ch = out_ch
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(DownBlock(in_channels=in_ch, dim=dim, scale_factor=2, num_groups=num_groups, pool_type=pool_type))
                 self.decoder.append(DownBlock(in_channels=in_ch, dim=dim, scale_factor=2, num_groups=num_groups, pool_type=pool_type))
                 cur_res //= 2
 
-        self.logit = ResidualBlock(
+        quant_dim = in_ch if quant_dim is None else quant_dim
+
+        self.logit = ConvMLP(
             in_channels=in_ch,
+            embed_dim=in_ch * 4,
             out_channels=quant_dim,
             dropout=dropout,
-            drop_path=drop_path,
             act=act,
-            dim=dim,
             num_groups=num_groups,
-            use_conv=use_conv,
-            use_checkpoint=use_checkpoint,
+            dim=dim,
+            use_checkpoint=use_checkpoint
         )
 
         self.fc_w = nn.Parameter(torch.randn(1, int(quant_dim * cur_res ** 2)))
