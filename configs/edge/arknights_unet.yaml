@@ -17,9 +17,9 @@ module:
         window_size: 8
         out_channels: 1
         embed_dim: 16
-        hidden_dims: [ 32, 64, 64, 128, 128, 256, 256]
+        hidden_dims: [ 32, 32, 64, 64, 128, 128, 256]
         num_blocks: 2
-        num_heads: [2, 4, 4, 8, 8, 16, 16]
+        num_heads: [ 2, 2, 4, 4, 8, 8, 16]
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
@@ -40,16 +40,16 @@ module:
         cats_weight: [0, 0., 0.]
         l1_weight: 1.0
         lpips_weight: 1.0
-        disc_weight: 2e-5
+        disc_weight: 0.5
         disc_start_iter: 1000
         disc_config:
           in_channels: 3
           in_res: 512
           window_size: 8
           embed_dim: 16
-          hidden_dims: [ 32, 64, 64, 128, 128, 256, 256]
-          num_blocks: 2
-          num_heads: [2, 4, 4, 8, 8, 16, 16 ]
+          hidden_dims: [ 32, 32, 64, 64, 128, 128, 256]
+          num_blocks: 1
+          num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
           dropout: 0.0
           attn_dropout: 0.0
           drop_path: 0.0
