@@ -240,6 +240,17 @@ class Discriminator(nn.Module):
         quant_dim = in_ch if quant_dim is None else quant_dim
 
         self.logit = nn.Sequential(
+            ResidualBlock(
+                in_channels=in_ch,
+                out_channels=in_ch,
+                dropout=dropout,
+                drop_path=drop_path,
+                act=act,
+                dim=dim,
+                num_groups=num_groups,
+                use_conv=use_conv,
+                use_checkpoint=use_checkpoint,
+            ),
             conv_nd(dim=dim, in_channels=in_ch, out_channels=quant_dim, kernel_size=1, stride=1)
         )
 
