@@ -69,10 +69,10 @@ class EDNSE(pl.LightningModule):
             param.requires_grad = False
         return self
 
-    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
-        return F.sigmoid(self.net(x))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return F.hardtanh(self.net(x), min_val=0.0, max_val=1.0)
 
-    def training_step(self, batch, batch_idx) -> Optional[Any]:
+    def training_step(self, batch, batch_idx):
         img, label, cond = batch
         pred = self(img)
 
@@ -100,7 +100,7 @@ class EDNSE(pl.LightningModule):
         self.log_dict(net_loss_log, rank_zero_only=True, logger=True)
         self.log_dict(disc_loss_log, rank_zero_only=True, logger=True)
 
-    def validation_step(self, batch, batch_idx) -> Optional[Any]:
+    def validation_step(self, batch, batch_idx):
         img, label, cond = batch
         pred = self(img)
 
