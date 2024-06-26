@@ -41,7 +41,7 @@ module:
         l1_weight: 1.0
         lpips_weight: 1.0
         disc_weight: 5e-4
-        disc_start_iter: 1000
+        disc_start_iter: 1500
         disc_config:
           in_channels: 3
           in_res: 512
