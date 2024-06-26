@@ -22,7 +22,7 @@ module:
         num_heads: [ 2, 2, 4, 4, 8, 8, 16]
         dropout: 0.0
         attn_dropout: 0.0
-        drop_path: 0.0
+        drop_path: 0.1
         qkv_bias: True
         bias: True
         num_groups: 16
@@ -37,10 +37,10 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        cats_weight: [0, 0., 0.]
+        cats_weight: [1.0, 0.05, 1.5]
         l1_weight: 1.0
         lpips_weight: 1.0
-        disc_weight: 0.5
+        disc_weight: 5e-4
         disc_start_iter: 1000
         disc_config:
           in_channels: 3
@@ -48,11 +48,11 @@ module:
           window_size: 8
           embed_dim: 16
           hidden_dims: [ 32, 32, 64, 64, 128, 128, 256]
-          num_blocks: 1
+          num_blocks: 2
           num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
           dropout: 0.0
           attn_dropout: 0.0
-          drop_path: 0.0
+          drop_path: 0.1
           qkv_bias: True
           bias: True
           num_groups: 16
@@ -118,5 +118,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 250
+  max_epochs: 200
   # accumulate_grad_batches: 5

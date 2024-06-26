@@ -8,7 +8,6 @@ from typing import Union, List, Tuple
 from utils import conv_nd, to_2tuple, get_act, instantiate_from_config, group_norm
 from modules.blocks import DownBlock, PatchMerging
 from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, DoubleWindowCrossAttentionBlock
-from modules.blocks.mlp import ConvMLP, MLP
 from modules.blocks.res_block import ResidualBlock
 
 
@@ -240,15 +239,19 @@ class Discriminator(nn.Module):
 
         quant_dim = in_ch if quant_dim is None else quant_dim
 
-        self.logit = ConvMLP(
-            in_channels=in_ch,
-            embed_dim=in_ch * 4,
-            out_channels=quant_dim,
-            dropout=dropout,
-            act=act,
-            num_groups=num_groups,
-            dim=dim,
-            use_checkpoint=use_checkpoint
+        self.logit = nn.Sequential(
+            ResidualBlock(
+                in_channels=in_ch,
+                out_channels=in_ch,
+                dropout=dropout,
+                drop_path=drop_path,
+                act=act,
+                dim=dim,
+                num_groups=num_groups,
+                use_conv=use_conv,
+                use_checkpoint=use_checkpoint,
+            ),
+            conv_nd(dim=dim, in_channels=in_ch, out_channels=quant_dim, kernel_size=1, stride=1)
         )
 
         self.fc_w = nn.Parameter(torch.randn(1, int(quant_dim * cur_res ** 2)))

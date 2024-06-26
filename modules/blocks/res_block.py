@@ -35,6 +35,7 @@ class ResidualBlock(nn.Module):
 
         self.norm1 = group_norm(out_channels, num_groups=num_groups)
         self.norm2 = group_norm(out_channels, num_groups=num_groups)
+        self.norm3 = group_norm(out_channels, num_groups=num_groups)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -42,14 +43,22 @@ class ResidualBlock(nn.Module):
             self.shortcut = nn.Identity()
 
         elif use_conv:
-            self.shortcut = conv_nd(dim=dim,
-                                    in_channels=in_channels,
-                                    out_channels=out_channels,
-                                    kernel_size=3,
-                                    padding=1)
+            self.shortcut = nn.Sequential(
+                conv_nd(dim=dim,
+                        in_channels=in_channels,
+                        out_channels=out_channels,
+                        kernel_size=3,
+                        padding=1),
+                group_norm(out_channels, num_groups=num_groups),
+                get_act(act)
+            )
 
         else:
-            self.shortcut = conv_nd(dim, in_channels, out_channels, 1)
+            self.shortcut = nn.Sequential(
+                conv_nd(dim, in_channels, out_channels, 1),
+                group_norm(out_channels, num_groups=num_groups),
+                get_act(act)
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
@@ -69,5 +78,5 @@ class ResidualBlock(nn.Module):
         h = self.act(h)
         h = self.dropout(h)
 
-        return self.drop_path(h) + self.shortcut(x)
+        return self.act(self.norm3(self.drop_path(h) + self.shortcut(x)))
 
