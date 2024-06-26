@@ -70,7 +70,7 @@ class EDNSE(pl.LightningModule):
         return self
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.hardtanh(self.net(x), min_val=0.0, max_val=1.0)
+        return F.sigmoid(self.net(x))
 
     def training_step(self, batch, batch_idx):
         img, label, cond = batch
@@ -123,14 +123,12 @@ class EDNSE(pl.LightningModule):
         opt_net = torch.optim.AdamW(list(self.net.parameters()),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
-                                    betas=(0.5, 0.9)
                                     )
 
         if isinstance(self.loss, EdgePerceptualLoss):
             opt_disc = torch.optim.AdamW(list(self.loss.disc.parameters()),
                                          lr=self.lr,
                                          weight_decay=self.weight_decay,
-                                         betas=(0.5, 0.9)
                                          )
             return [opt_net, opt_disc]
 
