@@ -38,8 +38,8 @@ module:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
         cats_weight: [1.0, 0.05, 1.5]
-        l1_weight: 0.0
-        lpips_weight: 0.0
+        l1_weight: 1.0
+        lpips_weight: 1.0
         disc_weight: 1.0
         disc_start_iter: 0
         disc_config:
