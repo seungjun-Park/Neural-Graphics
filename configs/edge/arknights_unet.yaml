@@ -40,7 +40,7 @@ module:
         cats_weight: [1.0, 0.05, 1.5]
         l1_weight: 1.0
         lpips_weight: 1.0
-        disc_weight: 1.0
+        disc_weight: 0.25
         disc_start_iter: 0
         disc_config:
           in_channels: 3
@@ -52,7 +52,7 @@ module:
           num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
           dropout: 0.0
           attn_dropout: 0.0
-          drop_path: 0.1
+          drop_path: 0.0
           qkv_bias: True
           bias: True
           num_groups: 16
