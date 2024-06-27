@@ -93,8 +93,8 @@ logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
   params:
     save_dir: './logs/ednse'
-    name: 'test'
-    version: 'arknights_unet'
+    name: 'ednse'
+    version: 'test'
 
 
 checkpoints:
