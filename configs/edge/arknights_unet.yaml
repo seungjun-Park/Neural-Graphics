@@ -40,7 +40,7 @@ module:
         cats_weight: [1.0, 0.05, 1.5]
         l1_weight: 1.0
         lpips_weight: 1.0
-        disc_weight: 0.1
+        disc_weight: 1.0
         disc_start_iter: 0
         disc_config:
           in_channels: 3
@@ -92,7 +92,7 @@ data:
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
   params:
-    save_dir: './logs/ednse'
+    save_dir: './logs'
     name: 'ednse'
     version: 'test'
 
