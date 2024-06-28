@@ -91,10 +91,10 @@ class EIPS(pl.LightningModule):
 
         for kk in range(len(self.chns)):
             feat_imgs[kk], feat_edges[kk] = normalize_tensor(out_imgs[kk]), normalize_tensor(out_edges[kk])
-            similarity[kk] = self.similarity_blocks[kk](feat_edges[kk], feat_imgs[kk])
+            similarity[kk] = self.similarity_blocks[kk](feat_edges[kk], feat_imgs[kk])[0]
 
         res = [self.logit_blocks[kk](similarity[kk]) for kk in range(len(self.chns))]
-        val = torch.mean(res[0], dim=[1, 2, 3])
+        val = res[0].mean(dim=[1, 2, 3])
         for l in range(1, len(self.chns)):
             val += res[l].mean(dim=[1, 2, 3])
         val = torch.sum(val) / val.shape[0]
