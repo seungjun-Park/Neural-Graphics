@@ -106,8 +106,6 @@ class UNet(nn.Module):
 
         self.embed = nn.Sequential(
             conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
-            group_norm(embed_dim, num_groups),
-            get_act(act)
         )
 
         in_ch = embed_dim
@@ -183,18 +181,11 @@ class UNet(nn.Module):
                 )
                 cur_res *= 2
 
+        in_ch = in_ch + skip_dims.pop()
+
         self.out = nn.Sequential(
-            ResidualBlock(
-                in_channels=in_ch + skip_dims.pop(),
-                out_channels=in_ch,
-                dropout=dropout,
-                drop_path=drop_path,
-                act=act,
-                dim=dim,
-                num_groups=num_groups,
-                use_conv=use_conv,
-                use_checkpoint=use_checkpoint,
-            ),
+            group_norm(in_ch),
+            get_act(act),
             conv_nd(
                 dim,
                 in_ch,

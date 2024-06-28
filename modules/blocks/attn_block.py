@@ -689,12 +689,12 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         self.qkv = conv_nd(dim, in_channels, in_channels * 3, kernel_size=1, bias=qkv_bias)
         self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> Tuple:
         if self.use_checkpoint:
             return checkpoint(self._forward, x)
         return self._forward(x)
 
-    def _forward(self, x: torch.Tensor) -> torch.Tensor:
+    def _forward(self, x: torch.Tensor) -> Tuple:
         H, W = self.in_res
         b, c, h, w = x.shape
         assert h * w == H * W, "input feature has wrong size"
@@ -783,12 +783,12 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
         self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, bias=qkv_bias)
         self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
-    def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
         if self.use_checkpoint:
             return checkpoint(self._forward, x, cond)
         return self._forward(x, cond)
 
-    def _forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
+    def _forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
         H, W = self.in_res
         b, c, h, w = x.shape
         assert h * w == H * W, "input feature has wrong size"
