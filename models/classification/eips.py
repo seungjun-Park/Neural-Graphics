@@ -94,9 +94,9 @@ class EIPS(pl.LightningModule):
             similarity[kk] = self.similarity_blocks[kk](feat_edges[kk], feat_imgs[kk])[0]
 
         res = [self.logit_blocks[kk](similarity[kk]) for kk in range(len(self.chns))]
-        val = res[0].mean(dim=[1, 2, 3])
+        val = res[0].mean(dim=[2, 3])
         for l in range(1, len(self.chns)):
-            val += res[l].mean(dim=[1, 2, 3])
+            val += res[l].mean(dim=[2, 3])
         return val
 
     def training_step(self, batch, batch_idx):
