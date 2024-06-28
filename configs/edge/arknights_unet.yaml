@@ -8,7 +8,7 @@ module:
     log_interval: 25
     accumulate_grad_batches: 10
     disc_update_freq: 10
-    ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
+    # ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
     net_config:
       target: modules.blocks.UNet
       params:
