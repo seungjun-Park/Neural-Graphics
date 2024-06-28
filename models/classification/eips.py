@@ -53,7 +53,7 @@ class EIPS(pl.LightningModule):
             self.similarity_blocks.append(
                 DoubleWindowCrossAttentionBlock(
                     in_channels=chn,
-                    in_res=to_2tuple(in_res),
+                    in_res=to_2tuple(cur_res),
                     num_heads=num_heads,
                     window_size=window_size,
                     qkv_bias=qkv_bias,
