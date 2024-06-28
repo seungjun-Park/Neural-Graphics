@@ -5,9 +5,9 @@ module:
     weight_decay: 0.0
     lr_decay_epoch: 100
     use_fp16: False
-    log_interval: 50
-    accumulate_grad_batches: 5
-    disc_update_freq: 2
+    log_interval: 25
+    accumulate_grad_batches: 10
+    disc_update_freq: 10
     ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
     net_config:
       target: modules.blocks.UNet
@@ -16,16 +16,16 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        embed_dim: 16
-        hidden_dims: [ 32, 32, 64, 64, 128, 128, 256]
+        embed_dim: 32
+        hidden_dims: [ 64, 128, 256, 512 ]
         num_blocks: 2
-        num_heads: [ 2, 2, 4, 4, 8, 8, 16]
+        num_heads: [ 2, 4, 8, 16]
         dropout: 0.0
         attn_dropout: 0.0
-        drop_path: 0.0
+        drop_path: 0.1
         qkv_bias: True
         bias: True
-        num_groups: 16
+        num_groups: 32
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
@@ -37,25 +37,26 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        cats_weight: [1.0, 0.05, 1.5]
+        cats_weight: [1.1, 0.05, 2.0]
         l1_weight: 1.0
         lpips_weight: 1.0
-        disc_weight: 1.0
-        disc_start_iter: 0
+        disc_weight: 5e-3
+        disc_start_iter: 1500
         disc_config:
           in_channels: 3
           in_res: 512
           window_size: 8
-          embed_dim: 16
-          hidden_dims: [ 32, 32, 64, 64, 128, 128, 256]
-          num_blocks: 2
-          num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
+          embed_dim: 32
+          hidden_dims: [ 64, 128, 256, 512]
+          num_blocks: 1
+          num_heads: [ 2, 4, 8, 16 ]
+          quant_dim: 64
           dropout: 0.0
           attn_dropout: 0.0
           drop_path: 0.0
           qkv_bias: True
           bias: True
-          num_groups: 16
+          num_groups: 32
           act: 'gelu'
           use_conv: True
           pool_type: 'conv'
@@ -94,14 +95,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'ednse'
-    version: 'test'
+    version: 'arknights_unet'
 
 
 checkpoints:
   latest_checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/test'
+      dirpath: './checkpoints/ednse'
       filename: 'arknights_unet'
       monitor: 'step'
       mode: 'max'
@@ -110,7 +111,7 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/test'
+      dirpath: './checkpoints/ednse'
       filename: 'arknights_unet_best'
       monitor: 'val/p_loss'
       mode: 'min'
@@ -118,5 +119,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 50
+  max_epochs: 150
   # accumulate_grad_batches: 5

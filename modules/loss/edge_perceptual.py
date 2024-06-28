@@ -35,7 +35,7 @@ class EdgePerceptualLoss(nn.Module):
         split = 'train' if training else 'val'
 
         if opt_idx == 0:
-            # cats = cats_loss(prediction=preds, label=labels, weights=self.cats_weight).mean()
+            cats = cats_loss(prediction=preds, label=labels, weights=self.cats_weight).mean()
 
             l1_loss = F.l1_loss(preds, labels, reduction='mean')
 
@@ -45,13 +45,13 @@ class EdgePerceptualLoss(nn.Module):
 
             g_weight = adopt_weight(self.disc_weight, global_step, self.disc_start_iter)
 
-            loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight + g_weight * g_loss
+            loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight + g_weight * g_loss + cats
 
             log = {"{}/loss".format(split): loss.clone().detach(),
                    "{}/l1_loss".format(split): l1_loss.detach().mean(),
                    "{}/p_loss".format(split): p_loss.detach().mean(),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
-                   # "{}/cats_loss".format(split): cats.detach().mean(),
+                   "{}/cats_loss".format(split): cats.detach().mean(),
                    }
 
             return loss, log
