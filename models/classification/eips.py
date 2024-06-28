@@ -97,7 +97,6 @@ class EIPS(pl.LightningModule):
         val = res[0].mean(dim=[1, 2, 3])
         for l in range(1, len(self.chns)):
             val += res[l].mean(dim=[1, 2, 3])
-        val = torch.sum(val) / val.shape[0]
         return val
 
     def training_step(self, batch, batch_idx):
