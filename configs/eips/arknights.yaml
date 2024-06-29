@@ -1,18 +1,30 @@
 module:
   target: models.classification.EIPS
   params:
+    in_channels: 3
     in_res: 512
-    num_heads: 8
-    window_size: 8
+    patch_size: 4
+    window_size: 7
+    embed_dim: 16
+    hidden_dims: [32, 64, 128, 256, 512]
+    num_blocks: 4
+    num_heads: -1
+    num_head_channels: 32
+    dropout: 0.0
+    attn_dropout: 0.0
+    drop_path: 0.1
     qkv_bias: True
     bias: True
-    dropout: 0
-    attn_mode: 'cosine'
+    num_groups: 16
+    act: 'silu'
+    use_conv: True
+    pool_type: 'conv'
     dim: 2
+    use_checkpoint: True
+    attn_mode: 'cosine'
     lr: 2e-5
     weight_decay: 1e-4
-    log_interval: 2
-    use_checkpoint: True
+    log_interval: 100
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -71,4 +83,4 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   max_epochs: 500
-  accumulate_grad_batches: 50
+  accumulate_grad_batches: 25

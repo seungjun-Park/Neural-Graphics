@@ -6,30 +6,172 @@ import torchvision.models as models
 from torchvision.models.vgg import VGG
 from omegaconf import DictConfig, ListConfig
 from collections import namedtuple
+from timm.models.layers import DropPath
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, to_3tuple, conv_nd, get_act, group_norm, normalize_img
-from modules.sequential import AttentionSequential
-from modules.blocks.attn_block import DoubleWindowCrossAttentionBlock
+from modules.blocks.res_block import ResidualBlock
+from modules.blocks.attn_block import DoubleWindowCrossAttentionBlock, DoubleWindowSelfAttentionBlock
 from modules.blocks.down import DownBlock
+
+
+class EncoderBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 in_res: Union[int, List[int], Tuple[int]],
+                 out_channels: int = None,
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 num_groups: int = 16,
+                 num_heads: int = -1,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 drop_path: float = 0.0,
+                 qkv_bias: bool = True,
+                 bias: bool = True,
+                 act: str = 'relu',
+                 use_conv: bool = True,
+                 dim: int = 2,
+                 use_checkpoint: bool = True,
+                 attn_mode: str = 'cosine',
+                 ):
+        super().__init__()
+
+        out_channels = in_channels if out_channels is None else out_channels
+
+        self.residual_block = ResidualBlock(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            dropout=dropout,
+            drop_path=drop_path,
+            act=act,
+            dim=dim,
+            num_groups=num_groups,
+            use_conv=use_conv,
+            use_checkpoint=use_checkpoint,
+        )
+
+        self.attn = DoubleWindowSelfAttentionBlock(
+            in_channels=out_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self.residual_block(x)
+        z, attn_map = self.attn(h)
+        z = h + self.drop_path(z)
+        return z
+
+
+class LogitBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 in_res: Union[int, List[int], Tuple[int]],
+                 out_channels: int = None,
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 num_groups: int = 16,
+                 num_heads: int = -1,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 drop_path: float = 0.0,
+                 qkv_bias: bool = True,
+                 bias: bool = True,
+                 act: str = 'relu',
+                 use_conv: bool = True,
+                 dim: int = 2,
+                 use_checkpoint: bool = True,
+                 attn_mode: str = 'cosine',
+                 ):
+        super().__init__()
+
+        out_channels = in_channels if out_channels is None else out_channels
+
+        self.residual_block = ResidualBlock(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            dropout=dropout,
+            drop_path=drop_path,
+            act=act,
+            dim=dim,
+            num_groups=num_groups,
+            use_conv=use_conv,
+            use_checkpoint=use_checkpoint,
+        )
+
+        self.attn = DoubleWindowSelfAttentionBlock(
+            in_channels=out_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
+
+        self.cross_attn = DoubleWindowCrossAttentionBlock(
+            in_channels=out_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
+        h = self.residual_block(x)
+        z, attn_map = self.attn(h)
+        z = h + self.drop_path(z)
+        r, attn_map = self.cross_attn(z, context)
+        r = z + self.drop_path(r)
+        return r
 
 
 class EIPS(pl.LightningModule):
     def __init__(self,
-                 net: VGG = None,
-                 in_res: Union[int, List[int], Tuple[int]] = 64,
-                 num_heads: Union[int, List[int], Tuple[int]] = 8,
+                 in_channels: int,
+                 in_res: Union[int, List[int], Tuple[int]],
+                 patch_size: Union[int, List[int], Tuple[int]] = 4,
                  window_size: Union[int, List[int], Tuple[int]] = 7,
+                 embed_dim: int = 16,
+                 hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
+                 num_blocks: int = 2,
+                 num_heads: int = -1,
+                 num_head_channels: int = -1,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 drop_path: float = 0.0,
                  qkv_bias: bool = True,
                  bias: bool = True,
-                 dropout: float = 0.,
-                 attn_mode: str = 'vanilla',
+                 num_groups: int = 32,
+                 act: str = 'relu',
+                 use_conv: bool = True,
+                 pool_type: str = 'conv',
                  dim: int = 2,
+                 use_checkpoint: bool = True,
+                 attn_mode: str = 'cosine',
                  lr: float = 2e-5,
                  weight_decay: float = 1e-4,
                  log_interval: int = 100,
-                 use_checkpoint: bool = True,
                  ckpt_path: str = None,
+                 ignore_keys: Union[List[str], Tuple[str]] = (),
                  ):
         super().__init__()
 
@@ -37,42 +179,77 @@ class EIPS(pl.LightningModule):
         self.weight_decay = weight_decay
         self.log_interval = log_interval
 
-        self.chns = [64, 128, 256, 512, 512]
-        cur_res = in_res
-        self.similarity_blocks = nn.ModuleList()
-        self.logit_blocks = nn.ModuleList()
+        assert num_head_channels != -1 or num_heads != -1
 
-        if net is None:
-            self.net = vgg16()
+        if num_head_channels != -1:
+            use_num_head_channels = True
         else:
-            self.net = net.eval()
-            for p in self.net.parameters():
-                p.requires_grad = False
+            use_num_head_channels = False
 
-        for i, chn in enumerate(self.chns):
-            self.similarity_blocks.append(
-                DoubleWindowCrossAttentionBlock(
-                    in_channels=chn,
-                    in_res=to_2tuple(cur_res),
-                    num_heads=num_heads,
+        self.logits = nn.ModuleList()
+        self.encoder = nn.ModuleList()
+        self.encoder.append(
+            conv_nd(dim, in_channels, embed_dim, kernel_size=patch_size, stride=patch_size),
+        )
+
+        in_ch = embed_dim
+        cur_res = in_res
+        for i, out_ch in enumerate(hidden_dims):
+            self.encoder.append(
+                EncoderBlock(
+                    in_channels=in_ch,
+                    out_channels=out_ch,
+                    in_res=cur_res,
                     window_size=window_size,
-                    qkv_bias=qkv_bias,
-                    proj_bias=bias,
+                    num_groups=num_groups,
+                    num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
                     dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    drop_path=drop_path,
+                    qkv_bias=qkv_bias,
+                    bias=bias,
+                    act=act,
+                    use_conv=use_conv,
+                    dim=dim,
                     use_checkpoint=use_checkpoint,
                     attn_mode=attn_mode,
-                    dim=dim
                 )
             )
 
-            self.logit_blocks.append(
-                conv_nd(dim, chn, 1, kernel_size=1, stride=1)
+            in_ch = out_ch
+
+            self.encoder.append(
+                DownBlock(in_ch, dim=dim, pool_type=pool_type, scale_factor=2)
             )
 
             cur_res //= 2
 
+        for i in range(num_blocks):
+            self.logits.append(
+                LogitBlock(
+                    in_channels=in_ch,
+                    out_channels=in_ch,
+                    in_res=cur_res,
+                    window_size=window_size,
+                    num_groups=num_groups,
+                    num_heads=in_ch // num_head_channels if use_num_head_channels else num_heads,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                    drop_path=drop_path,
+                    qkv_bias=qkv_bias,
+                    bias=bias,
+                    act=act,
+                    use_conv=use_conv,
+                    dim=dim,
+                    use_checkpoint=use_checkpoint,
+                    attn_mode=attn_mode,
+                )
+            )
+
+        self.out = nn.Linear(int(in_ch * cur_res ** 2), 1)
+
         if ckpt_path is not None:
-            self.init_from_ckpt(path=ckpt_path)
+            self.init_from_ckpt(path=ckpt_path, ignore_keys=ignore_keys)
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -86,23 +263,24 @@ class EIPS(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
-        out_imgs, out_edges = self.net(img), self.net(edge)
-        feat_imgs, feat_edges, similarity = {}, {}, {}
+        context = img
+        x = edge
 
-        for kk in range(len(self.chns)):
-            feat_imgs[kk], feat_edges[kk] = normalize_tensor(out_imgs[kk]), normalize_tensor(out_edges[kk])
-            similarity[kk] = self.similarity_blocks[kk](feat_edges[kk], feat_imgs[kk])[0]
+        for i, module in enumerate(self.encoder):
+            context = module(context)
+            x = module(x)
 
-        res = [self.logit_blocks[kk](similarity[kk]) for kk in range(len(self.chns))]
-        val = res[0].mean(dim=[2, 3])
-        for l in range(1, len(self.chns)):
-            val += res[l].mean(dim=[2, 3])
-        return val
+        for i, module in enumerate(self.logits):
+            x = module(x, context)
+        x = torch.flatten(x, start_dim=1)
+        x = self.out(x)
+
+        return x
 
     def training_step(self, batch, batch_idx):
         img, edge, label = batch
         similarity = self(img, edge)
-        loss = F.binary_cross_entropy(similarity, label)
+        loss = F.binary_cross_entropy_with_logits(similarity, label)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
 
@@ -111,7 +289,7 @@ class EIPS(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         img, edge, label = batch
         similarity = self(img, edge)
-        loss = F.binary_cross_entropy(similarity, label)
+        loss = F.binary_cross_entropy_with_logits(similarity, label)
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
 
@@ -123,59 +301,11 @@ class EIPS(pl.LightningModule):
         tb.add_image(f'{prefix}/edge', torch.clamp(edge[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
-        opt = torch.optim.AdamW(list(self.logit_blocks.parameters()) +
-                                list(self.similarity_blocks.parameters()),
+        opt = torch.optim.AdamW(list(self.logits.parameters()) +
+                                list(self.out.parameters()) +
+                                list(self.encoder.parameters()),
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
                                 )
 
         return [opt]
-
-
-class vgg16(torch.nn.Module):
-    def __init__(self, requires_grad=False, pretrained=True):
-        super(vgg16, self).__init__()
-        vgg_pretrained_features = models.vgg16(pretrained=pretrained).features
-        self.slice1 = torch.nn.Sequential()
-        self.slice2 = torch.nn.Sequential()
-        self.slice3 = torch.nn.Sequential()
-        self.slice4 = torch.nn.Sequential()
-        self.slice5 = torch.nn.Sequential()
-        self.N_slices = 5
-        for x in range(4):
-            self.slice1.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(4, 9):
-            self.slice2.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(9, 16):
-            self.slice3.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(16, 23):
-            self.slice4.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(23, 30):
-            self.slice5.add_module(str(x), vgg_pretrained_features[x])
-        if not requires_grad:
-            for param in self.parameters():
-                param.requires_grad = False
-
-    def forward(self, X):
-        h = self.slice1(X)
-        h_relu1_2 = h
-        h = self.slice2(h)
-        h_relu2_2 = h
-        h = self.slice3(h)
-        h_relu3_3 = h
-        h = self.slice4(h)
-        h_relu4_3 = h
-        h = self.slice5(h)
-        h_relu5_3 = h
-        vgg_outputs = namedtuple("VggOutputs", ['relu1_2', 'relu2_2', 'relu3_3', 'relu4_3', 'relu5_3'])
-        out = vgg_outputs(h_relu1_2, h_relu2_2, h_relu3_3, h_relu4_3, h_relu5_3)
-        return out
-
-
-def normalize_tensor(x,eps=1e-10):
-    norm_factor = torch.sqrt(torch.sum(x**2,dim=1,keepdim=True))
-    return x/(norm_factor+eps)
-
-
-def spatial_average(x, keepdim=True):
-    return x.mean([2,3],keepdim=keepdim)

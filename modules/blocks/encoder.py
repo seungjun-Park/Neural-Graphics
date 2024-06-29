@@ -161,21 +161,3 @@ class SwinEncoder(nn.Module):
                 h = module(h)
 
         return h
-
-    def feature_extract(self, x: torch.Tensor, is_deep_supervision: bool = False) -> Union[torch.Tensor, List[torch.Tensor]]:
-        hs = []
-        attn_maps = []
-        h = self.embed(x)
-
-        for i, module in enumerate(self.encoder):
-            if isinstance(module, AttentionSequential):
-                h, attn_map = module(h)
-                hs.append(h)
-                attn_maps.append(attn_map)
-            else:
-                h = module(h)
-
-        if is_deep_supervision:
-            return hs, attn_maps
-
-        return h, attn_map
