@@ -4,7 +4,7 @@ module:
     in_channels: 3
     in_res: 512
     patch_size: 4
-    window_size: 7
+    window_size: 8
     embed_dim: 16
     hidden_dims: [32, 64, 128, 256, 512]
     num_blocks: 4
