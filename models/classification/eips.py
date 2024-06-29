@@ -193,7 +193,7 @@ class EIPS(pl.LightningModule):
         )
 
         in_ch = embed_dim
-        cur_res = in_res
+        cur_res = in_res // patch_size
         for i, out_ch in enumerate(hidden_dims):
             self.encoder.append(
                 EncoderBlock(
