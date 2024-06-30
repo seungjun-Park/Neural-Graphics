@@ -39,7 +39,7 @@ module:
         cats_weight: [1.5, 0.05, 2.0]
         l1_weight: 1.0
         lpips_weight: 1.0
-        eips_weight: 1.0
+        eips_weight: 0.8
         eips_config:
           in_channels: 3
           in_res: 512

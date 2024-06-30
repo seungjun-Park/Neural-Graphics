@@ -275,12 +275,12 @@ class EIPS(pl.LightningModule):
         x = torch.flatten(x, start_dim=1)
         x = self.out(x)
 
-        return x
+        return F.sigmoid(x)
 
     def training_step(self, batch, batch_idx):
         img, edge, label = batch
         similarity = self(img, edge)
-        loss = F.binary_cross_entropy_with_logits(similarity, label)
+        loss = F.binary_cross_entropy(similarity, label)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
 
@@ -289,7 +289,7 @@ class EIPS(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         img, edge, label = batch
         similarity = self(img, edge)
-        loss = F.binary_cross_entropy_with_logits(similarity, label)
+        loss = F.binary_cross_entropy(similarity, label)
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
 
