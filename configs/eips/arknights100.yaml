@@ -1,89 +1,30 @@
 module:
   target: models.classification.EIPS
   params:
-    num_heads: 8
+    in_channels: 3
+    in_res: 512
+    patch_size: 4
     window_size: 8
+    embed_dim: 32
+    mlp_ratio: 4.0
+    hidden_dims: [64, 128, 256, 512, 512]
+    num_blocks: 4
+    num_heads: -1
+    num_head_channels: 32
+    dropout: 0.0
+    attn_dropout: 0.0
+    drop_path: 0.1
+    qkv_bias: True
     bias: True
-    dropout: 0.
-    attn_dropout: 0.
-    drop_path: 0.0
-    act: 'gelu'
     num_groups: 32
+    act: 'gelu'
     use_conv: True
-    attn_mode: 'cosine'
     dim: 2
+    use_checkpoint: True
+    attn_mode: 'cosine'
     lr: 2e-5
-    weight_decay: 0.
+    weight_decay: 1e-4
     log_interval: 100
-    ckpt_path: './checkpoints/eips/arknights100_best.ckpt'
-
-    encoder_img_config:
-      target: models.reconstruction.ReconNet
-      params:
-        lr: 2e-5
-        weight_decay: 0.0
-        lr_decay_epoch: 100
-        use_fp16: False
-        log_interval: 100
-        ckpt_path: './checkpoints/recon/imagenet.ckpt'
-        net_config:
-          target: modules.blocks.UNet
-          params:
-            in_channels: 3
-            in_res: 512
-            window_size: 8
-            out_channels: 3
-            embed_dim: 32
-            hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
-            num_blocks: 1
-            num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
-            dropout: 0.0
-            attn_dropout: 0.0
-            drop_path: 0.0
-            qkv_bias: True
-            bias: True
-            num_groups: 32
-            act: 'gelu'
-            use_conv: True
-            mode: 'nearest'
-            dim: 2
-            use_checkpoint: True
-            attn_mode: 'cosine'
-            use_residual_attention: True
-
-    encoder_edge_config:
-      target: models.reconstruction.ReconNet
-      params:
-        lr: 2e-5
-        weight_decay: 0.0
-        lr_decay_epoch: 100
-        use_fp16: False
-        log_interval: 100
-        ckpt_path: './checkpoints/recon/edge.ckpt'
-        net_config:
-          target: modules.blocks.UNet
-          params:
-            in_channels: 3
-            in_res: 512
-            window_size: 8
-            out_channels: 3
-            embed_dim: 32
-            hidden_dims: [ 64, 64, 128, 128, 256, 256, 512 ]
-            num_blocks: 1
-            num_heads: [ 2, 2, 4, 4, 8, 8, 16 ]
-            dropout: 0.0
-            attn_dropout: 0.0
-            drop_path: 0.0
-            qkv_bias: True
-            bias: True
-            num_groups: 32
-            act: 'gelu'
-            use_conv: True
-            mode: 'nearest'
-            dim: 2
-            use_checkpoint: True
-            attn_mode: 'cosine'
-            use_residual_attention: True
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -141,5 +82,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 600
-  accumulate_grad_batches: 5
+  max_epochs: 500
+  accumulate_grad_batches: 25

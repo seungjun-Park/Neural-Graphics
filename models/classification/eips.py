@@ -166,7 +166,6 @@ class EIPS(pl.LightningModule):
                  num_groups: int = 32,
                  act: str = 'relu',
                  use_conv: bool = True,
-                 pool_type: str = 'conv',
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
