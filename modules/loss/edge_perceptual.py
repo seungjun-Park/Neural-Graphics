@@ -41,7 +41,7 @@ class EdgePerceptualLoss(nn.Module):
 
         p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
 
-        eips_loss = self.eips(img=imgs, edge=preds).mean()
+        eips_loss = self.eips(img=imgs, edge=preds.repeat(1, 3, 1, 1).contiguous()).mean()
 
         loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight + self.eips_weight + eips_loss + cats
 
