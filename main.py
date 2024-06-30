@@ -198,7 +198,7 @@ def eips_test():
 
 
 if __name__ == '__main__':
-    # main()
+    main()
     # test()
     # classification_test()
-    eips_test()
+    # eips_test()
