@@ -82,7 +82,8 @@ class UNet(nn.Module):
                  embed_dim: int = 16,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
-                 num_heads: Union[int, List[int], Tuple[int]] = 8,
+                 num_heads: int = -1,
+                 num_head_channels: int = -1,
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
                  drop_path: float = 0.0,
@@ -103,6 +104,13 @@ class UNet(nn.Module):
         self.in_res = in_res
         self.out_channels = out_channels
         self.hidden_dims = hidden_dims
+
+        assert num_head_channels != -1 or num_heads != -1
+
+        if num_head_channels != -1:
+            use_num_head_channels = True
+        else:
+            use_num_head_channels = False
 
         self.embed = nn.Sequential(
             conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
@@ -125,7 +133,7 @@ class UNet(nn.Module):
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
-                        num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
+                        num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
@@ -159,7 +167,7 @@ class UNet(nn.Module):
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
-                        num_heads=num_heads[i] if isinstance(num_heads, ListConfig) else num_heads,
+                        num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
