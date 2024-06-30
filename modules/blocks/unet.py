@@ -192,7 +192,7 @@ class UNet(nn.Module):
         in_ch = in_ch + skip_dims.pop()
 
         self.out = nn.Sequential(
-            group_norm(in_ch),
+            group_norm(in_ch, num_groups=num_groups),
             get_act(act),
             conv_nd(
                 dim,
