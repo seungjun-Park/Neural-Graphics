@@ -16,7 +16,7 @@ module:
     drop_path: 0.1
     qkv_bias: True
     bias: True
-    num_groups: 32
+    num_groups: 16
     act: 'gelu'
     use_conv: True
     dim: 2
