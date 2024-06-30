@@ -333,7 +333,7 @@ class EIPS(pl.LightningModule):
         tb.add_image(f'{prefix}/edge', torch.clamp(edge[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
-        opt = torch.optim.AdamW(list(self.logits.parameters()) +
+        opt = torch.optim.AdamW(list(self.decoder.parameters()) +
                                 list(self.out.parameters()) +
                                 list(self.encoder.parameters()),
                                 lr=self.lr,
