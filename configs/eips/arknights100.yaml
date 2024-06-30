@@ -5,9 +5,9 @@ module:
     in_res: 512
     patch_size: 4
     window_size: 8
-    embed_dim: 32
+    embed_dim: 16
     mlp_ratio: 4.0
-    hidden_dims: [64, 128, 256, 512, 512]
+    hidden_dims: [32, 64, 128, 256, 512]
     num_blocks: 4
     num_heads: -1
     num_head_channels: 32
