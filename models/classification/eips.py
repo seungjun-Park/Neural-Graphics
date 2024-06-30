@@ -138,12 +138,12 @@ class DecoderBlock(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
-        h = self.residual_block(x)
-        z, attn_map = self.attn(h)
+        h, attn_map = self.attn(x)
+        h = x + self.drop_path(h)
+        z, attn_map = self.cross_attn(h, context)
         z = h + self.drop_path(z)
-        r, attn_map = self.cross_attn(z, context)
-        r = z + self.drop_path(r)
-        return r
+        z = z + self.drop_path(self.mlp(z))
+        return z
 
 
 class EIPS(pl.LightningModule):
