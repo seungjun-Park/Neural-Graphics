@@ -18,6 +18,7 @@ class EdgePerceptualLoss(nn.Module):
                  l1_weight: float = 1.0,
                  lpips_weight: float = 1.0,
                  eips_weight: float = 1.0,
+                 eips_start_step: int = 0,
                  ):
 
         super().__init__()
@@ -25,6 +26,7 @@ class EdgePerceptualLoss(nn.Module):
         self.l1_weight = l1_weight
         self.lpips_weight = lpips_weight
         self.eips_weight = eips_weight
+        self.eips_start_step = eips_start_step
 
         self.lpips = LPIPS().eval()
         self.eips = EIPS(**eips_config).eval()
@@ -42,8 +44,9 @@ class EdgePerceptualLoss(nn.Module):
         p_loss = self.lpips(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
 
         eips_loss = self.eips(img=imgs, edge=preds.repeat(1, 3, 1, 1).contiguous()).mean()
+        eips_weight = adopt_weight(self.eips_weight, global_step, self.eips_start_step)
 
-        loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight + self.eips_weight + eips_loss + cats
+        loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight + eips_weight + eips_loss + cats
 
         log = {"{}/loss".format(split): loss.clone().detach(),
                "{}/l1_loss".format(split): l1_loss.detach().mean(),

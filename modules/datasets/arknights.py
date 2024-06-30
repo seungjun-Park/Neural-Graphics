@@ -247,15 +247,7 @@ class ArknightsImageEdgeSimilarity(Dataset):
                     break
                 idx = random.randrange(0, len(self))
 
-            p = np.random.choice([0, 1, 2])
-
-            if p == 0:
-                edge_name = self.edge_names[idx]
-            elif p == 1:
-                edge_name = self.img_names[index]
-            else:
-                edge_name = self.img_names[idx]
-
+            edge_name = self.edge_names[idx]
             edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
             edge = cv2.cvtColor(edge, self.color_space)
             edge = self.to_tensor(edge)
