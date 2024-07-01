@@ -134,11 +134,11 @@ class EIPS(pl.LightningModule):
         in_ch = embed_dim
         cur_res = in_res
 
+        cat_dim = 0
+
         for i, out_ch in enumerate(hidden_dims):
-            encoder = []
-            similarity_blocks = []
             for j in range(num_blocks):
-                encoder.append(
+                self.encoder.append(
                     EncoderBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
@@ -159,59 +159,36 @@ class EIPS(pl.LightningModule):
                     )
                 )
 
-                if i == 0:
-                    similarity_blocks.append(
-                        EncoderBlock(
-                            in_channels=in_ch,
-                            out_channels=out_ch,
-                            in_res=cur_res,
-                            window_size=window_size,
-                            num_groups=num_groups,
-                            num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
-                            dropout=dropout,
-                            attn_dropout=attn_dropout,
-                            drop_path=drop_path,
-                            qkv_bias=qkv_bias,
-                            bias=bias,
-                            act=act,
-                            use_conv=use_conv,
-                            dim=dim,
-                            use_checkpoint=use_checkpoint,
-                            attn_mode=attn_mode,
-                        )
-                    )
-                else:
-                    similarity_blocks.append(
-                        EncoderBlock(
-                            in_channels=in_ch * 2,
-                            out_channels=out_ch,
-                            in_res=cur_res,
-                            window_size=window_size,
-                            num_groups=num_groups,
-                            num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
-                            dropout=dropout,
-                            attn_dropout=attn_dropout,
-                            drop_path=drop_path,
-                            qkv_bias=qkv_bias,
-                            bias=bias,
-                            act=act,
-                            use_conv=use_conv,
-                            dim=dim,
-                            use_checkpoint=use_checkpoint,
-                            attn_mode=attn_mode,
-                        )
-                    )
-
                 in_ch = out_ch
 
-            self.encoder.append(nn.Sequential(*encoder))
-            self.similarity_net.append(nn.Sequential(*similarity_blocks))
+                self.similarity_net.append(
+                    EncoderBlock(
+                        in_channels=in_ch + cat_dim,
+                        out_channels=in_ch,
+                        in_res=cur_res,
+                        window_size=window_size,
+                        num_groups=num_groups,
+                        num_heads=in_ch // num_head_channels if use_num_head_channels else num_heads,
+                        dropout=dropout,
+                        attn_dropout=attn_dropout,
+                        drop_path=drop_path,
+                        qkv_bias=qkv_bias,
+                        bias=bias,
+                        act=act,
+                        use_conv=use_conv,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
+                        attn_mode=attn_mode,
+                    )
+                )
+
+                cat_dim = in_ch
 
             self.cross_attn_blocks.append(
                 DoubleWindowCrossAttentionBlock(
                     in_channels=in_ch,
                     in_res=to_2tuple(cur_res),
-                    num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
+                    num_heads=in_ch // num_head_channels if use_num_head_channels else num_heads,
                     window_size=window_size,
                     qkv_bias=qkv_bias,
                     proj_bias=bias,
@@ -260,7 +237,7 @@ class EIPS(pl.LightningModule):
                 feat_edges.append(edge)
 
         cross_attns = []
-        for i, module in enumerate(self.cross_attn_blocks):
+        for i, module in enumerate(self.cross_attn_blocks[::-1]):
             cross_attns.append(module(feat_edges.pop(), feat_imgs.pop())[0])
 
         x = cross_attns.pop()
@@ -297,7 +274,7 @@ class EIPS(pl.LightningModule):
 
         cross_attn_pos = []
         cross_attn_neg = []
-        for i, module in enumerate(self.cross_attn_blocks):
+        for i, module in enumerate(self.cross_attn_blocks[::-1]):
             feat_img = feat_imgs.pop()
             cross_attn_pos.append(module(feat_pos.pop(), feat_img)[0])
             cross_attn_neg.append(module(feat_neg.pop(), feat_img)[0])
@@ -345,7 +322,7 @@ class EIPS(pl.LightningModule):
 
         cross_attn_pos = []
         cross_attn_neg = []
-        for i, module in enumerate(self.cross_attn_blocks):
+        for i, module in enumerate(self.cross_attn_blocks[::-1]):
             feat_img = feat_imgs.pop()
             cross_attn_pos.append(module(feat_pos.pop(), feat_img)[0])
             cross_attn_neg.append(module(feat_neg.pop(), feat_img)[0])
