@@ -134,8 +134,6 @@ class ArknightsTripletDataset(Dataset):
         self.ratio = list(to_2tuple(ratio))
 
         self.resize = transforms.Resize(self.size)
-        self.normalize_img = transforms.Normalize((0.5965, 0.5498, 0.5482), (0.2738, 0.2722, 0.2641))
-        self.normalize_edge = transforms.Normalize(0.9085, 0.2184)
 
         if train:
             root = os.path.join(root, 'train')

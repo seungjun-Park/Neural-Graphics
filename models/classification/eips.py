@@ -22,64 +22,6 @@ class EncoderBlock(nn.Module):
                  in_channels: int,
                  in_res: Union[int, List[int], Tuple[int]],
                  out_channels: int = None,
-                 mlp_ratio: float = 4.0,
-                 window_size: Union[int, List[int], Tuple[int]] = 7,
-                 num_groups: int = 16,
-                 num_heads: int = -1,
-                 dropout: float = 0.0,
-                 attn_dropout: float = 0.0,
-                 drop_path: float = 0.0,
-                 qkv_bias: bool = True,
-                 bias: bool = True,
-                 act: str = 'relu',
-                 dim: int = 2,
-                 use_checkpoint: bool = True,
-                 attn_mode: str = 'cosine',
-                 ):
-        super().__init__()
-
-        out_channels = in_channels if out_channels is None else out_channels
-
-        self.attn = DoubleWindowSelfAttentionBlock(
-            in_channels=in_channels,
-            in_res=to_2tuple(in_res),
-            num_heads=num_heads,
-            window_size=window_size,
-            qkv_bias=qkv_bias,
-            proj_bias=bias,
-            dropout=attn_dropout,
-            use_checkpoint=use_checkpoint,
-            attn_mode=attn_mode,
-            dim=dim
-        )
-
-        self.mlp = ConvMLP(
-            in_channels=in_channels,
-            embed_dim=int(in_channels * mlp_ratio),
-            out_channels=out_channels,
-            dropout=dropout,
-            act=act,
-            num_groups=num_groups,
-            dim=dim,
-            use_checkpoint=use_checkpoint
-        )
-
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h, attn_map = self.attn(x)
-        h = x + self.drop_path(h)
-        z = h + self.drop_path(self.mlp(h))
-
-        return z
-
-
-class DecoderBlock(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 in_res: Union[int, List[int], Tuple[int]],
-                 mlp_ratio: float = 4.0,
-                 out_channels: int = None,
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  num_groups: int = 16,
                  num_heads: int = -1,
@@ -98,51 +40,37 @@ class DecoderBlock(nn.Module):
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.attn = DoubleWindowSelfAttentionBlock(
+        self.residual_block = ResidualBlock(
             in_channels=in_channels,
-            in_res=to_2tuple(in_res),
-            num_heads=num_heads,
-            window_size=window_size,
-            qkv_bias=qkv_bias,
-            proj_bias=bias,
-            dropout=attn_dropout,
-            use_checkpoint=use_checkpoint,
-            attn_mode=attn_mode,
-            dim=dim
-        )
-
-        self.cross_attn = DoubleWindowCrossAttentionBlock(
-            in_channels=in_channels,
-            in_res=to_2tuple(in_res),
-            num_heads=num_heads,
-            window_size=window_size,
-            qkv_bias=qkv_bias,
-            proj_bias=bias,
-            dropout=attn_dropout,
-            use_checkpoint=use_checkpoint,
-            attn_mode=attn_mode,
-            dim=dim
-        )
-
-        self.mlp = ConvMLP(
-            in_channels=in_channels,
-            embed_dim=int(in_channels * mlp_ratio),
             out_channels=out_channels,
             dropout=dropout,
+            drop_path=drop_path,
             act=act,
-            num_groups=num_groups,
             dim=dim,
-            use_checkpoint=use_checkpoint
+            num_groups=num_groups,
+            use_conv=use_conv,
+            use_checkpoint=use_checkpoint,
+        )
+
+        self.attn = DoubleWindowSelfAttentionBlock(
+            in_channels=out_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
         )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-    def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
-        h, attn_map = self.attn(x)
-        h = x + self.drop_path(h)
-        z, attn_map = self.cross_attn(h, context)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self.residual_block(x)
+        z, attn_map = self.attn(h)
         z = h + self.drop_path(z)
-        z = z + self.drop_path(self.mlp(z))
         return z
 
 
@@ -165,6 +93,7 @@ class EIPS(pl.LightningModule):
                  bias: bool = True,
                  num_groups: int = 32,
                  act: str = 'relu',
+                 pool_type: str = 'conv',
                  use_conv: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
@@ -174,12 +103,14 @@ class EIPS(pl.LightningModule):
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  ignore_keys: Union[List[str], Tuple[str]] = (),
+                 margin: float = 0.0,
                  ):
         super().__init__()
 
         self.lr = lr
         self.weight_decay = weight_decay
         self.log_interval = log_interval
+        self.margin = margin
 
         assert num_head_channels != -1 or num_heads != -1
 
@@ -188,30 +119,29 @@ class EIPS(pl.LightningModule):
         else:
             use_num_head_channels = False
 
-        self.decoder = nn.ModuleList()
         self.encoder = nn.ModuleList()
+        self.similarity_net = nn.ModuleList()
+        self.cross_attn_blocks = nn.ModuleList()
+
         self.encoder.append(
             nn.Sequential(
-                conv_nd(dim, in_channels, embed_dim, kernel_size=patch_size, stride=patch_size),
+                conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
                 group_norm(embed_dim, num_groups=num_groups),
-            )
-        )
-
-        self.decoder.append(
-            nn.Sequential(
-                conv_nd(dim, in_channels, embed_dim, kernel_size=patch_size, stride=patch_size),
-                group_norm(embed_dim, num_groups=num_groups),
+                get_act(act),
             )
         )
 
         in_ch = embed_dim
-        cur_res = in_res // patch_size
+        cur_res = in_res
+
         for i, out_ch in enumerate(hidden_dims):
+            encoder = []
+            similarity_blocks = []
             for j in range(num_blocks):
-                self.encoder.append(
+                encoder.append(
                     EncoderBlock(
                         in_channels=in_ch,
-                        mlp_ratio=mlp_ratio,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -222,57 +152,95 @@ class EIPS(pl.LightningModule):
                         qkv_bias=qkv_bias,
                         bias=bias,
                         act=act,
+                        use_conv=use_conv,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
                     )
                 )
 
-                self.decoder.append(
-                    DecoderBlock(
-                        in_channels=in_ch,
-                        mlp_ratio=mlp_ratio,
-                        in_res=cur_res,
-                        window_size=window_size,
-                        num_groups=num_groups,
-                        num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
-                        dropout=dropout,
-                        attn_dropout=attn_dropout,
-                        drop_path=drop_path,
-                        qkv_bias=qkv_bias,
-                        bias=bias,
-                        act=act,
-                        dim=dim,
-                        use_checkpoint=use_checkpoint,
-                        attn_mode=attn_mode,
+                if i == 0:
+                    similarity_blocks.append(
+                        EncoderBlock(
+                            in_channels=in_ch,
+                            out_channels=out_ch,
+                            in_res=cur_res,
+                            window_size=window_size,
+                            num_groups=num_groups,
+                            num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
+                            dropout=dropout,
+                            attn_dropout=attn_dropout,
+                            drop_path=drop_path,
+                            qkv_bias=qkv_bias,
+                            bias=bias,
+                            act=act,
+                            use_conv=use_conv,
+                            dim=dim,
+                            use_checkpoint=use_checkpoint,
+                            attn_mode=attn_mode,
+                        )
                     )
+                else:
+                    similarity_blocks.append(
+                        EncoderBlock(
+                            in_channels=in_ch * 2,
+                            out_channels=out_ch,
+                            in_res=cur_res,
+                            window_size=window_size,
+                            num_groups=num_groups,
+                            num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
+                            dropout=dropout,
+                            attn_dropout=attn_dropout,
+                            drop_path=drop_path,
+                            qkv_bias=qkv_bias,
+                            bias=bias,
+                            act=act,
+                            use_conv=use_conv,
+                            dim=dim,
+                            use_checkpoint=use_checkpoint,
+                            attn_mode=attn_mode,
+                        )
+                    )
+
+                in_ch = out_ch
+
+            self.encoder.append(nn.Sequential(*encoder))
+            self.similarity_net.append(nn.Sequential(*similarity_blocks))
+
+            self.cross_attn_blocks.append(
+                DoubleWindowCrossAttentionBlock(
+                    in_channels=in_ch,
+                    in_res=to_2tuple(cur_res),
+                    num_heads=num_heads,
+                    window_size=window_size,
+                    qkv_bias=qkv_bias,
+                    proj_bias=bias,
+                    dropout=attn_dropout,
+                    use_checkpoint=use_checkpoint,
+                    attn_mode=attn_mode,
+                    dim=dim
                 )
+            )
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
-                    PatchMerging(
-                        in_channels=in_ch,
-                        out_channels=out_ch,
-                        scale_factor=2,
-                        num_groups=num_groups,
-                        use_conv=use_conv,
-                        dim=dim
-                    )
+                    DownBlock(in_ch, scale_factor=2.0, dim=dim, num_groups=num_groups, pool_type=pool_type)
                 )
-                self.decoder.append(
-                    PatchMerging(
-                        in_channels=in_ch,
-                        out_channels=out_ch,
-                        scale_factor=2,
-                        num_groups=num_groups,
-                        use_conv=use_conv,
-                        dim=dim
-                    )
+                self.similarity_net.append(
+                    DownBlock(in_ch, scale_factor=2.0, dim=dim, num_groups=num_groups, pool_type=pool_type)
                 )
-                in_ch = out_ch
                 cur_res //= 2
 
-        self.out = nn.Linear(int(in_ch * cur_res ** 2), 1)
+        in_ch = int(in_ch * cur_res ** 2)
+
+        self.out = MLP(
+            in_channels=in_ch,
+            embed_dim=int(in_ch * mlp_ratio),
+            out_channels=1,
+            dropout=dropout,
+            act=act,
+            use_checkpoint=use_checkpoint
+        )
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path, ignore_keys=ignore_keys)
@@ -289,17 +257,27 @@ class EIPS(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, img: torch.Tensor, edge: torch.Tensor) -> torch.Tensor:
-        context = img
-        x = edge
-        contexts = []
+        feat_imgs = []
+        feat_edges = []
         for i, module in enumerate(self.encoder):
-            context = module(context)
-            if isinstance(module, EncoderBlock):
-                contexts.append(context)
+            img = module(img)
+            edge = module(edge)
+            if not isinstance(module, DownBlock):
+                feat_imgs.append(img)
+                feat_edges.append(edge)
 
-        for i, module in enumerate(self.decoder):
-            if isinstance(module, DecoderBlock):
-                x = module(x, contexts.pop(0))
+        cross_attns = []
+        for i, module in enumerate(self.cross_attn_blocks):
+            cross_attns.append(module(feat_edges.pop(), feat_imgs.pop())[0])
+
+        x = cross_attns.pop()
+
+        for i, module in enumerate(self.similarity_net):
+            if i != 0:
+                if isinstance(module, DownBlock):
+                    x = module(x)
+                else:
+                    x = module(torch.cat([x, cross_attns.pop()], dim=1))
             else:
                 x = module(x)
 
@@ -309,32 +287,30 @@ class EIPS(pl.LightningModule):
         return F.sigmoid(x)
 
     def training_step(self, batch, batch_idx):
-        img, edge, label = batch
-        similarity = self(img, edge)
-        loss = F.binary_cross_entropy(similarity, label)
+        img, pos, neg = batch
+        similarity_pos = self(img, pos)
+        similarity_neg = self(img, neg)
+
+        loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        img, edge, label = batch
-        similarity = self(img, edge)
-        loss = F.binary_cross_entropy(similarity, label)
+        img, pos, neg = batch
+        similarity_pos = self(img, pos)
+        similarity_neg = self(img, neg)
+
+        loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0)
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
 
-    @torch.no_grad()
-    def log_img(self, img, edge):
-        prefix = 'train' if self.training else 'val'
-        tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', torch.clamp(img[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/edge', torch.clamp(edge[0], min=0.0, max=1.0), self.global_step, dataformats='CHW')
-
     def configure_optimizers(self) -> Any:
-        opt = torch.optim.AdamW(list(self.decoder.parameters()) +
-                                list(self.out.parameters()) +
-                                list(self.encoder.parameters()),
+        opt = torch.optim.AdamW(list(self.encoder.parameters()) +
+                                list(self.similarity_net.parameters()) +
+                                list(self.cross_attn_blocks.parameters()) +
+                                list(self.out.parameters()),
                                 lr=self.lr,
                                 weight_decay=self.weight_decay,
                                 )

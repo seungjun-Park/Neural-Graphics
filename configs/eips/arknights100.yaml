@@ -3,28 +3,29 @@ module:
   params:
     in_channels: 3
     in_res: 512
-    patch_size: 4
-    window_size: 8
-    embed_dim: 32
     mlp_ratio: 4.0
-    hidden_dims: [64, 128, 256, 512, 512]
-    num_blocks: 2
+    window_size: 8
+    embed_dim: 16
+    hidden_dims: [32, 64, 128, 256]
+    num_blocks: 1
     num_heads: -1
-    num_head_channels: 32
+    num_head_channels: 16
     dropout: 0.0
     attn_dropout: 0.0
     drop_path: 0.1
     qkv_bias: True
     bias: True
-    num_groups: 32
+    num_groups: 16
     act: 'gelu'
+    pool_type: 'conv'
     use_conv: True
     dim: 2
     use_checkpoint: True
     attn_mode: 'cosine'
     lr: 2e-5
-    weight_decay: 0.0
-    log_interval: 100
+    weight_decay: 1e-4
+    log_interval: 2
+    margin: 0.0
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -33,7 +34,7 @@ data:
     batch_size: 2
     wrap: True
     train:
-      target: modules.datasets.arknights.ArknightsImageEdgeSimilarity
+      target: modules.datasets.arknights.ArknightsTripletDataset
       params:
         root: '/local_datasets/arknights100'
         train: True
@@ -43,7 +44,7 @@ data:
         color_space: 'rgb'
 
     validation:
-      target: modules.datasets.arknights.ArknightsImageEdgeSimilarity
+      target: modules.datasets.arknights.ArknightsTripletDataset
       params:
         root: '/local_datasets/arknights100'
         train: False
@@ -65,8 +66,8 @@ checkpoints:
   latest_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/eips/'
-      filename: 'arknights100'
+      dirpath: './checkpoints/eips/arknights100'
+      filename: 'eips'
       monitor: 'step'
       mode: 'max'
       save_top_k: 1
@@ -74,8 +75,8 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/eips/'
-      filename: 'arknights100_best'
+      dirpath: './checkpoints/eips/arknights100'
+      filename: 'eips_best'
       monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
