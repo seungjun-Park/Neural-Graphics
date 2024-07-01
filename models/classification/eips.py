@@ -231,16 +231,9 @@ class EIPS(pl.LightningModule):
                 )
                 cur_res //= 2
 
-        in_ch = int(in_ch * cur_res ** 2)
+        in_ch = int(in_ch * (cur_res ** 2))
 
-        self.out = MLP(
-            in_channels=in_ch,
-            embed_dim=int(in_ch * mlp_ratio),
-            out_channels=1,
-            dropout=dropout,
-            act=act,
-            use_checkpoint=use_checkpoint
-        )
+        self.out = nn.Linear(in_ch, 1)
 
         if ckpt_path is not None:
             self.init_from_ckpt(path=ckpt_path, ignore_keys=ignore_keys)
@@ -288,8 +281,46 @@ class EIPS(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         img, pos, neg = batch
-        similarity_pos = self(img, pos)
-        similarity_neg = self(img, neg)
+
+        feat_imgs = []
+        feat_pos = []
+        feat_neg = []
+
+        for i, module in enumerate(self.encoder):
+            img = module(img)
+            pos = module(pos)
+            neg = module(neg)
+            if not isinstance(module, DownBlock):
+                feat_imgs.append(img)
+                feat_pos.append(pos)
+                feat_neg.append(neg)
+
+        cross_attn_pos = []
+        cross_attn_neg = []
+        for i, module in enumerate(self.cross_attn_blocks):
+            feat_img = feat_imgs.pop()
+            cross_attn_pos.append(module(feat_pos.pop(), feat_img)[0])
+            cross_attn_neg.append(module(feat_neg.pop(), feat_img)[0])
+
+        pos = cross_attn_pos.pop()
+        neg = cross_attn_neg.pop()
+
+        for i, module in enumerate(self.similarity_net):
+            if i != 0:
+                if isinstance(module, DownBlock):
+                    pos = module(pos)
+                    neg = module(neg)
+                else:
+                    pos = module(torch.cat([pos, cross_attn_pos.pop()], dim=1))
+                    neg = module(torch.cat([neg, cross_attn_neg.pop()], dim=1))
+            else:
+                pos = module(pos)
+                neg = module(neg)
+
+        pos = torch.flatten(pos, start_dim=1)
+        similarity_pos = F.sigmoid(self.out(pos))
+        neg = torch.flatten(neg, start_dim=1)
+        similarity_neg = F.sigmoid(self.out(neg))
 
         loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0)
 
@@ -299,8 +330,45 @@ class EIPS(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         img, pos, neg = batch
-        similarity_pos = self(img, pos)
-        similarity_neg = self(img, neg)
+        feat_imgs = []
+        feat_pos = []
+        feat_neg = []
+
+        for i, module in enumerate(self.encoder):
+            img = module(img)
+            pos = module(pos)
+            neg = module(neg)
+            if not isinstance(module, DownBlock):
+                feat_imgs.append(img)
+                feat_pos.append(pos)
+                feat_neg.append(neg)
+
+        cross_attn_pos = []
+        cross_attn_neg = []
+        for i, module in enumerate(self.cross_attn_blocks):
+            feat_img = feat_imgs.pop()
+            cross_attn_pos.append(module(feat_pos.pop(), feat_img)[0])
+            cross_attn_neg.append(module(feat_neg.pop(), feat_img)[0])
+
+        pos = cross_attn_pos.pop()
+        neg = cross_attn_neg.pop()
+
+        for i, module in enumerate(self.similarity_net):
+            if i != 0:
+                if isinstance(module, DownBlock):
+                    pos = module(pos)
+                    neg = module(neg)
+                else:
+                    pos = module(torch.cat([pos, cross_attn_pos.pop()], dim=1))
+                    neg = module(torch.cat([neg, cross_attn_neg.pop()], dim=1))
+            else:
+                pos = module(pos)
+                neg = module(neg)
+
+        pos = torch.flatten(pos, start_dim=1)
+        similarity_pos = F.sigmoid(self.out(pos))
+        neg = torch.flatten(neg, start_dim=1)
+        similarity_neg = F.sigmoid(self.out(neg))
 
         loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0)
 
