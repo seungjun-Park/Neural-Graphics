@@ -211,7 +211,7 @@ class EIPS(pl.LightningModule):
                 DoubleWindowCrossAttentionBlock(
                     in_channels=in_ch,
                     in_res=to_2tuple(cur_res),
-                    num_heads=num_heads,
+                    num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
                     window_size=window_size,
                     qkv_bias=qkv_bias,
                     proj_bias=bias,
