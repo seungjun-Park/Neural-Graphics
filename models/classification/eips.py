@@ -299,7 +299,7 @@ class EIPS(pl.LightningModule):
         neg = torch.flatten(neg, start_dim=1)
         similarity_neg = F.sigmoid(self.out(neg))
 
-        loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0)
+        loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0).mean()
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
 
@@ -347,7 +347,7 @@ class EIPS(pl.LightningModule):
         neg = torch.flatten(neg, start_dim=1)
         similarity_neg = F.sigmoid(self.out(neg))
 
-        loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0)
+        loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0).mean()
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
 
