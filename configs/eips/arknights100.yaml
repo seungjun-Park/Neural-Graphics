@@ -34,7 +34,7 @@ data:
     batch_size: 2
     wrap: True
     train:
-      target: modules.datasets.arknights.ArknightsTripletDataset
+      target: modules.datasets.arknights.ArknightsImageEdgeSimilarity
       params:
         root: '/local_datasets/arknights100'
         train: True
@@ -44,7 +44,7 @@ data:
         color_space: 'rgb'
 
     validation:
-      target: modules.datasets.arknights.ArknightsTripletDataset
+      target: modules.datasets.arknights.ArknightsImageEdgeSimilarity
       params:
         root: '/local_datasets/arknights100'
         train: False

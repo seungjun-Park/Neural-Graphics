@@ -257,97 +257,20 @@ class EIPS(pl.LightningModule):
         return F.sigmoid(x)
 
     def training_step(self, batch, batch_idx):
-        img, pos, neg = batch
+        img, edge, label = batch
 
-        feat_imgs = []
-        feat_pos = []
-        feat_neg = []
-
-        for i, module in enumerate(self.encoder):
-            img = module(img)
-            pos = module(pos)
-            neg = module(neg)
-            if not isinstance(module, DownBlock):
-                feat_imgs.append(img)
-                feat_pos.append(pos)
-                feat_neg.append(neg)
-
-        cross_attn_pos = []
-        cross_attn_neg = []
-        for i, module in enumerate(self.cross_attn_blocks[::-1]):
-            feat_img = feat_imgs.pop()
-            cross_attn_pos.append(module(feat_pos.pop(), feat_img)[0])
-            cross_attn_neg.append(module(feat_neg.pop(), feat_img)[0])
-
-        pos = cross_attn_pos.pop()
-        neg = cross_attn_neg.pop()
-
-        for i, module in enumerate(self.similarity_net):
-            if i != 0:
-                if isinstance(module, DownBlock):
-                    pos = module(pos)
-                    neg = module(neg)
-                else:
-                    pos = module(torch.cat([pos, cross_attn_pos.pop()], dim=1))
-                    neg = module(torch.cat([neg, cross_attn_neg.pop()], dim=1))
-            else:
-                pos = module(pos)
-                neg = module(neg)
-
-        pos = torch.flatten(pos, start_dim=1)
-        similarity_pos = F.sigmoid(self.out(pos))
-        neg = torch.flatten(neg, start_dim=1)
-        similarity_neg = F.sigmoid(self.out(neg))
-
-        loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0).mean()
+        similarity = self(img, edge)
+        loss = F.binary_cross_entropy(similarity, label)
 
         self.log('train/loss', loss, logger=True, rank_zero_only=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        img, pos, neg = batch
-        feat_imgs = []
-        feat_pos = []
-        feat_neg = []
+        img, edge, label = batch
 
-        for i, module in enumerate(self.encoder):
-            img = module(img)
-            pos = module(pos)
-            neg = module(neg)
-            if not isinstance(module, DownBlock):
-                feat_imgs.append(img)
-                feat_pos.append(pos)
-                feat_neg.append(neg)
-
-        cross_attn_pos = []
-        cross_attn_neg = []
-        for i, module in enumerate(self.cross_attn_blocks[::-1]):
-            feat_img = feat_imgs.pop()
-            cross_attn_pos.append(module(feat_pos.pop(), feat_img)[0])
-            cross_attn_neg.append(module(feat_neg.pop(), feat_img)[0])
-
-        pos = cross_attn_pos.pop()
-        neg = cross_attn_neg.pop()
-
-        for i, module in enumerate(self.similarity_net):
-            if i != 0:
-                if isinstance(module, DownBlock):
-                    pos = module(pos)
-                    neg = module(neg)
-                else:
-                    pos = module(torch.cat([pos, cross_attn_pos.pop()], dim=1))
-                    neg = module(torch.cat([neg, cross_attn_neg.pop()], dim=1))
-            else:
-                pos = module(pos)
-                neg = module(neg)
-
-        pos = torch.flatten(pos, start_dim=1)
-        similarity_pos = F.sigmoid(self.out(pos))
-        neg = torch.flatten(neg, start_dim=1)
-        similarity_neg = F.sigmoid(self.out(neg))
-
-        loss = torch.clamp_min(self.margin + similarity_pos - similarity_neg, 0).mean()
+        similarity = self(img, edge)
+        loss = F.binary_cross_entropy(similarity, label)
 
         self.log('val/loss', loss, logger=True, rank_zero_only=True)
 
