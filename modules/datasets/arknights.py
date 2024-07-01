@@ -166,9 +166,9 @@ class ArknightsTripletDataset(Dataset):
 
         i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
 
-        img = tf.resized_crop(img, i, j, h, w, size=self.size)
-        edge_pos = tf.resized_crop(edge_pos, i, j, h, w, size=self.size)
-        edge_neg = tf.resized_crop(edge_neg, i, j, h, w, size=self.size)
+        img = tf.resized_crop(img, i, j, h, w, size=self.size, antialias=True)
+        edge_pos = tf.resized_crop(edge_pos, i, j, h, w, size=self.size, antialias=True)
+        edge_neg = tf.resized_crop(edge_neg, i, j, h, w, size=self.size, antialias=True)
 
         edge_pos = edge_pos.repeat(3, 1, 1)
         edge_neg = edge_neg.repeat(3, 1, 1)
