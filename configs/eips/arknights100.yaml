@@ -23,7 +23,7 @@ module:
     use_checkpoint: True
     attn_mode: 'cosine'
     lr: 2e-5
-    weight_decay: 1e-4
+    weight_decay: 0.0
     log_interval: 2
     margin: 0.5
 
