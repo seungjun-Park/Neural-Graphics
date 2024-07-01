@@ -5,7 +5,7 @@ module:
     weight_decay: 0.0
     lr_decay_epoch: 100
     use_fp16: False
-    log_interval: 2
+    log_interval: 50
     # ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
     net_config:
       target: modules.blocks.UNet
@@ -36,11 +36,11 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        cats_weight: [1.5, 0.05, 2.0]
+        cats_weight: [1.1, 0.05, 2.0]
         l1_weight: 1.0
         lpips_weight: 1.0
         eips_weight: 0.5
-        eips_start_step: 100
+        eips_start_step: 1500
         eips_config:
           in_channels: 3
           in_res: 512
@@ -124,4 +124,4 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   max_epochs: 200
-  accumulate_grad_batches: 25
+  accumulate_grad_batches: 5
