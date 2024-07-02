@@ -37,7 +37,7 @@ class EdgePerceptualLoss(nn.Module):
                 global_step: int = 0) -> Tuple:
         split = 'train' if training else 'val'
 
-        cats = cats_loss(prediction=preds, label=labels, weights=self.cats_weight).mean()
+        # cats = cats_loss(prediction=preds, label=labels, weights=self.cats_weight).mean()
 
         l1_loss = F.l1_loss(preds, labels, reduction='mean')
 
@@ -46,13 +46,13 @@ class EdgePerceptualLoss(nn.Module):
         eips_loss = self.eips(img=imgs, edge=preds.repeat(1, 3, 1, 1).contiguous()).mean()
         eips_weight = adopt_weight(self.eips_weight, global_step, self.eips_start_step)
 
-        loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight + eips_weight * eips_loss + cats
+        loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight + eips_weight * eips_loss #+ cats
 
         log = {"{}/loss".format(split): loss.clone().detach(),
                "{}/l1_loss".format(split): l1_loss.detach().mean(),
                "{}/p_loss".format(split): p_loss.detach().mean(),
                "{}/eips_loss".format(split): eips_loss.detach().mean(),
-               "{}/cats_loss".format(split): cats.detach().mean(),
+               # "{}/cats_loss".format(split): cats.detach().mean(),
                }
 
         return loss, log

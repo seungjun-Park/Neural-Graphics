@@ -36,11 +36,11 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        cats_weight: [1.0, 0.05, 2.0]
+        cats_weight: [0.0, 0.05, 1.5]
         l1_weight: 1.0
         lpips_weight: 1.0
-        eips_weight: 0.5
-        eips_start_step: 100
+        eips_weight: 1.0
+        eips_start_step: 0
         eips_config:
           in_channels: 3
           in_res: 512

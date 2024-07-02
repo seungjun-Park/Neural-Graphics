@@ -35,7 +35,6 @@ class ResidualBlock(nn.Module):
 
         self.norm1 = group_norm(out_channels, num_groups=num_groups)
         self.norm2 = group_norm(out_channels, num_groups=num_groups)
-        self.norm3 = group_norm(out_channels, num_groups=num_groups)
         self.dropout = nn.Dropout(dropout)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -79,5 +78,5 @@ class ResidualBlock(nn.Module):
         h = self.act(h)
         h = self.dropout(h)
 
-        return self.act(self.norm3(self.drop_path(h) + self.shortcut(x)))
+        return self.drop_path(h) + self.shortcut(x)
 
