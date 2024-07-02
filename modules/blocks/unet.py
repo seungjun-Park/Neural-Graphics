@@ -152,7 +152,13 @@ class UNet(nn.Module):
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
-                    DownBlock(in_ch, dim=dim, pool_type=pool_type, scale_factor=2)
+                    DownBlock(
+                        in_ch,
+                        dim=dim,
+                        pool_type=pool_type,
+                        scale_factor=2,
+                        num_groups=num_groups,
+                    )
                 )
                 skip_dims.append(in_ch)
                 cur_res //= 2
@@ -185,7 +191,13 @@ class UNet(nn.Module):
 
             if i != 0:
                 self.decoder.append(
-                    UpBlock(in_ch + skip_dims.pop(), out_channels=in_ch, dim=dim, mode=mode, scale_factor=2)
+                    UpBlock(
+                        in_ch + skip_dims.pop(),
+                        out_channels=in_ch,
+                        dim=dim,
+                        mode=mode,
+                        scale_factor=2,
+                        num_groups=num_groups)
                 )
                 cur_res *= 2
 

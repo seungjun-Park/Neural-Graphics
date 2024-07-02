@@ -11,7 +11,7 @@ class UpBlock(nn.Module):
                  in_channels: int,
                  out_channels: int = None,
                  dim: int = 2,
-                 num_groups: int = 32,
+                 num_groups: int = 1,
                  scale_factor: Union[int, float] = 2.0,
                  mode: str = 'nearest',
                  ):
