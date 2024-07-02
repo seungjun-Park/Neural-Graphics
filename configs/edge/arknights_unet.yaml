@@ -18,13 +18,13 @@ module:
         hidden_dims: [ 32, 48, 64, 80, 96, 112, 128 ]
         num_blocks: 2
         num_heads: -1
-        num_head_channels: 32
+        num_head_channels: 16
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.1
         qkv_bias: True
         bias: True
-        num_groups: 32
+        num_groups: 16
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
