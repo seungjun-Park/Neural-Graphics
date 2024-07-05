@@ -73,6 +73,9 @@ class EDNSE(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         img, label, cond = batch
+
+        opt_net, opt_encoder = self.optimizers()
+
         hs = []
 
         h = label.repeat(1, 3, 1, 1)
@@ -80,36 +83,34 @@ class EDNSE(pl.LightningModule):
             h = module(h)
             hs.append(h)
 
-        for i, block in enumerate(self.net.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
-            h = block(h)
-
-        opt_net, opt_encoder = self.optimizers()
-
-        net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
-        net_loss /= self.accumulate_grad_batches
-        self.manual_backward(net_loss)
-
         zs = []
         z = img
         for i, module in enumerate(self.encoder):
             z = module(z)
             zs.append(z)
 
+        feat_losses = []
+        for i, j in zip(hs, zs):
+            feat_losses.append(F.mse_loss(i, j, reduction='none').mean(dim=[1, 2, 3]))
+        feat_loss = sum(feat_losses).mean()
+
+        for i, block in enumerate(self.net.decoder):
+            h = torch.cat([h, hs.pop()], dim=1)
+            h = block(h)
+
         with torch.no_grad():
             for i, block in enumerate(self.net.decoder):
                 z = torch.cat([z, zs.pop()], dim=1)
                 z = block(z)
 
-        encoder_loss, encoder_loss_log = self.loss(z, label, training=True, split='encoder')
-        feat_losses = []
-        for i, j in zip(hs, zs):
-            feat_losses.append(F.mse_loss(i, j, reduction='none').mean(dim=[1, 2, 3]))
+        net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
+        net_loss /= self.accumulate_grad_batches
+        self.manual_backward(net_loss)
 
-        feat_loss = sum(feat_losses).mean()
+        encoder_loss, encoder_loss_log = self.loss(z, label, training=True, split='encoder')
         encoder_loss = encoder_loss + feat_loss
-        encoder_loss_log['loss'] = encoder_loss
-        encoder_loss_log['feat_loss'] = feat_loss
+        encoder_loss_log['train/encoder/loss'] = encoder_loss
+        encoder_loss_log['train/encoder/feat_loss'] = feat_loss
 
         encoder_loss /= self.accumulate_grad_batches
         self.manual_backward(encoder_loss)
@@ -131,6 +132,7 @@ class EDNSE(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         img, label, cond = batch
+
         hs = []
 
         h = label.repeat(1, 3, 1, 1)
@@ -138,29 +140,28 @@ class EDNSE(pl.LightningModule):
             h = module(h)
             hs.append(h)
 
-        for i, block in enumerate(self.net.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
-            h = block(h)
-
-        net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
-
         zs = []
         z = img
         for i, module in enumerate(self.encoder):
             z = module(z)
             zs.append(z)
 
+        feat_losses = []
+        for i, j in zip(hs, zs):
+            feat_losses.append(F.mse_loss(i, j, reduction='none').mean(dim=[1, 2, 3]))
+        feat_loss = sum(feat_losses).mean()
+
+        for i, block in enumerate(self.net.decoder):
+            h = torch.cat([h, hs.pop()], dim=1)
+            h = block(h)
+
         with torch.no_grad():
             for i, block in enumerate(self.net.decoder):
                 z = torch.cat([z, zs.pop()], dim=1)
                 z = block(z)
 
+        net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
         encoder_loss, encoder_loss_log = self.loss(z, label, training=True, split='encoder')
-        feat_losses = []
-        for i, j in zip(hs, zs):
-            feat_losses.append(F.mse_loss(i, j, reduction='none').mean(dim=[1, 2, 3]))
-
-        feat_loss = sum(feat_losses).mean()
         encoder_loss = encoder_loss + feat_loss
         encoder_loss_log['val/encoder/loss'] = encoder_loss
         encoder_loss_log['val/encoder/feat_loss'] = feat_loss
