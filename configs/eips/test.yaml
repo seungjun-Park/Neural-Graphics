@@ -3,11 +3,11 @@ module:
   params:
     in_channels: 3
     in_res: 512
-    patch_size: 4
+    mlp_ratio: 4.0
     window_size: 8
-    embed_dim: 16
-    hidden_dims: [32, 64, 128, 256, 512]
-    num_blocks: 2
+    embed_dim: 32
+    hidden_dims: [64, 96, 128, 160, 192, 224, 256]
+    num_blocks: 1
     num_heads: -1
     num_head_channels: 32
     dropout: 0.0
@@ -16,13 +16,14 @@ module:
     qkv_bias: True
     bias: True
     num_groups: 16
-    act: 'silu'
-    use_conv: True
+    act: 'gelu'
     pool_type: 'conv'
+    use_conv: True
     dim: 2
     use_checkpoint: True
     attn_mode: 'cosine'
     lr: 2e-5
-    weight_decay: 1e-4
-    log_interval: 100
-    ckpt_path: './checkpoints/eips/arknights_best.ckpt'
+    weight_decay: 0.0
+    log_interval: 2
+    margin: 0.5
+    ckpt_path: './checkpoints/eips/arknights100/eips_best.ckpt'

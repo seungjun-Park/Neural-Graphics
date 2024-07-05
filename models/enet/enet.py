@@ -19,7 +19,6 @@ class EDNSE(pl.LightningModule):
                  ckpt_path: str = None,
                  use_fp16: bool = False,
                  accumulate_grad_batches: int = 1,
-                 disc_update_freq: int = 1,
                  ignore_keys: Union[List[str], Tuple[str]] = (),
                  ):
         super().__init__()
@@ -30,11 +29,12 @@ class EDNSE(pl.LightningModule):
         self.log_interval = log_interval
 
         self.accumulate_grad_batches = accumulate_grad_batches
-        self.disc_update_freq = disc_update_freq
+        self.automatic_optimization = False
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
-        self.net = instantiate_from_config(net_config)
+        self.net = instantiate_from_config(instantiate_from_config(net_config))
+        self.encoder = instantiate_from_config(net_config).encoder
 
         if loss_config is not None:
             self.loss = instantiate_from_config(loss_config)
@@ -55,52 +55,130 @@ class EDNSE(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def train(self, mode: bool = True):
-        super().train(mode)
-        for param in self.parameters():
-            param.requires_grad = True
-
-        return self
-
-    def eval(self):
-        super().eval()
-        for param in self.parameters():
-            param.requires_grad = False
-        return self
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.sigmoid(self.net(x))
+        hs = []
+        h = x
+        for i, module in enumerate(self.encoder):
+            h = module(h)
+            hs.append(h)
+
+        for i, block in enumerate(self.net.decoder):
+            h = torch.cat([h, hs.pop()], dim=1)
+            h = block(h)
+
+        h = torch.cat([h, hs.pop()], dim=1)
+        h = self.out(h)
+
+        return h
 
     def training_step(self, batch, batch_idx):
         img, label, cond = batch
-        pred = self(img)
+        hs = []
 
-        loss, loss_log = self.loss(pred, label, img, training=True, opt_idx=0, global_step=self.global_step)
+        h = label
+        for i, module in enumerate(self.net.encoder):
+            h = module(h)
+            hs.append(h)
+
+        for i, block in enumerate(self.net.decoder):
+            h = torch.cat([h, hs.pop()], dim=1)
+            h = block(h)
+
+        opt_net, opt_encoder = self.optimizers()
+
+        net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
+        net_loss /= self.accumulate_grad_batches
+        self.manual_backward(net_loss)
+
+        zs = []
+        z = label
+        for i, module in enumerate(self.encoder):
+            z = module(z)
+            zs.append(z)
+
+        with torch.no_grad():
+            for i, block in enumerate(self.net.decoder):
+                z = torch.cat([z, zs.pop()], dim=1)
+                z = block(z)
+
+        encoder_loss, encoder_loss_log = self.loss(z, label, training=True, split='encoder')
+        feat_losses = []
+        for i, j in zip(hs, zs):
+            feat_losses.append(F.mse_loss(i, j, reduction='none').mean(dim=[1, 2, 3]))
+
+        feat_loss = sum(feat_losses).mean()
+        encoder_loss = encoder_loss + feat_loss
+        encoder_loss_log['loss'] = encoder_loss
+        encoder_loss_log['feat_loss'] = feat_loss
+
+        encoder_loss /= self.accumulate_grad_batches
+        self.manual_backward(encoder_loss)
+
+        if (batch_idx + 1) % self.accumulate_grad_batches == 0:
+            opt_net.step()
+            opt_net.zero_grad()
+            opt_encoder.step()
+            opt_encoder.zero_grad()
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, label, pred)
-        self.log_dict(loss_log, rank_zero_only=True, logger=True)
+            self.log_img(img, split='img')
+            self.log_img(label, split='label')
+            self.log_img(h, split='h')
+            self.log_img(z, split='z')
 
-        return loss
+        self.log_dict(net_loss_log, rank_zero_only=True, logger=True)
+        self.log_dict(encoder_loss_log, rank_zero_only=True, logger=True)
 
     def validation_step(self, batch, batch_idx):
         img, label, cond = batch
-        pred = self(img)
+        hs = []
 
-        loss, loss_log = self.loss(pred, label, img, training=False, opt_idx=0, global_step=self.global_step)
+        h = label
+        for i, module in enumerate(self.net.encoder):
+            h = module(h)
+            hs.append(h)
+
+        for i, block in enumerate(self.net.decoder):
+            h = torch.cat([h, hs.pop()], dim=1)
+            h = block(h)
+
+        net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
+
+        zs = []
+        z = label
+        for i, module in enumerate(self.encoder):
+            z = module(z)
+            zs.append(z)
+
+        with torch.no_grad():
+            for i, block in enumerate(self.net.decoder):
+                z = torch.cat([z, zs.pop()], dim=1)
+                z = block(z)
+
+        encoder_loss, encoder_loss_log = self.loss(z, label, training=True, split='encoder')
+        feat_losses = []
+        for i, j in zip(hs, zs):
+            feat_losses.append(F.mse_loss(i, j, reduction='none').mean(dim=[1, 2, 3]))
+
+        feat_loss = sum(feat_losses).mean()
+        encoder_loss = encoder_loss + feat_loss
+        encoder_loss_log['val/encoder/loss'] = encoder_loss
+        encoder_loss_log['val/encoder/feat_loss'] = feat_loss
+
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, label, pred)
-        self.log_dict(loss_log, rank_zero_only=True, logger=True)
+            self.log_img(img, split='img')
+            self.log_img(label, split='label')
+            self.log_img(h, split='h')
+            self.log_img(z, split='z')
 
-        return loss
+        self.log_dict(net_loss_log, rank_zero_only=True, logger=True)
+        self.log_dict(encoder_loss_log, rank_zero_only=True, logger=True)
 
     @torch.no_grad()
-    def log_img(self, img, gt, pred):
+    def log_img(self, x: torch.Tensor, split='img'):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/img', img[0], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/gt', gt[0], self.global_step, dataformats='CHW')
-        tb.add_image(f'{prefix}/pred', pred[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/{split}', x[0], self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.net.parameters()),
@@ -108,4 +186,9 @@ class EDNSE(pl.LightningModule):
                                     weight_decay=self.weight_decay,
                                     )
 
-        return [opt_net]
+        opt_encoder = torch.optim.AdamW(list(self.encoder.parameters()),
+                                        lr=self.lr,
+                                        weight_decay=self.weight_decay,
+                                        )
+
+        return [opt_net, opt_encoder]

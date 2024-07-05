@@ -6,7 +6,7 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 2
-    # ckpt_path: './checkpoints/ednse/arknights_unet_best.ckpt'
+    accumulate_grad_batches: 10
     net_config:
       target: modules.blocks.UNet
       params:
@@ -36,38 +36,8 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgePerceptualLoss
       params:
-        cats_weight: [0.0, 0.05, 1.5]
         l1_weight: 1.0
         lpips_weight: 1.0
-        eips_weight: 1.0
-        eips_start_step: 0
-        eips_config:
-          in_channels: 3
-          in_res: 512
-          mlp_ratio: 4.0
-          window_size: 8
-          embed_dim: 32
-          hidden_dims: [ 64, 96, 128, 160, 192, 224, 256 ]
-          num_blocks: 1
-          num_heads: -1
-          num_head_channels: 32
-          dropout: 0.0
-          attn_dropout: 0.0
-          drop_path: 0.0
-          qkv_bias: True
-          bias: True
-          num_groups: 32
-          act: 'gelu'
-          pool_type: 'conv'
-          use_conv: True
-          dim: 2
-          use_checkpoint: True
-          attn_mode: 'cosine'
-          lr: 2e-5
-          weight_decay: 0.0
-          log_interval: 2
-          margin: 0.5
-          ckpt_path: './checkpoints/eips/arknights100/eips_best.ckpt'
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -118,11 +88,11 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/arknights_unet'
       filename: 'ednse_best'
-      monitor: 'val/p_loss'
+      monitor: 'val/encoder/loss'
       mode: 'min'
       save_top_k: 1
 
 trainer:
   accelerator: 'gpu'
   max_epochs: 300
-  accumulate_grad_batches: 25
+  # accumulate_grad_batches: 25

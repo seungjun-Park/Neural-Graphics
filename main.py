@@ -176,7 +176,7 @@ def eips_test():
 
 
     img_path = './datasets/arknights_v2/train/texas/images'
-    edge_path = './datasets/arknights_v2/train/texas/edges'
+    edge_path = './datasets/arknights_v2/train/texas/images'
     img_names = glob.glob(f'{img_path}/*.*')
     edge_names = glob.glob(f'{edge_path}/*.*')
     with torch.no_grad():
