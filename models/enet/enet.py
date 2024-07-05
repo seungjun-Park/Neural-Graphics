@@ -91,7 +91,7 @@ class EDNSE(pl.LightningModule):
 
         feat_losses = []
         for i, j in zip(hs, zs):
-            feat_losses.append(F.mse_loss(i, j, reduction='none').mean(dim=[1, 2, 3]))
+            feat_losses.append(F.mse_loss(i.detach(), j, reduction='none').mean(dim=[1, 2, 3]))
         feat_loss = sum(feat_losses).mean()
 
         for i, block in enumerate(self.net.decoder):
@@ -148,7 +148,7 @@ class EDNSE(pl.LightningModule):
 
         feat_losses = []
         for i, j in zip(hs, zs):
-            feat_losses.append(F.mse_loss(i, j, reduction='none').mean(dim=[1, 2, 3]))
+            feat_losses.append(F.mse_loss(i.detach(), j, reduction='none').mean(dim=[1, 2, 3]))
         feat_loss = sum(feat_losses).mean()
 
         for i, block in enumerate(self.net.decoder):
