@@ -161,8 +161,8 @@ class EDNSE(pl.LightningModule):
         h = F.sigmoid(h)
         z = F.sigmoid(z)
 
-        net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
-        encoder_loss, encoder_loss_log = self.loss(z, label, training=True, split='encoder')
+        net_loss, net_loss_log = self.loss(h, label, training=False, split='net')
+        encoder_loss, encoder_loss_log = self.loss(z, label, training=False, split='encoder')
         encoder_loss = encoder_loss + feat_loss
         encoder_loss_log['val/encoder/loss'] = encoder_loss
         encoder_loss_log['val/encoder/feat_loss'] = feat_loss
