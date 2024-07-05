@@ -24,7 +24,7 @@ class EdgePerceptualLoss(nn.Module):
         self.lpips = LPIPS().eval()
 
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, training: bool = False, split='') -> Tuple:
-        split = 'train' if training else 'val' + split
+        prefix = 'train' if training else 'val'
 
         l1_loss = F.l1_loss(preds, labels, reduction='mean')
 
@@ -32,9 +32,9 @@ class EdgePerceptualLoss(nn.Module):
 
         loss = p_loss * self.lpips_weight + l1_loss * self.l1_weight
 
-        log = {f"{split}/loss": loss.clone().detach(),
-               f"{split}/l1_loss": l1_loss.detach().mean(),
-               f"{split}/p_loss": p_loss.detach().mean(),
+        log = {f"{prefix}/{split}/loss": loss.clone().detach(),
+               f"{prefix}/{split}/l1_loss": l1_loss.detach().mean(),
+               f"{prefix}/{split}/p_loss": p_loss.detach().mean(),
                }
 
         return loss, log
