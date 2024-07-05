@@ -66,10 +66,7 @@ class EDNSE(pl.LightningModule):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
-        h = torch.cat([h, hs.pop()], dim=1)
-        h = self.out(h)
-
-        return h
+        return F.sigmoid(h)
 
     def training_step(self, batch, batch_idx):
         img, label, cond = batch
@@ -102,6 +99,8 @@ class EDNSE(pl.LightningModule):
             for i, block in enumerate(self.net.decoder):
                 z = torch.cat([z, zs.pop()], dim=1)
                 z = block(z)
+        h = F.sigmoid(h)
+        z = F.sigmoid(z)
 
         net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
         net_loss /= self.accumulate_grad_batches
@@ -159,6 +158,8 @@ class EDNSE(pl.LightningModule):
             for i, block in enumerate(self.net.decoder):
                 z = torch.cat([z, zs.pop()], dim=1)
                 z = block(z)
+        h = F.sigmoid(h)
+        z = F.sigmoid(z)
 
         net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
         encoder_loss, encoder_loss_log = self.loss(z, label, training=True, split='encoder')
