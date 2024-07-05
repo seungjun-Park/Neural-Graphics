@@ -75,7 +75,7 @@ class EDNSE(pl.LightningModule):
         img, label, cond = batch
         hs = []
 
-        h = label
+        h = label.repeat(1, 3, 1, 1)
         for i, module in enumerate(self.net.encoder):
             h = module(h)
             hs.append(h)
@@ -91,7 +91,7 @@ class EDNSE(pl.LightningModule):
         self.manual_backward(net_loss)
 
         zs = []
-        z = label
+        z = img
         for i, module in enumerate(self.encoder):
             z = module(z)
             zs.append(z)
@@ -133,7 +133,7 @@ class EDNSE(pl.LightningModule):
         img, label, cond = batch
         hs = []
 
-        h = label
+        h = label.repeat(1, 3, 1, 1)
         for i, module in enumerate(self.net.encoder):
             h = module(h)
             hs.append(h)
@@ -145,7 +145,7 @@ class EDNSE(pl.LightningModule):
         net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
 
         zs = []
-        z = label
+        z = img
         for i, module in enumerate(self.encoder):
             z = module(z)
             zs.append(z)
