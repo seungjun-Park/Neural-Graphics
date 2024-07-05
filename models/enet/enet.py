@@ -33,7 +33,7 @@ class EDNSE(pl.LightningModule):
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
-        self.net = instantiate_from_config(instantiate_from_config(net_config))
+        self.net = instantiate_from_config(net_config)
         self.encoder = instantiate_from_config(net_config).encoder
 
         if loss_config is not None:
