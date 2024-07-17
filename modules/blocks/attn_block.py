@@ -399,7 +399,7 @@ class WindowSelfAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x)
+            return checkpoint(self._forward, x, use_reentrant=True)
         return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -511,7 +511,7 @@ class WindowCrossAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, context)
+            return checkpoint(self._forward, x, context, use_reentrant=True)
         return self._forward(x, context)
 
     def _forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
@@ -691,7 +691,7 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> Tuple:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x)
+            return checkpoint(self._forward, x, use_reentrant=True)
         return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> Tuple:
@@ -785,7 +785,7 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, cond)
+            return checkpoint(self._forward, x, cond, use_reentrant=True)
         return self._forward(x, cond)
 
     def _forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
@@ -801,267 +801,3 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
         msa = self.proj(msa)
 
         return msa, attn_map
-
-
-class ResidualSelfAttentionBlock(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 in_res: Union[int, List[int], Tuple[int]],
-                 out_channels: int = None,
-                 num_groups: int = 1,
-                 act: str = 'relu',
-                 num_heads: int = 8,
-                 window_size: int = 7,
-                 pretrained_window_size: int = 0,
-                 proj_bias=True,
-                 qk_scale: float = None,
-                 dropout: float = 0.,
-                 attn_dropout: float = 0.,
-                 drop_path: float = 0.,
-                 use_conv: bool = True,
-                 use_checkpoint: bool = False,
-                 attn_mode: str = 'vanilla',
-                 dim: int = 2,
-                 ):
-        super().__init__()
-
-        out_channels = in_channels if out_channels is None else out_channels
-
-        self.in_channels = in_channels
-        self.in_res = to_2tuple(in_res)
-        self.num_heads = num_heads
-        self.window_size = window_size
-        self.pretrained_window_size = pretrained_window_size
-        self.shift_size = self.window_size // 2
-        self.use_checkpoint = use_checkpoint
-        self.dim = dim
-
-        assert out_channels % num_heads == 0
-
-        if min(self.in_res) <= self.window_size:
-            # if window size is larger than input resolution, we don't partition windows
-            self.shift_size = 0
-            self.window_size = min(self.in_res)
-        assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
-
-        self.attn = DoubleWindowAttention(
-            out_channels,
-            window_size=self.window_size,
-            shift_size=self.shift_size,
-            pretrained_window_size=self.pretrained_window_size,
-            num_heads=num_heads,
-            qk_scale=qk_scale,
-            dropout=attn_dropout,
-            attn_mode=attn_mode,
-            use_checkpoint=use_checkpoint
-        )
-
-        if self.shift_size > 0:
-            self.proj = conv_nd(dim, out_channels * 2, out_channels, kernel_size=1, stride=1, bias=proj_bias)
-
-            # calculate attention mask for SW-MSA
-            H, W = self.in_res
-            img_mask = torch.zeros((1, 1, H, W))  # 1 1 H W
-            h_slices = (slice(0, -self.window_size),
-                        slice(-self.window_size, -self.shift_size),
-                        slice(-self.shift_size, None))
-            w_slices = (slice(0, -self.window_size),
-                        slice(-self.window_size, -self.shift_size),
-                        slice(-self.shift_size, None))
-            cnt = 0
-            for h in h_slices:
-                for w in w_slices:
-                    img_mask[:, :, h, w] = cnt
-                    cnt += 1
-
-            mask_windows = window_partition(img_mask, self.window_size)  # nW, 1, window_size, window_size
-            mask_windows = mask_windows.reshape(-1, self.window_size * self.window_size)
-            attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
-            attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
-        else:
-            self.proj = nn.Identity()
-            attn_mask = None
-
-        self.attn_mask = attn_mask
-
-        self.v = nn.Sequential(
-            conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1),
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act),
-            conv_nd(dim, out_channels, out_channels, kernel_size=3, stride=1, padding=1),
-            nn.Dropout(dropout),
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act),
-        )
-
-        self.out = nn.Sequential(
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act)
-        )
-
-        if in_channels == out_channels:
-            self.skip = nn.Identity()
-        elif use_conv:
-            self.skip = nn.Sequential(
-                conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1),
-                group_norm(out_channels, num_groups=num_groups),
-                get_act(act)
-            )
-        else:
-            self.skip = nn.Sequential(
-                conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=1),
-                group_norm(out_channels, num_groups=num_groups),
-                get_act(act)
-            )
-
-        self.drop_path = DropPath(drop_path) if drop_path > 0 else nn.Identity()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x)
-        return self._forward(x)
-
-    def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        H, W = self.in_res
-        b, c, h, w = x.shape
-        assert h * w == H * W, "input feature has wrong size"
-
-        q = self.skip(x)
-        v = self.v(x)
-
-        attn, attn_map = self.attn(q=q, k=v, v=v, mask=self.attn_mask)
-        attn = self.proj(attn)
-
-        return self.out(self.drop_path(attn) + q), attn_map
-
-
-class ResidualCrossAttentionBlock(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 in_res: Union[int, List[int], Tuple[int]],
-                 out_channels: int = None,
-                 num_groups: int = 1,
-                 act: str = 'relu',
-                 num_heads: int = 8,
-                 window_size: int = 7,
-                 pretrained_window_size: int = 0,
-                 proj_bias=True,
-                 qk_scale: float = None,
-                 dropout: float = 0.,
-                 attn_dropout: float = 0.,
-                 drop_path: float = 0.,
-                 use_conv: bool = True,
-                 use_checkpoint: bool = False,
-                 attn_mode: str = 'vanilla',
-                 dim: int = 2,
-                 ):
-        super().__init__()
-
-        out_channels = in_channels if out_channels is None else out_channels
-
-        self.in_channels = in_channels
-        self.in_res = to_2tuple(in_res)
-        self.num_heads = num_heads
-        self.window_size = window_size
-        self.pretrained_window_size = pretrained_window_size
-        self.shift_size = self.window_size // 2
-        self.use_checkpoint = use_checkpoint
-        self.dim = dim
-
-        assert out_channels % num_heads == 0
-
-        if min(self.in_res) <= self.window_size:
-            # if window size is larger than input resolution, we don't partition windows
-            self.shift_size = 0
-            self.window_size = min(self.in_res)
-        assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
-
-        self.attn = DoubleWindowAttention(
-            out_channels,
-            window_size=self.window_size,
-            shift_size=self.shift_size,
-            pretrained_window_size=self.pretrained_window_size,
-            num_heads=num_heads,
-            qk_scale=qk_scale,
-            dropout=attn_dropout,
-            attn_mode=attn_mode,
-            use_checkpoint=use_checkpoint
-        )
-
-        if self.shift_size > 0:
-            self.proj = conv_nd(dim, out_channels * 2, out_channels, kernel_size=1, stride=1, bias=proj_bias)
-
-            # calculate attention mask for SW-MSA
-            H, W = self.in_res
-            img_mask = torch.zeros((1, 1, H, W))  # 1 1 H W
-            h_slices = (slice(0, -self.window_size),
-                        slice(-self.window_size, -self.shift_size),
-                        slice(-self.shift_size, None))
-            w_slices = (slice(0, -self.window_size),
-                        slice(-self.window_size, -self.shift_size),
-                        slice(-self.shift_size, None))
-            cnt = 0
-            for h in h_slices:
-                for w in w_slices:
-                    img_mask[:, :, h, w] = cnt
-                    cnt += 1
-
-            mask_windows = window_partition(img_mask, self.window_size)  # nW, 1, window_size, window_size
-            mask_windows = mask_windows.reshape(-1, self.window_size * self.window_size)
-            attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
-            attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
-        else:
-            self.proj = nn.Identity()
-            attn_mask = None
-
-        self.attn_mask = attn_mask
-
-        self.v = nn.Sequential(
-            conv_nd(dim, in_channels * 2, out_channels, kernel_size=3, stride=1, padding=1),
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act),
-            conv_nd(dim, out_channels, out_channels, kernel_size=3, stride=1, padding=1),
-            nn.Dropout(dropout),
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act),
-        )
-
-        self.out = nn.Sequential(
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act)
-        )
-
-        if in_channels == out_channels:
-            self.q = nn.Identity()
-        elif use_conv:
-            self.q = nn.Sequential(
-                conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1),
-                group_norm(out_channels, num_groups=num_groups),
-                get_act(act)
-            )
-        else:
-            self.q = nn.Sequential(
-                conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=1),
-                group_norm(out_channels, num_groups=num_groups),
-                get_act(act)
-            )
-
-        self.drop_path = DropPath(drop_path) if drop_path > 0 else nn.Identity()
-
-    def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x, context)
-        return self._forward(x, context)
-
-    def _forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
-        H, W = self.in_res
-        b, c, h, w = x.shape
-        assert h * w == H * W, "input feature has wrong size"
-
-        q = self.q(x)
-        v = self.v(torch.cat([x, context], dim=1))
-
-        attn, attn_map = self.attn(q=q, k=v, v=v, mask=self.attn_mask)
-        attn = self.proj(attn)
-
-        return self.out(self.drop_path(attn) + q), attn_map
