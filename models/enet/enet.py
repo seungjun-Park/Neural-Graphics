@@ -34,7 +34,6 @@ class EDNSE(pl.LightningModule):
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
         self.net = instantiate_from_config(net_config)
-        self.encoder = instantiate_from_config(net_config).encoder
 
         if loss_config is not None:
             self.loss = instantiate_from_config(loss_config)
@@ -56,125 +55,49 @@ class EDNSE(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        hs = []
-        h = x
-        for i, module in enumerate(self.encoder):
-            h = module(h)
-            hs.append(h)
-
-        for i, block in enumerate(self.net.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
-            h = block(h)
-
-        return F.sigmoid(h)
+        return F.sigmoid(self.net(x))
 
     def training_step(self, batch, batch_idx):
-        img, label, cond = batch
+        imgs, labels = batch
+        preds = self(imgs)
 
-        opt_net, opt_encoder = self.optimizers()
+        opt_net, opt_disc = self.optimizers()
 
-        hs = []
-
-        h = label.repeat(1, 3, 1, 1)
-        for i, module in enumerate(self.net.encoder):
-            h = module(h)
-            hs.append(h)
-
-        zs = []
-        z = img
-        for i, module in enumerate(self.encoder):
-            z = module(z)
-            zs.append(z)
-
-        feat_losses = []
-        for i, j in zip(hs, zs):
-            feat_losses.append(F.mse_loss(i.detach(), j, reduction='none').mean(dim=[1, 2, 3]))
-        feat_loss = sum(feat_losses).mean()
-
-        for i, block in enumerate(self.net.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
-            h = block(h)
-
-        with torch.no_grad():
-            for i, block in enumerate(self.net.decoder):
-                z = torch.cat([z, zs.pop()], dim=1)
-                z = block(z)
-        h = F.sigmoid(h)
-        z = F.sigmoid(z)
-
-        net_loss, net_loss_log = self.loss(h, label, training=True, split='net')
-        net_loss /= self.accumulate_grad_batches
+        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.net.out[-1].weight, split='train') / self.accumulate_grad_batches
+        self.manual_backward(d_loss)
+        net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.net.out[-1].weight, split='train')
         self.manual_backward(net_loss)
 
-        encoder_loss, encoder_loss_log = self.loss(z, label, training=True, split='encoder')
-        encoder_loss = encoder_loss + feat_loss
-        encoder_loss_log['train/encoder/loss'] = encoder_loss
-        encoder_loss_log['train/encoder/feat_loss'] = feat_loss
-
-        encoder_loss /= self.accumulate_grad_batches
-        self.manual_backward(encoder_loss)
-
         if (batch_idx + 1) % self.accumulate_grad_batches == 0:
+            opt_disc.step()
+            opt_disc.zert_grad()
             opt_net.step()
             opt_net.zero_grad()
-            opt_encoder.step()
-            opt_encoder.zero_grad()
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, split='img')
-            self.log_img(label, split='label')
-            self.log_img(h, split='h')
-            self.log_img(z, split='z')
+            self.log_img(preds, 'edge')
+            self.log_img(labels, 'label')
+            self.log_img(imgs, 'img')
 
-        self.log_dict(net_loss_log, rank_zero_only=True, logger=True)
-        self.log_dict(encoder_loss_log, rank_zero_only=True, logger=True)
+        self.log_dict(d_loss_log)
+        self.log_dict(net_loss_log)
 
     def validation_step(self, batch, batch_idx):
-        img, label, cond = batch
+        imgs, labels = batch
+        preds = self(imgs)
 
-        hs = []
-
-        h = label.repeat(1, 3, 1, 1)
-        for i, module in enumerate(self.net.encoder):
-            h = module(h)
-            hs.append(h)
-
-        zs = []
-        z = img
-        for i, module in enumerate(self.encoder):
-            z = module(z)
-            zs.append(z)
-
-        feat_losses = []
-        for i, j in zip(hs, zs):
-            feat_losses.append(F.mse_loss(i.detach(), j, reduction='none').mean(dim=[1, 2, 3]))
-        feat_loss = sum(feat_losses).mean()
-
-        for i, block in enumerate(self.net.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
-            h = block(h)
-
-        with torch.no_grad():
-            for i, block in enumerate(self.net.decoder):
-                z = torch.cat([z, zs.pop()], dim=1)
-                z = block(z)
-        h = F.sigmoid(h)
-        z = F.sigmoid(z)
-
-        net_loss, net_loss_log = self.loss(h, label, training=False, split='net')
-        encoder_loss, encoder_loss_log = self.loss(z, label, training=False, split='encoder')
-        encoder_loss = encoder_loss + feat_loss
-        encoder_loss_log['val/encoder/loss'] = encoder_loss
-        encoder_loss_log['val/encoder/feat_loss'] = feat_loss
+        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.net.out[-1].weight,
+                                       split='train') / self.accumulate_grad_batches
+        net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.net.out[-1].weight,
+                                           split='train')
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(img, split='img')
-            self.log_img(label, split='label')
-            self.log_img(h, split='h')
-            self.log_img(z, split='z')
+            self.log_img(preds, 'edge')
+            self.log_img(labels, 'label')
+            self.log_img(imgs, 'img')
 
-        self.log_dict(net_loss_log, rank_zero_only=True, logger=True)
-        self.log_dict(encoder_loss_log, rank_zero_only=True, logger=True)
+        self.log_dict(d_loss_log)
+        self.log_dict(net_loss_log)
 
     @torch.no_grad()
     def log_img(self, x: torch.Tensor, split='img'):
@@ -186,11 +109,17 @@ class EDNSE(pl.LightningModule):
         opt_net = torch.optim.AdamW(list(self.net.parameters()),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
+                                    betas=(0.5, 0.9)
                                     )
 
-        opt_encoder = torch.optim.AdamW(list(self.encoder.parameters()),
-                                        lr=self.lr,
-                                        weight_decay=self.weight_decay,
-                                        )
+        opts = [opt_net]
 
-        return [opt_net, opt_encoder]
+        if self.loss is not None:
+            opt_disc = torch.optim.AdamW(list(self.loss.discriminator.parameters()),
+                                         lr=self.lr,
+                                         weight_decay=self.weight_decay,
+                                         betas=(0.5, 0.9),
+                                         )
+            opts.append(opt_disc)
+
+        return opts

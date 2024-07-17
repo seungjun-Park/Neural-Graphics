@@ -118,8 +118,6 @@ class UNet(nn.Module):
         self.encoder.append(
             nn.Sequential(
                 conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
-                group_norm(embed_dim, num_groups),
-                get_act(act)
             )
         )
 
@@ -161,7 +159,6 @@ class UNet(nn.Module):
                         dim=dim,
                         pool_type=pool_type,
                         scale_factor=2,
-                        num_groups=num_groups,
                     )
                 )
                 skip_dims.append(in_ch)
@@ -200,23 +197,23 @@ class UNet(nn.Module):
                         out_channels=in_ch,
                         dim=dim,
                         mode=mode,
-                        scale_factor=2,
-                        num_groups=num_groups)
+                        scale_factor=2
+                    )
                 )
                 cur_res *= 2
 
         in_ch = in_ch + skip_dims.pop()
 
-        self.decoder.append(
-            nn.Sequential(
-                conv_nd(
-                    dim,
-                    in_ch,
-                    out_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                )
+        self.out = nn.Sequential(
+            group_norm(in_ch, num_groups=num_groups),
+            get_act(),
+            conv_nd(
+                dim,
+                in_ch,
+                out_channels,
+                kernel_size=3,
+                stride=1,
+                padding=1,
             )
         )
 
@@ -231,5 +228,5 @@ class UNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
-        return h
+        return self.out(h)
 

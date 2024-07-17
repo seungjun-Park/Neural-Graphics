@@ -6,7 +6,7 @@ import shutil
 from huggingface_hub import hf_hub_download
 # from waifuc.source import LocalSource
 
-characters = ['ako', 'rio']
+characters = ['wakamo', 'shiroko', 'hoshino', 'ako']
 dataset_path = '../../datasets/anime'
 
 for name in characters:
@@ -45,7 +45,7 @@ for name in characters:
         image, image_form = image.rsplit('.', 1)
         image_src, image = image.split('\\', 1)
 
-        shutil.move(f'{image_src}/{image}.{image_form}', f'{dataset_path}/{split}/{name}/images/{image}.{image_form}')
-        shutil.move(f'{tag_src}/{tag}.{tag_form}', f'{dataset_path}/{split}/{name}/tags/{tag}.{tag_form}')
+        shutil.move(f'{image_src}/{image}.{image_form}', f'{dataset_path}/{split}/{name}/images/{i}.{image_form}')
+        shutil.move(f'{tag_src}/{tag}.{tag_form}', f'{dataset_path}/{split}/{name}/tags/{i}.{tag_form}')
 
     os.rmdir(f'{dataset_path}/{name}')
