@@ -35,9 +35,8 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
                 weights=None):
         rec_loss = torch.abs(preds.contiguous() - labels.contiguous())
 
-        if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(preds.contiguous(), labels.contiguous())
-            rec_loss = rec_loss + self.perceptual_weight * p_loss
+        p_loss = self.perceptual_loss(preds.contiguous(), labels.contiguous())
+        rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
         weighted_nll_loss = nll_loss
@@ -59,6 +58,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
                    "{}/logvar".format(split): self.logvar.detach(),
                    "{}/nll_loss".format(split): nll_loss.detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
+                   "{}/p_loss".format(split): p_loss.detach().mean(),
                    # "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
