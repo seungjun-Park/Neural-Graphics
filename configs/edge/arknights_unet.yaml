@@ -15,7 +15,7 @@ module:
         window_size: 8
         out_channels: 1
         embed_dim: 32
-        hidden_dims: [ 64, 96, 128, 160, 224, 256 ]
+        hidden_dims: [ 64, 96, 128, 160, 196, 224, 256 ]
         num_blocks: 2
         num_heads: -1
         num_head_channels: 32
@@ -57,7 +57,7 @@ module:
           qkv_bias: True
           bias: True
           act: 'gelu'
-          num_groups: 16
+          num_groups: 32
           pool_type: 'conv'
           dim: 2
           use_conv: True
