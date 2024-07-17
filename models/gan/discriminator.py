@@ -134,7 +134,7 @@ class Discriminator(nn.Module):
                 in_ch = out_ch
 
             if i != len(hidden_dims) - 1:
-                self.encoder.append(DownBlock(in_channels=in_ch, dim=dim, scale_factor=2, num_groups=num_groups, pool_type=pool_type))
+                self.encoder.append(DownBlock(in_channels=in_ch, dim=dim, scale_factor=2, pool_type=pool_type))
                 cur_res //= 2
 
         quant_dim = in_ch if quant_dim is None else quant_dim
