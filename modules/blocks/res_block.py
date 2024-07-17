@@ -58,7 +58,7 @@ class ResidualBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, use_reentrant=True)
+            return checkpoint(self._forward, x, use_reentrant=False)
 
         return self._forward(x)
 

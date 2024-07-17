@@ -399,7 +399,7 @@ class WindowSelfAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, use_reentrant=False)
+            return checkpoint(self._forward, x)
         return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -511,7 +511,7 @@ class WindowCrossAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, context, use_reentrant=False)
+            return checkpoint(self._forward, x, context)
         return self._forward(x, context)
 
     def _forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
@@ -784,9 +784,7 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
         self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x, cond, use_reentrant=False)
-        return self._forward(x, cond)
+        return checkpoint(self._forward, x, cond)
 
     def _forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
         H, W = self.in_res

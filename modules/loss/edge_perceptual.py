@@ -27,15 +27,10 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         self.disc_factor = disc_factor
         self.discriminator_weight = disc_weight
 
-    def calculate_adaptive_weight(self, nll_loss, g_loss):
-        d_weight = torch.norm(nll_loss.grad) / (torch.norm(g_loss.grad) + 1e-4)
-        d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
-        d_weight = d_weight * self.discriminator_weight
-        return d_weight
-
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor,
                 optimizer_idx: int = 0,
                 global_step: int = 0,
+                last_layer=None,
                 split="train",
                 weights=None):
         rec_loss = torch.abs(preds.contiguous() - labels.contiguous())
@@ -47,7 +42,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
         weighted_nll_loss = nll_loss
         if weights is not None:
-            weighted_nll_loss = weights*nll_loss
+            weighted_nll_loss = weights * nll_loss
         weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
         nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
 
@@ -57,23 +52,14 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             logits_fake = self.discriminator(imgs.contiguous(), preds.contiguous(), training=False)['logits']
             g_loss = -torch.mean(logits_fake)
 
-            if self.disc_factor > 0.0:
-                try:
-                    d_weight = self.calculate_adaptive_weight(nll_loss, g_loss)
-                except RuntimeError:
-                    assert not self.training
-                    d_weight = torch.tensor(0.0)
-            else:
-                d_weight = torch.tensor(0.0)
-
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = weighted_nll_loss + d_weight * disc_factor * g_loss
+            loss = weighted_nll_loss + self.discriminator_weight * disc_factor * g_loss
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/logvar".format(split): self.logvar.detach(),
                    "{}/nll_loss".format(split): nll_loss.detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
-                   "{}/d_weight".format(split): d_weight.detach(),
+                   # "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
                    }
