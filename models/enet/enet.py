@@ -72,7 +72,7 @@ class EDNSE(pl.LightningModule):
 
         if (batch_idx + 1) % self.accumulate_grad_batches == 0:
             opt_disc.step()
-            opt_disc.zert_grad()
+            opt_disc.zero_grad()
             opt_net.step()
             opt_net.zero_grad()
 
