@@ -62,7 +62,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         # now the GAN part
         if optimizer_idx == 0:
             # generator update
-            logits_fake = self.discriminator(imgs.contiguous(), preds.contiguous())['logits']
+            logits_fake = self.discriminator(imgs.contiguous(), preds.contiguous(), training=False)['logits']
             g_loss = -torch.mean(logits_fake)
 
             if self.disc_factor > 0.0:
@@ -90,8 +90,8 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
 
         if optimizer_idx == 1:
             # second pass for discriminator update
-            real = self.discriminator(imgs.contiguous().detach(), labels.contiguous().detach())
-            fake = self.discriminator(imgs.contiguous().detach(), preds.contiguous().detach())
+            real = self.discriminator(imgs.contiguous().detach(), labels.contiguous().detach(), training=True)
+            fake = self.discriminator(imgs.contiguous().detach(), preds.contiguous().detach(), training=True)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
 
