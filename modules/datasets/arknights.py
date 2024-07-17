@@ -62,21 +62,17 @@ class ArknightsDataset(Dataset):
 
         self.edge_names = glob.glob(f'{root}/*/edges/*.*')
         self.img_names = glob.glob(f'{root}/*/images/*.*')
-        self.tag_names = glob.glob(f'{root}/*/tags/.*.*')
 
-        assert len(self.edge_names) == len(self.img_names) == len(self.tag_names)
+        assert len(self.edge_names) == len(self.img_names)
 
     def __getitem__(self, index):
         edge_name = self.edge_names[index]
         img_name = self.img_names[index]
-        tag_name = self.tag_names[index]
 
         img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, self.color_space)
-        edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
-
-        with open(f'{tag_name}', 'r') as f:
-            tag = json.load(f)
+        edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
+        edge = cv2.cvtColor(edge, self.color_space)
 
         img = self.to_tensor(img)
         edge = self.to_tensor(edge)
@@ -86,9 +82,7 @@ class ArknightsDataset(Dataset):
         img = tf.resized_crop(img, i, j, h, w, size=self.size, antialias=True)
         edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
 
-        tag = torch.zeros(img.shape)
-
-        return img, edge, tag
+        return img, edge
 
     def __len__(self):
         return len(self.img_names)

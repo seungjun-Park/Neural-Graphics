@@ -13,9 +13,9 @@ module:
         in_channels: 3
         in_res: 512
         window_size: 8
-        out_channels: 1
+        out_channels: 3
         embed_dim: 16
-        hidden_dims: [ 32, 64, 64, 128, 128, 256, 256 ]
+        hidden_dims: [ 32, 64, 128, 256 ]
         num_blocks: 2
         num_heads: -1
         num_head_channels: 16
@@ -28,17 +28,41 @@ module:
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
-        mode: 'nearest'
+        mode: 'bilinear'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
 
     loss_config:
-      target: modules.loss.edge_perceptual.EdgePerceptualLoss
+      target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
       params:
-        l1_weight: 1.0
-        lpips_weight: 1.0
-
+        disc_start: 150
+        logvar_init: 0.0
+        disc_factor: 1.0
+        disc_weight: 0.5
+        perceptual_weight: 1.0
+        disc_config:
+          in_channels: 3
+          in_res: 512
+          embed_dim: 32,
+          quant_dim: 16
+          hidden_dims: [ 64, 128, 256, 512 ]
+          num_blocks: 2
+          window_size: 8
+          num_heads: -1
+          num_head_channels: 32
+          dropout: 0.0
+          attn_dropout: 0.0
+          drop_path: 0.0
+          qkv_bias: True
+          bias: True
+          act: 'gelu'
+          num_groups: 16
+          pool_type: 'conv'
+          dim: 2
+          use_conv: True
+          use_checkpoint: True
+          attn_mode: 'cosine'
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
@@ -48,7 +72,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights100'
+        root: '/local_datasets/anime'
         train: True
         size: 512
         scale: [ 0.5, 1.0 ]
@@ -58,7 +82,7 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/arknights100'
+        root: '/local_datasets/anime'
         train: False
         size: 512
         scale: [ 0.5, 1.0 ]
@@ -88,7 +112,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/arknights_unet'
       filename: 'ednse_best'
-      monitor: 'val/encoder/loss'
+      monitor: 'val/loss'
       mode: 'min'
       save_top_k: 1
 
