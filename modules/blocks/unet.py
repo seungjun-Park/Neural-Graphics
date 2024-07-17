@@ -227,6 +227,6 @@ class UNet(nn.Module):
         for i, block in enumerate(self.decoder):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
-
+        h = torch.cat([h, hs.pop()], dim=1)
         return self.out(h)
 
