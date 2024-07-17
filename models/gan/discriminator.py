@@ -117,7 +117,7 @@ class Discriminator(nn.Module):
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
-                        num_heads=(in_ch // num_head_channels) if self.use_num_head_channels else num_heads,
+                        num_heads=(out_ch // num_head_channels) if self.use_num_head_channels else num_heads,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
