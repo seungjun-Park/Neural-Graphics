@@ -8,7 +8,7 @@ from omegaconf import ListConfig
 from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock, ResidualSelfAttentionBlock
+from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
 from modules.blocks.res_block import ResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock

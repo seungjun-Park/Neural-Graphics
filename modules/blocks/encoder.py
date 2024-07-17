@@ -7,7 +7,7 @@ import torchvision.models
 from timm.models.layers import DropPath
 from omegaconf import ListConfig
 
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock, ResidualSelfAttentionBlock
+from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
 from modules.blocks.patches import PatchMerging
 from modules.blocks.mlp import ConvMLP, MLP
 from modules.blocks.res_block import ResidualBlock
