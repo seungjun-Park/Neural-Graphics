@@ -15,7 +15,7 @@ module:
         window_size: 8
         out_channels: 1
         embed_dim: 32
-        hidden_dims: [ 64, 96, 128, 160, 196, 224, 256 ]
+        hidden_dims: [ 64, 96, 128, 160, 192, 224, 256 ]
         num_blocks: 2
         num_heads: -1
         num_head_channels: 32
@@ -72,7 +72,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/anime'
+        root: './datasets/anime'
         train: True
         size: 512
         scale: [ 0.5, 1.0 ]
@@ -82,7 +82,7 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/anime'
+        root: './datasets/anime'
         train: False
         size: 512
         scale: [ 0.5, 1.0 ]
