@@ -5,26 +5,26 @@ module:
     weight_decay: 0.0
     lr_decay_epoch: 100
     use_fp16: False
-    log_interval: 4
-    accumulate_grad_batches: 25
+    log_interval: 50
+    accumulate_grad_batches: 10
     net_config:
       target: modules.blocks.UNet
       params:
         in_channels: 3
         in_res: 512
         window_size: 8
-        out_channels: 3
-        embed_dim: 16
-        hidden_dims: [ 32, 64, 128, 256 ]
+        out_channels: 1
+        embed_dim: 32
+        hidden_dims: [ 64, 96, 128, 160, 224, 256 ]
         num_blocks: 2
         num_heads: -1
-        num_head_channels: 16
+        num_head_channels: 32
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 16
+        num_groups: 32
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
@@ -36,7 +36,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
       params:
-        disc_start: 150
+        disc_start: 500
         logvar_init: 0.0
         disc_factor: 1.0
         disc_weight: 0.5
@@ -45,8 +45,8 @@ module:
           in_channels: 3
           in_res: 512
           embed_dim: 32
-          quant_dim: 16
-          hidden_dims: [ 64, 128, 256, 512 ]
+          quant_dim: 32
+          hidden_dims: [ 64, 96, 128, 160, 192, 224, 256 ]
           num_blocks: 2
           window_size: 8
           num_heads: -1

@@ -71,8 +71,7 @@ class ArknightsDataset(Dataset):
 
         img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, self.color_space)
-        edge = cv2.imread(f'{edge_name}', cv2.IMREAD_COLOR)
-        edge = cv2.cvtColor(edge, self.color_space)
+        edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
 
         img = self.to_tensor(img)
         edge = self.to_tensor(edge)
