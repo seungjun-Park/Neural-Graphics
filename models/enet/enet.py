@@ -63,10 +63,10 @@ class EDNSE(pl.LightningModule):
 
         opt_net, opt_disc = self.optimizers()
 
-        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.net.out[-1].weight, split='train')
+        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, split='train')
         d_loss = d_loss / self.accumulate_grad_batches
         self.manual_backward(d_loss)
-        net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.net.out[-1].weight, split='train')
+        net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, split='train')
         net_loss = net_loss / self.accumulate_grad_batches
         self.manual_backward(net_loss)
 
@@ -88,10 +88,8 @@ class EDNSE(pl.LightningModule):
         imgs, labels = batch
         preds = self(imgs)
 
-        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.net.out[-1].weight,
-                                       split='val')
-        net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.net.out[-1].weight,
-                                           split='val')
+        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, split='val')
+        net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, split='val')
 
         if self.global_step % self.log_interval == 0:
             self.log_img(preds, 'edge')

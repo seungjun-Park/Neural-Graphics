@@ -27,15 +27,8 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         self.disc_factor = disc_factor
         self.discriminator_weight = disc_weight
 
-    def calculate_adaptive_weight(self, nll_loss, g_loss, last_layer=None):
-        if last_layer is not None:
-            nll_grads = torch.autograd.grad(nll_loss, last_layer, retain_graph=True)[0]
-            g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
-        else:
-            nll_grads = torch.autograd.grad(nll_loss, self.last_layer[0], retain_graph=True)[0]
-            g_grads = torch.autograd.grad(g_loss, self.last_layer[0], retain_graph=True)[0]
-
-        d_weight = torch.norm(nll_grads) / (torch.norm(g_grads) + 1e-4)
+    def calculate_adaptive_weight(self, nll_loss, g_loss):
+        d_weight = torch.norm(nll_loss.grad) / (torch.norm(g_loss.grad) + 1e-4)
         d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
         d_weight = d_weight * self.discriminator_weight
         return d_weight
@@ -43,7 +36,6 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor,
                 optimizer_idx: int = 0,
                 global_step: int = 0,
-                last_layer=None,
                 split="train",
                 weights=None):
         rec_loss = torch.abs(preds.contiguous() - labels.contiguous())
@@ -67,7 +59,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
 
             if self.disc_factor > 0.0:
                 try:
-                    d_weight = self.calculate_adaptive_weight(nll_loss, g_loss, last_layer=last_layer)
+                    d_weight = self.calculate_adaptive_weight(nll_loss, g_loss)
                 except RuntimeError:
                     assert not self.training
                     d_weight = torch.tensor(0.0)
