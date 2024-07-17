@@ -91,7 +91,7 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, q, k, v, mask)
+            return checkpoint(self._forward, q, k, v, mask, use_reentrant=False)
         return self._forward(q, k, v, mask)
 
     def _forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
@@ -268,7 +268,7 @@ class WindowAttention(nn.Module):
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, q, k, v, mask)
+            return checkpoint(self._forward, q, k, v, mask, use_reentrant=False)
         return self._forward(q, k, v, mask)
 
     def _forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
@@ -399,7 +399,7 @@ class WindowSelfAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, use_reentrant=True)
+            return checkpoint(self._forward, x, use_reentrant=False)
         return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -511,7 +511,7 @@ class WindowCrossAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, context, use_reentrant=True)
+            return checkpoint(self._forward, x, context, use_reentrant=False)
         return self._forward(x, context)
 
     def _forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
@@ -691,7 +691,7 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> Tuple:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, use_reentrant=True)
+            return checkpoint(self._forward, x, use_reentrant=False)
         return self._forward(x)
 
     def _forward(self, x: torch.Tensor) -> Tuple:
@@ -785,7 +785,7 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
         if self.use_checkpoint:
-            return checkpoint(self._forward, x, cond, use_reentrant=True)
+            return checkpoint(self._forward, x, cond, use_reentrant=False)
         return self._forward(x, cond)
 
     def _forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
