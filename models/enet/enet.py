@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img, to_rgb
-from modules.loss.edge_perceptual import EdgePerceptualLoss
+from modules.loss.edge_perceptual import EdgeLPIPSWithDiscriminator
 
 
 class EDNSE(pl.LightningModule):
@@ -114,7 +114,7 @@ class EDNSE(pl.LightningModule):
 
         opts = [opt_net]
 
-        if self.loss is not None:
+        if isinstance(self.loss, EdgeLPIPSWithDiscriminator):
             opt_disc = torch.optim.AdamW(list(self.loss.discriminator.parameters()),
                                          lr=self.lr,
                                          weight_decay=self.weight_decay,
