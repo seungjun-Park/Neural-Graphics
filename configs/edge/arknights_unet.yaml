@@ -28,7 +28,7 @@ module:
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
-        mode: 'bilinear'
+        mode: 'nearest'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
@@ -42,7 +42,7 @@ module:
         disc_weight: 0.5
         perceptual_weight: 1.0
         disc_config:
-          in_channels: 3
+          in_channels: 4
           in_res: 512
           embed_dim: 32
           quant_dim: 32
@@ -72,7 +72,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/anime'
+        root: './datasets/anime'
         train: True
         size: 512
         scale: [ 0.5, 1.0 ]
@@ -82,7 +82,7 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/anime'
+        root: './datasets/anime'
         train: False
         size: 512
         scale: [ 0.5, 1.0 ]
@@ -118,5 +118,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 300
+  max_epochs: 200
   # accumulate_grad_batches: 25

@@ -7,7 +7,7 @@ from timm.models.layers import DropPath
 from typing import Union, List, Tuple
 from utils import conv_nd, to_2tuple, get_act, instantiate_from_config, group_norm
 from modules.blocks import DownBlock, PatchMerging
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, DoubleWindowCrossAttentionBlock
+from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock
 from modules.blocks.res_block import ResidualBlock
 
 
@@ -102,8 +102,7 @@ class Discriminator(nn.Module):
 
         self.encoder = nn.ModuleList()
 
-        self.img_embed = conv_nd(2, in_channels, embed_dim // 2, kernel_size=3, stride=1, padding=1)
-        self.edge_embed = conv_nd(2, in_channels, embed_dim // 2, kernel_size=3, stride=1, padding=1)
+        self.embed = conv_nd(2, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
 
         in_ch = embed_dim
         cur_res = in_res
@@ -142,12 +141,8 @@ class Discriminator(nn.Module):
         self.quant_conv = conv_nd(dim=dim, in_channels=in_ch, out_channels=quant_dim, kernel_size=1, stride=1)
         self.fc_w = nn.Parameter(torch.randn(1, quant_dim * cur_res ** 2))
 
-    def forward(self, img: torch.Tensor, edge: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
-        img = self.img_embed(img)
-        edge = self.edge_embed(edge)
-
-        h = torch.cat([img, edge], dim=1)
-
+    def forward(self, x: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
+        h = self.embed(x)
         for i, module in enumerate(self.encoder):
             h = module(h)
 

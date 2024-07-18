@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, List, Tuple
 from functools import partial
-from torch.utils.checkpoint import checkpoint
+from utils.checkpoints import checkpoint
 
 from modules.blocks.mlp import MLP, ConvMLP
 from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, functional_conv_nd, get_act
@@ -90,9 +90,7 @@ class MultiHeadAttention(nn.Module):
             self.scale = nn.Parameter(torch.log(10 * torch.ones((num_heads, 1, 1))), requires_grad=True)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, q, k, v, mask, use_reentrant=False)
-        return self._forward(q, k, v, mask)
+        return checkpoint(self._forward, (q, k, v, mask), self.parameters(), self.use_checkpoint)
 
     def _forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         assert q.shape == k.shape == v.shape
@@ -267,11 +265,6 @@ class WindowAttention(nn.Module):
         trunc_normal_(self.relative_position_bias_table, std=.02)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, q, k, v, mask, use_reentrant=False)
-        return self._forward(q, k, v, mask)
-
-    def _forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
         l = np.prod(spatial)
@@ -398,9 +391,7 @@ class WindowSelfAttentionBlock(nn.Module):
         self.depth_proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x)
-        return self._forward(x)
+        return checkpoint(self._forward, (x,), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
         H, W = self.in_res
@@ -510,9 +501,7 @@ class WindowCrossAttentionBlock(nn.Module):
         self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x, context)
-        return self._forward(x, context)
+        return checkpoint(self._forward, (x, context), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         H, W = self.in_res
@@ -690,9 +679,7 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> Tuple:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x, use_reentrant=False)
-        return self._forward(x)
+        return checkpoint(self._forward, (x,), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> Tuple:
         H, W = self.in_res
@@ -784,7 +771,7 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
         self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
-        return checkpoint(self._forward, x, cond)
+        return checkpoint(self._forward, (x, cond), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
         H, W = self.in_res

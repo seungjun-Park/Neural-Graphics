@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
+from utils.checkpoints import checkpoint
 from timm.models.layers import DropPath
 
 from typing import Union, List, Tuple
@@ -57,10 +57,7 @@ class ResidualBlock(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x, use_reentrant=False)
-
-        return self._forward(x)
+        return checkpoint(self._forward, (x,), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
         h = x
