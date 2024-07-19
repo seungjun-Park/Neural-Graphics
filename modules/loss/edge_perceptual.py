@@ -43,11 +43,14 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         if optimizer_idx == 0:
             l1_loss = F.l1_loss(preds, labels)
 
-            p_loss = self.perceptual_loss(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
+            preds = preds.repeat(1, 3, 1, 1).contiguous()
+            labels = labels.repeat(1, 3, 1, 1).contiguous()
+
+            p_loss = self.perceptual_loss(preds, labels).mean()
             rec_loss = l1_loss * self.l1_weight + self.perceptual_weight * p_loss
 
             # generator update
-            logits_fake = self.discriminator(torch.cat([preds, imgs], dim=1), training=False)
+            logits_fake = self.discriminator(imgs=imgs, edges=preds, training=False)
             g_loss = -torch.mean(logits_fake)
 
             if self.disc_factor > 0.0:
@@ -75,8 +78,12 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
 
         if optimizer_idx == 1:
             # second pass for discriminator update
-            logits_real = self.discriminator(torch.cat([labels.detach(), imgs.detach()], dim=1), training=True)
-            logits_fake = self.discriminator(torch.cat([preds.detach(), imgs.detach()], dim=1), training=True)
+            imgs = imgs.detach().contiguous()
+            labels = labels.detach().repeat(1, 3, 1, 1).contiguous()
+            preds = preds.detach().repeat(1, 3, 1, 1).contiguous()
+
+            logits_real = self.discriminator(imgs=imgs, edges=labels, training=True)
+            logits_fake = self.discriminator(imgs=imgs, edges=preds, training=True)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
 
