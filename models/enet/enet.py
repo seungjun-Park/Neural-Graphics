@@ -29,6 +29,7 @@ class EDNSE(pl.LightningModule):
         self.log_interval = log_interval
 
         self.accumulate_grad_batches = accumulate_grad_batches
+        self.disc_update_freq = accumulate_grad_batches // 2
         self.automatic_optimization = False
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
@@ -63,18 +64,21 @@ class EDNSE(pl.LightningModule):
 
         opt_net, opt_disc = self.optimizers()
 
+        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.get_last_layer(),
+                                       split='train')
+        d_loss = d_loss / self.disc_update_freq
+        self.manual_backward(d_loss)
+
+        if (batch_idx + 1) % self.disc_update_freq == 0:
+            opt_disc.step()
+            opt_disc.zero_grad()
+
         net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.get_last_layer(),
                                            split='train')
         net_loss = net_loss / self.accumulate_grad_batches
         self.manual_backward(net_loss)
 
-        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.get_last_layer(), split='train')
-        d_loss = d_loss / self.accumulate_grad_batches
-        self.manual_backward(d_loss)
-
         if (batch_idx + 1) % self.accumulate_grad_batches == 0:
-            opt_disc.step()
-            opt_disc.zero_grad()
             opt_net.step()
             opt_net.zero_grad()
 

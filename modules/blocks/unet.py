@@ -51,6 +51,8 @@ class UnetBlock(nn.Module):
             use_checkpoint=use_checkpoint,
         )
 
+        self.norm = group_norm(out_channels, num_groups=num_groups)
+
         self.attn = DoubleWindowSelfAttentionBlock(
             in_channels=out_channels,
             in_res=to_2tuple(in_res),
@@ -68,7 +70,7 @@ class UnetBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.residual_block(x)
-        z, attn_map = self.attn(h)
+        z, attn_map = self.attn(self.norm(h))
         z = h + self.drop_path(z)
         return z
 

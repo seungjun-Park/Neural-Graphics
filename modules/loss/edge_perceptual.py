@@ -12,27 +12,25 @@ from models.gan.discriminator import Discriminator
 
 class EdgeLPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_config: DictConfig,
-                 disc_start, logvar_init=0.0, disc_factor=1.0, disc_weight=1.0,
-                 perceptual_weight=1.0):
+                 disc_start: int, disc_factor: float = 1.0, disc_weight:float = 1.0,
+                 perceptual_weight: float = 1.0, l1_weight: float = 1.0):
 
         super().__init__()
         self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
-
-        # output log variance
-        self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
+        self.l1_weight = l1_weight
 
         self.discriminator = Discriminator(**disc_config)
         self.discriminator_iter_start = disc_start
         self.disc_factor = disc_factor
         self.discriminator_weight = disc_weight
 
-    def calculate_adaptive_weight(self, nll_loss: torch.Tensor, g_loss: torch.Tensor, last_layer):
-        nll_grads = torch.autograd.grad(nll_loss, last_layer, retain_graph=True)[0]
+    def calculate_adaptive_weight(self, rec_loss: torch.Tensor, g_loss: torch.Tensor, last_layer):
+        rec_grads = torch.autograd.grad(rec_loss, last_layer, retain_graph=True)[0]
         g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
 
-        d_weight = torch.norm(nll_grads) / (torch.norm(g_grads) + 1e-4)
-        d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
+        d_weight = torch.norm(rec_grads) / (torch.norm(g_grads) + 1e-5)
+        d_weight = torch.clamp(d_weight, 1e-5, 1e5).detach()
         d_weight = d_weight * self.discriminator_weight
         return d_weight
 
@@ -40,21 +38,13 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
                 optimizer_idx: int = 0,
                 global_step: int = 0,
                 last_layer=None,
-                split="train",
-                weights=None):
+                split="train"):
         # now the GAN part
         if optimizer_idx == 0:
-            rec_loss = torch.abs(preds.contiguous() - labels.contiguous())
+            l1_loss = F.l1_loss(preds, labels)
 
-            p_loss = self.perceptual_loss(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous())
-            rec_loss = rec_loss + self.perceptual_weight * p_loss
-
-            nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar
-            weighted_nll_loss = nll_loss
-            if weights is not None:
-                weighted_nll_loss = weights * nll_loss
-            weighted_nll_loss = torch.sum(weighted_nll_loss) / weighted_nll_loss.shape[0]
-            nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
+            p_loss = self.perceptual_loss(preds.repeat(1, 3, 1, 1).contiguous(), labels.repeat(1, 3, 1, 1).contiguous()).mean()
+            rec_loss = l1_loss * self.l1_weight + self.perceptual_weight * p_loss
 
             # generator update
             logits_fake = self.discriminator(torch.cat([preds, imgs], dim=1), training=False)
@@ -62,7 +52,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
 
             if self.disc_factor > 0.0:
                 try:
-                    d_weight = self.calculate_adaptive_weight(nll_loss, g_loss, last_layer=last_layer)
+                    d_weight = self.calculate_adaptive_weight(rec_loss, g_loss, last_layer=last_layer)
                 except RuntimeError:
                     assert not self.training
                     d_weight = torch.tensor(0.0)
@@ -70,11 +60,10 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
                 d_weight = torch.tensor(0.0)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = weighted_nll_loss + d_weight * disc_factor * g_loss
+            loss = rec_loss + d_weight * disc_factor * g_loss
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
-                   "{}/logvar".format(split): self.logvar.detach(),
-                   "{}/nll_loss".format(split): nll_loss.detach().mean(),
+                   "{}/l1_loss".format(split): l1_loss.detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
                    "{}/p_loss".format(split): p_loss.detach().mean(),
                    "{}/d_weight".format(split): d_weight.detach(),

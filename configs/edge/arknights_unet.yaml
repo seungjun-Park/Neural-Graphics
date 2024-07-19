@@ -15,7 +15,7 @@ module:
         window_size: 8
         out_channels: 1
         embed_dim: 16
-        hidden_dims: [ 32, 48, 64, 80, 96, 112, 128 ]
+        hidden_dims: [ 32, 32, 64, 64, 128, 128, 256 ]
         num_blocks: 2
         num_heads: -1
         num_head_channels: 8
@@ -31,7 +31,7 @@ module:
         mode: 'bilinear'
         dim: 2
         use_checkpoint: True
-        attn_mode: 'cosine'
+        attn_mode: 'vanilla'
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
@@ -42,10 +42,10 @@ module:
         disc_weight: 0.5
         perceptual_weight: 1.0
         disc_config:
-          in_channels: 4
+          in_channels: 3
           in_res: 512
           embed_dim: 32
-          quant_dim: 32
+          quant_dim: 64
           hidden_dims: [ 64, 96, 128, 160, 192, 224, 256 ]
           num_blocks: 2
           window_size: 8
@@ -62,7 +62,7 @@ module:
           dim: 2
           use_conv: True
           use_checkpoint: True
-          attn_mode: 'cosine'
+          attn_mode: 'vanilla'
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
