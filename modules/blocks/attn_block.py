@@ -391,7 +391,7 @@ class WindowSelfAttentionBlock(nn.Module):
         self.depth_proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return checkpoint(self._forward, (x,), flag=self.use_checkpoint)
+        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
         H, W = self.in_res
@@ -501,7 +501,7 @@ class WindowCrossAttentionBlock(nn.Module):
         self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
-        return checkpoint(self._forward, (x, context), flag=self.use_checkpoint)
+        return checkpoint(self._forward, (x, context), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         H, W = self.in_res
@@ -679,7 +679,7 @@ class DoubleWindowSelfAttentionBlock(nn.Module):
         self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> Tuple:
-        return checkpoint(self._forward, (x,), flag=self.use_checkpoint)
+        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> Tuple:
         H, W = self.in_res
@@ -771,7 +771,7 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
         self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
-        return checkpoint(self._forward, (x, cond), flag=self.use_checkpoint)
+        return checkpoint(self._forward, (x, cond), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
         H, W = self.in_res

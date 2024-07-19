@@ -5,26 +5,37 @@ import torch.nn.functional as F
 
 class CheckpointFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, run_function, *args):
+    def forward(ctx, run_function, length, *args):
         ctx.run_function = run_function
-        ctx.save_for_backward(*args)
+        ctx.input_tensors = list(args[:length])
+        ctx.input_params = list(args[length:])
         with torch.no_grad():
-            outputs = ctx.run_function(*args)
+            outputs = ctx.run_function(*ctx.input_tensors)
         return outputs
 
     @staticmethod
-    def backward(ctx, *grad_outputs):
-        inputs = ctx.saved_tensors
+    def backward(ctx, *output_grads):
+        ctx.input_tensors = [x.detach().requires_grad_(True) for x in ctx.input_tensors]
         with torch.enable_grad():
-            inputs = [inp.detach().requires_grad_(True) for inp in inputs]
-            outputs = ctx.run_function(*inputs)
-        if isinstance(outputs, torch.Tensor):
-            outputs = (outputs, )
-        grads = torch.autograd.grad(outputs, inputs, grad_outputs, retain_graph=True, allow_unused=True)
-        return (None, ) + grads
+            shallow_copies = [x.view_as(x) for x in ctx.input_tensors]
+            output_tensors = ctx.run_function(*shallow_copies)
+
+        input_grads = torch.autograd.grad(
+            output_tensors,
+            ctx.input_tensors + ctx.input_params,
+            output_grads,
+            retain_graph=True,
+            allow_unused=True
+        )
+
+        del ctx.input_tensors
+        del ctx.input_params
+        del output_tensors
+
+        return (None, None) + input_grads
 
 
-def checkpoint(func, inputs, flag):
+def checkpoint(func, inputs, params, flag):
     """
     Evaluate a function without caching intermediate activations, allowing for
     reduced memory at the expense of extra compute in the backward pass.
@@ -35,7 +46,7 @@ def checkpoint(func, inputs, flag):
     :param flag: if False, disable gradient checkpointing.
     """
     if flag:
-        args = tuple(inputs)
-        return CheckpointFunction.apply(func, *args)
+        args = tuple(inputs) + tuple(params)
+        return CheckpointFunction.apply(func, len(inputs), *args)
     else:
         return func(*inputs)

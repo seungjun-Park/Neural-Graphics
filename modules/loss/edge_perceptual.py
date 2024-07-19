@@ -41,14 +41,14 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
                 split="train"):
         # now the GAN part
         if optimizer_idx == 0:
-            l1_loss = F.l1_loss(preds, labels)
+            l1_loss = torch.abs(labels.contiguous() - preds.contiguous())
 
             preds = preds.repeat(1, 3, 1, 1).contiguous()
             labels = labels.repeat(1, 3, 1, 1).contiguous()
 
-            p_loss = self.perceptual_loss(preds, labels).mean()
+            p_loss = self.perceptual_loss(preds, labels)
             rec_loss = l1_loss * self.l1_weight + self.perceptual_weight * p_loss
-
+            rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
             # generator update
             logits_fake = self.discriminator(imgs=imgs, edges=preds, training=False)
             g_loss = -torch.mean(logits_fake)
