@@ -145,7 +145,6 @@ class Discriminator(nn.Module):
 
         self.quant_conv = nn.Sequential(
             group_norm(in_ch, num_groups=num_groups),
-            get_act(act),
             conv_nd(dim=dim, in_channels=in_ch, out_channels=quant_dim, kernel_size=1, stride=1)
         )
         # self.fc_w = nn.Parameter(torch.randn(1, quant_dim * cur_res ** 2))
