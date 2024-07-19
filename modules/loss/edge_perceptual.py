@@ -57,7 +57,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
 
             # generator update
-            logits_fake = self.discriminator(torch.cat([preds, imgs], dim=1), training=False)['logits']
+            logits_fake = self.discriminator(torch.cat([preds, imgs], dim=1), training=False)
             g_loss = -torch.mean(logits_fake)
 
             if self.disc_factor > 0.0:
