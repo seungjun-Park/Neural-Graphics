@@ -107,7 +107,7 @@ class Discriminator(nn.Module):
         self.img_embed = conv_nd(2, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
         self.edge_embed = conv_nd(2, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
 
-        self.quant_embed = conv_nd(2, embed_dim * 2, embed_dim, kernel_size=1, stride=1, padding=1)
+        self.quant_embed = conv_nd(2, embed_dim * 2, embed_dim, kernel_size=1, stride=1)
 
         in_ch = embed_dim
         cur_res = in_res
