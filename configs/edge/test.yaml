@@ -1,0 +1,35 @@
+module:
+  target: models.enet.enet.EDNSE
+  params:
+    ckpt_path: './checkpoints/ednse/arknights_unet/ednse_best.ckpt'
+    lr: 5e-5
+    weight_decay: 0.0
+    lr_decay_epoch: 100
+    use_fp16: False
+    log_interval: 50
+    accumulate_grad_batches: 10
+    net_config:
+      target: modules.blocks.UNet
+      params:
+        in_channels: 3
+        in_res: 512
+        window_size: 8
+        out_channels: 1
+        embed_dim: 32
+        hidden_dims: [ 64, 96, 128, 160, 192, 224, 256 ]
+        num_blocks: 2
+        num_heads: -1
+        num_head_channels: 32
+        dropout: 0.0
+        attn_dropout: 0.0
+        drop_path: 0.0
+        qkv_bias: True
+        bias: True
+        num_groups: 32
+        act: 'gelu'
+        use_conv: True
+        pool_type: 'conv'
+        mode: 'nearest'
+        dim: 2
+        use_checkpoint: True
+        attn_mode: 'cosine'

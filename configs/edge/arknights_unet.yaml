@@ -1,7 +1,7 @@
 module:
   target: models.enet.enet.EDNSE
   params:
-    lr: 5e-5
+    lr: 2e-5
     weight_decay: 0.0
     lr_decay_epoch: 100
     use_fp16: False
@@ -14,21 +14,21 @@ module:
         in_res: 512
         window_size: 8
         out_channels: 1
-        embed_dim: 32
-        hidden_dims: [ 64, 96, 128, 160, 192, 224, 256 ]
+        embed_dim: 16
+        hidden_dims: [ 32, 48, 64, 89, 96, 112, 128 ]
         num_blocks: 2
         num_heads: -1
-        num_head_channels: 32
+        num_head_channels: 8
         dropout: 0.0
         attn_dropout: 0.0
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        num_groups: 32
+        num_groups: 16
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
-        mode: 'nearest'
+        mode: 'bilinear'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
@@ -50,7 +50,7 @@ module:
           num_blocks: 2
           window_size: 8
           num_heads: -1
-          num_head_channels: 32
+          num_head_channels: 16
           dropout: 0.0
           attn_dropout: 0.0
           drop_path: 0.0
@@ -118,5 +118,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 200
+  max_epochs: 300
   # accumulate_grad_batches: 25

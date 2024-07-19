@@ -86,21 +86,19 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
 
         if optimizer_idx == 1:
             # second pass for discriminator update
-            real = self.discriminator(torch.cat([labels.detach(), imgs.detach()], dim=1), training=True)
-            fake = self.discriminator(torch.cat([preds.detach(), imgs.detach()], dim=1), training=True)
+            logits_real = self.discriminator(torch.cat([labels.detach(), imgs.detach()], dim=1), training=True)
+            logits_fake = self.discriminator(torch.cat([preds.detach(), imgs.detach()], dim=1), training=True)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
 
-            hinge = hinge_d_loss(real['logits'], fake['logits'])
-            wasserstein = wasserstein_d_loss(real['dir'], fake['dir'])
+            hinge = hinge_d_loss(logits_real, logits_fake)
+            # wasserstein = wasserstein_d_loss(real['dir'], fake['dir'])
 
-            d_loss = disc_factor * (hinge + wasserstein)
+            d_loss = disc_factor * hinge
 
             log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
-                   "{}/logits_real".format(split): real['logits'].detach().mean(),
-                   "{}/logits_fake".format(split): fake['logits'].detach().mean(),
-                   "{}/dir_real".format(split): real['dir'].detach().mean(),
-                   "{}/dir_fake".format(split): fake['dir'].detach().mean()
+                   "{}/logits_real".format(split): logits_real.detach().mean(),
+                   "{}/logits_fake".format(split): logits_fake.detach().mean(),
                    }
             return d_loss, log
 

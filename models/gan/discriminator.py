@@ -139,7 +139,7 @@ class Discriminator(nn.Module):
         quant_dim = in_ch if quant_dim is None else quant_dim
 
         self.quant_conv = conv_nd(dim=dim, in_channels=in_ch, out_channels=quant_dim, kernel_size=1, stride=1)
-        self.fc_w = nn.Parameter(torch.randn(1, quant_dim * cur_res ** 2))
+        # self.fc_w = nn.Parameter(torch.randn(1, quant_dim * cur_res ** 2))
 
     def forward(self, x: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
         h = self.embed(x)
@@ -147,19 +147,19 @@ class Discriminator(nn.Module):
             h = module(h)
 
         h = self.quant_conv(h)
-        h = torch.flatten(h, start_dim=1)
+        # h = torch.flatten(h, start_dim=1)
 
-        weights = self.fc_w
-        direction = F.normalize(weights, dim=1)
-        scale = torch.norm(self.fc_w, dim=1)
-        h = h * scale
-        if training:
-            logits = (h.detach() * direction)
-            dir = (h * direction.detach())
-            out = {'logits': logits, 'dir': dir}
-        else:
-            logits = (h * direction)
-            out = {'logits': logits}
+        # weights = self.fc_w
+        # direction = F.normalize(weights, dim=1)
+        # scale = torch.norm(self.fc_w, dim=1)
+        # h = h * scale
+        # if training:
+        #     logits = (h.detach() * direction)
+        #     dir = (h * direction.detach())
+        #     out = {'logits': logits, 'dir': dir}
+        # else:
+        #     logits = (h * direction)
+        #     out = {'logits': logits}
 
-        return out
+        return h
 
