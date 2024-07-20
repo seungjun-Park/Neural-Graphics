@@ -161,7 +161,7 @@ class Discriminator(nn.Module):
         for i, module in enumerate(self.encoder):
             h = module(h)
 
-        h = self.quant_conv(h)
+        # h = self.quant_conv(h)
         h = torch.flatten(h, start_dim=1)
 
         weights = self.fc_w
