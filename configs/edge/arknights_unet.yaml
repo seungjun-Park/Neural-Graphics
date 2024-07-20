@@ -39,8 +39,7 @@ module:
         disc_start: 1500
         disc_factor: 1.0
         disc_weight: 0.5
-        perceptual_weight: 1.0
-        bdcn_weight: 1.0
+        perceptual_weight: 1.5
         disc_config:
           in_channels: 3
           in_res: 512
