@@ -13,6 +13,7 @@ class UpBlock(nn.Module):
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
                  mode: str = 'nearest',
+                 num_groups: int = 1,
                  ):
         super().__init__()
         mode = mode.lower()
@@ -31,7 +32,8 @@ class UpBlock(nn.Module):
                 padding=1,
             )
 
+        self.norm = group_norm(out_channels, num_groups=num_groups)
+
     def forward(self, x):
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
-        x = self.up(x)
-        return x
+        return self.norm(self.up(x))

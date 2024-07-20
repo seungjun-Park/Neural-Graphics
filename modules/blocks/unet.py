@@ -66,12 +66,14 @@ class UnetBlock(nn.Module):
             dim=dim
         )
 
+        self.norm = group_norm(out_channels, num_groups=num_groups)
+        self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.residual_block(x)
-        z, attn_map = self.attn(self.norm(h))
-        z = h + self.drop_path(z)
+        z, attn_map = self.attn(h)
+        z = self.act(self.norm(h + self.drop_path(z)))
         return z
 
 
@@ -120,6 +122,8 @@ class UNet(nn.Module):
         self.encoder.append(
             nn.Sequential(
                 conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
+                group_norm(embed_dim, num_groups=num_groups),
+                get_act(act)
             )
         )
 
@@ -207,8 +211,6 @@ class UNet(nn.Module):
         in_ch = in_ch + skip_dims.pop()
 
         self.out = nn.Sequential(
-            group_norm(in_ch, num_groups=num_groups),
-            get_act(),
             conv_nd(
                 dim,
                 in_ch,

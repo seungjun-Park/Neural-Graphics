@@ -46,8 +46,6 @@ class EncoderBlock(nn.Module):
             use_checkpoint=use_checkpoint,
         )
 
-        self.norm = group_norm(out_channels, num_groups=num_groups)
-
         self.attn = DoubleWindowSelfAttentionBlock(
             in_channels=out_channels,
             in_res=to_2tuple(in_res),
@@ -60,13 +58,14 @@ class EncoderBlock(nn.Module):
             attn_mode=attn_mode,
             dim=dim
         )
-
+        self.norm = group_norm(out_channels, num_groups=num_groups)
+        self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.residual_block(x)
-        z, attn_map = self.attn(self.norm(h))
-        z = h + self.drop_path(z)
+        z, attn_map = self.attn(h)
+        z = self.act(self.norm(h + self.drop_path(z)))
         return z
 
 
@@ -79,6 +78,7 @@ class Discriminator(nn.Module):
                  hidden_dims: Union[List[int], Tuple[int]] = (),
                  num_blocks: Union[int, List[int], Tuple[int]] = (),
                  window_size: Union[int, List[int], Tuple[int]] = 7,
+                 patch_size: Union[int, List[int], Tuple[int]] = 4,
                  num_heads: int = -1,
                  num_head_channels: int = -1,
                  dropout: float = 0.0,
@@ -104,13 +104,25 @@ class Discriminator(nn.Module):
 
         self.encoder = nn.ModuleList()
 
-        self.img_embed = conv_nd(2, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
-        self.edge_embed = conv_nd(2, in_channels, embed_dim, kernel_size=3, stride=1, padding=1)
+        self.img_embed = nn.Sequential(
+            conv_nd(2, in_channels, embed_dim, kernel_size=4, stride=4),
+            group_norm(embed_dim, num_groups=num_groups),
+            get_act(act),
+        )
+        self.edge_embed = nn.Sequential(
+            conv_nd(2, in_channels, embed_dim, kernel_size=4, stride=4),
+            group_norm(embed_dim, num_groups=num_groups),
+            get_act(act),
+        )
 
-        self.quant_embed = conv_nd(2, embed_dim * 2, embed_dim, kernel_size=1, stride=1)
+        self.quant_embed = nn.Sequential(
+            conv_nd(2, embed_dim * 2, embed_dim, kernel_size=1, stride=1),
+            group_norm(embed_dim, num_groups=num_groups),
+            get_act(act)
+        )
 
         in_ch = embed_dim
-        cur_res = in_res
+        cur_res = in_res // patch_size
 
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
@@ -141,13 +153,7 @@ class Discriminator(nn.Module):
                 self.encoder.append(DownBlock(in_channels=in_ch, dim=dim, scale_factor=2, pool_type=pool_type))
                 cur_res //= 2
 
-        quant_dim = in_ch if quant_dim is None else quant_dim
-
-        self.quant_conv = nn.Sequential(
-            group_norm(in_ch, num_groups=num_groups),
-            conv_nd(dim=dim, in_channels=in_ch, out_channels=quant_dim, kernel_size=1, stride=1)
-        )
-        # self.fc_w = nn.Parameter(torch.randn(1, quant_dim * cur_res ** 2))
+        self.fc_w = nn.Parameter(torch.randn(1, in_ch * cur_res ** 2))
 
     def forward(self, imgs: torch.Tensor, edges: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
         h = self.quant_embed(torch.cat([self.img_embed(imgs), self.edge_embed(edges)], dim=1))
@@ -156,19 +162,19 @@ class Discriminator(nn.Module):
             h = module(h)
 
         h = self.quant_conv(h)
-        # h = torch.flatten(h, start_dim=1)
+        h = torch.flatten(h, start_dim=1)
 
-        # weights = self.fc_w
-        # direction = F.normalize(weights, dim=1)
-        # scale = torch.norm(self.fc_w, dim=1)
-        # h = h * scale
-        # if training:
-        #     logits = (h.detach() * direction)
-        #     dir = (h * direction.detach())
-        #     out = {'logits': logits, 'dir': dir}
-        # else:
-        #     logits = (h * direction)
-        #     out = {'logits': logits}
+        weights = self.fc_w
+        direction = F.normalize(weights, dim=1)
+        scale = torch.norm(self.fc_w, dim=1)
+        h = h * scale
+        if training:
+            logits = (h.detach() * direction)
+            dir = (h * direction.detach())
+            out = {'logits': logits, 'dir': dir}
+        else:
+            logits = (h * direction)
+            out = {'logits': logits}
 
-        return h
+        return out
 

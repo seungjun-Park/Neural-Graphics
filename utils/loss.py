@@ -283,7 +283,7 @@ def vanilla_d_loss(logits_real: torch.Tensor, logits_fake: torch.Tensor) -> torc
     return d_loss
 
 
-def bdcn_loss2(inputs, targets):
+def bdcn_loss2(inputs, targets, reduction='mean'):
     targets = targets.long()
     mask = targets.float()
     num_positive = torch.sum((mask > 0.0).float()).float()  # >0.1
@@ -294,7 +294,10 @@ def bdcn_loss2(inputs, targets):
     inputs = torch.sigmoid(inputs)
     cost = torch.nn.BCELoss(mask, reduction='none')(inputs, targets.float())
 
-    cost = torch.mean(cost.float().mean((1, 2, 3)))  # before sum
+    if reduction == 'mean':
+        cost = torch.mean(cost.float().mean((1, 2, 3)))  # before sum
+    elif reduction == 'sum':
+        cost = torch.sum(cost) / cost.shape[0]
     return cost
 
 
