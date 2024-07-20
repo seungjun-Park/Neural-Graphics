@@ -58,7 +58,7 @@ module:
           qkv_bias: True
           bias: True
           act: 'gelu'
-          num_groups: 32
+          num_groups: 16
           pool_type: 'conv'
           dim: 2
           use_conv: True
