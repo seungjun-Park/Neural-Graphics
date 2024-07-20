@@ -50,7 +50,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             rec_loss = bdcn_loss * self.bdcn_weight + self.perceptual_weight * p_loss
             rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
             # generator update
-            logits_fake = self.discriminator(imgs=imgs, edges=preds, training=False)
+            logits_fake = self.discriminator(imgs=imgs, edges=preds, training=False)['logits']
             g_loss = -torch.mean(logits_fake)
 
             if self.disc_factor > 0.0:
@@ -82,19 +82,21 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             labels = labels.detach().repeat(1, 3, 1, 1).contiguous()
             preds = preds.detach().repeat(1, 3, 1, 1).contiguous()
 
-            logits_real = self.discriminator(imgs=imgs, edges=labels, training=True)
-            logits_fake = self.discriminator(imgs=imgs, edges=preds, training=True)
+            real = self.discriminator(imgs=imgs, edges=labels, training=True)
+            fake = self.discriminator(imgs=imgs, edges=preds, training=True)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
 
-            hinge = hinge_d_loss(logits_real, logits_fake)
-            # wasserstein = wasserstein_d_loss(real['dir'], fake['dir'])
+            hinge = hinge_d_loss(real['logits'], fake['logits'])
+            wasserstein = wasserstein_d_loss(real['dir'], fake['dir'])
 
-            d_loss = disc_factor * hinge
+            d_loss = disc_factor * (hinge + wasserstein)
 
             log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
-                   "{}/logits_real".format(split): logits_real.detach().mean(),
-                   "{}/logits_fake".format(split): logits_fake.detach().mean(),
+                   "{}/logits_real".format(split): real['logits'].detach().mean(),
+                   "{}/logits_fake".format(split): fake['logits'].detach().mean(),
+                   "{}/dir_real".format(split): real['dir'].detach().mean(),
+                   "{}/dir_fake".format(split): fake['dir'].detach().mean(),
                    }
             return d_loss, log
 
