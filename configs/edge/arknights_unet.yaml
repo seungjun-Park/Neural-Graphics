@@ -37,7 +37,7 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
       params:
-        disc_start: 0
+        disc_start: 1500
         disc_factor: 2.0
         disc_weight: 0.5
         perceptual_weight: 2.0
