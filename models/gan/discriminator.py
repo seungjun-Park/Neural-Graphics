@@ -198,14 +198,14 @@ class Discriminator(nn.Module):
         self.decoder = nn.ModuleList()
 
         self.embed = nn.Sequential(
-            conv_nd(2, in_channels, embed_dim, kernel_size=4, stride=4),
+            conv_nd(2, in_channels, embed_dim, kernel_size=patch_size, stride=patch_size),
             group_norm(embed_dim, num_groups=num_groups),
             get_act(act),
         )
 
         in_ch = embed_dim
         cur_res = in_res // patch_size
-        hidden_dims.append(1) # dummy
+        hidden_dims.append(1)  # dummy
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks):
                 self.encoder.append(
@@ -250,7 +250,7 @@ class Discriminator(nn.Module):
                     )
                 )
 
-            if cur_res >= window_size * 2:
+            if i != len(hidden_dims) - 1:
                 self.encoder.append(
                     PatchMerging(
                         in_channels=in_ch,

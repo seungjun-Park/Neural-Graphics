@@ -67,12 +67,8 @@ class PatchMerging(nn.Module):
         self.scale_factor = scale_factor
         self.use_conv = use_conv
 
-        if use_conv:
-            self.norm = group_norm(out_channels, num_groups=num_groups)
-            self.reduction = conv_nd(dim, (scale_factor ** 2) * in_channels, out_channels, kernel_size=1, bias=False)
-        else:
-            self.norm = nn.LayerNorm(out_channels)
-            self.reduction = nn.Linear((scale_factor ** 2) * in_channels, out_channels, bias=False)
+        self.reduction = conv_nd(dim, (scale_factor ** 2) * in_channels, out_channels, kernel_size=1, bias=False)
+        self.norm = group_norm(out_channels, num_groups=num_groups)
 
     def forward(self, x: torch.Tensor):
         b, c, h, w = x.shape
@@ -82,14 +78,8 @@ class PatchMerging(nn.Module):
         x3 = x[:, :, 1::2, 1::2]
         x = torch.cat([x0, x1, x2, x3], dim=1)
 
-        if not self.use_conv:
-            x = x.reshape(b, c, -1).permute(0, 2, 1)
-
         x = self.reduction(x)
         x = self.norm(x)
-
-        if not self.use_conv:
-            x = x.permute(0, 2, 1).reshape(b, -1, h // self.scale_factor, w // self.scale_factor)
 
         return x
 

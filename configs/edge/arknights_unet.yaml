@@ -44,9 +44,9 @@ module:
         disc_config:
           in_channels: 3
           in_res: 512
-          embed_dim: 64
+          embed_dim: 32
           quant_dim: 256
-          hidden_dims: [ 128, 256, 512, 512]
+          hidden_dims: [ 64, 128, 256, 512, 512]
           num_blocks: 1
           window_size: 8
           patch_size: 4
