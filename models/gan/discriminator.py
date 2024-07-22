@@ -77,10 +77,19 @@ class EncoderBlock(nn.Module):
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
+        if in_channels == out_channels:
+            self.shortcut = nn.Identity()
+        else:
+            self.shortcut = nn.Sequential(
+                conv_nd(2, in_channels, out_channels, kernel_size=1, stride=1),
+                group_norm(out_channels, num_groups=num_groups),
+                get_act(act)
+            )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
+        h = self.act(self.norm2(self.shortcut(h) + self.drop_path(self.mlp(h))))
 
         return h
 
