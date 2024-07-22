@@ -62,10 +62,17 @@ class EncoderBlock(nn.Module):
             use_checkpoint=use_checkpoint
         )
 
+        if in_channels == out_channels:
+            self.shortcut = nn.Identity()
+        else:
+            self.shortcut = nn.Sequential(
+                conv_nd(2, in_channels, out_channels, kernel_size=1, stride=1),
+            )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        z = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
+        z = self.act(self.norm2(self.shortcut(h) + self.drop_path(self.mlp(h))))
 
         return z
 
@@ -136,12 +143,19 @@ class DecoderBlock(nn.Module):
             use_checkpoint=use_checkpoint
         )
 
+        if in_channels == out_channels:
+            self.shortcut = nn.Identity()
+        else:
+            self.shortcut = nn.Sequential(
+                conv_nd(2, in_channels, out_channels, kernel_size=1, stride=1),
+            )
+
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.self_attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
         z, attn_map = self.cross_attn(context, h)
         z = self.act(self.norm2(h + self.drop_path(z)))
-        z = self.act(self.norm3(z + self.drop_path(self.mlp(z))))
+        z = self.act(self.norm3(self.shortcut(h) + self.drop_path(self.mlp(z))))
 
         return z
 

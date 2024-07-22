@@ -70,10 +70,17 @@ class UnetBlock(nn.Module):
             use_checkpoint=use_checkpoint
         )
 
+        if in_channels == out_channels:
+            self.shortcut = nn.Identity()
+        else:
+            self.shortcut = nn.Sequential(
+                conv_nd(2, in_channels, out_channels, kernel_size=1, stride=1),
+            )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
+        h = self.act(self.norm2(self.shortcut(h) + self.drop_path(self.mlp(h))))
 
         return h
 
@@ -181,14 +188,15 @@ class UNet(nn.Module):
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
                 up = list()
+                skip_dim = skip_dims.pop()
                 up.append(
                     UnetBlock(
-                        in_channels=in_ch + skip_dims.pop(),
+                        in_channels=in_ch + skip_dim,
                         out_channels=in_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
-                        num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
+                        num_heads=(in_ch + skip_dim) // num_head_channels if use_num_head_channels else num_heads,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
