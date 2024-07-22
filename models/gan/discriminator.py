@@ -110,7 +110,7 @@ class DecoderBlock(nn.Module):
         )
 
         self.cross_attn = DoubleWindowCrossAttentionBlock(
-            in_channels=in_channels,
+            in_channels=out_channels,
             in_res=to_2tuple(in_res),
             num_heads=num_heads,
             window_size=window_size,
