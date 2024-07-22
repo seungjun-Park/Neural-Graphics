@@ -15,7 +15,7 @@ module:
         window_size: 8
         out_channels: 1
         embed_dim: 64
-        hidden_dims: [ 128, 128, 256, 256, 512, 512 ]
+        hidden_dims: [ 64, 128, 128, 256, 256, 512 ]
         num_blocks: 1
         num_heads: 8
         num_head_channels: -1
