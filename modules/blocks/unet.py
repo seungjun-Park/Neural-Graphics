@@ -41,7 +41,7 @@ class UnetBlock(nn.Module):
         out_channels = in_channels if out_channels is None else out_channels
 
         self.norm = group_norm(in_channels, num_groups=num_groups)
-        self.norm2 = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(out_channels, num_groups=num_groups)
 
         self.attn = DoubleWindowSelfAttentionBlock(
             in_channels=in_channels,
