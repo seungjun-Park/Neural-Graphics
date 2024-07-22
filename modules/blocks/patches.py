@@ -107,8 +107,8 @@ class PatchExpanding(nn.Module):
 
         self.scale_factor = scale_factor
         self.use_conv = use_conv
-        out_channels = (in_channels if out_channels is None else out_channels) * self.scale_factor ** 2
-        self.expand = conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=1)
+        out_channels = (in_channels if out_channels is None else out_channels)
+        self.expand = conv_nd(dim, in_channels, out_channels * (self.scale_factor ** 2), kernel_size=1, stride=1)
         self.norm = group_norm(out_channels, num_groups=num_groups)
 
     def forward(self, x: torch.Tensor):
