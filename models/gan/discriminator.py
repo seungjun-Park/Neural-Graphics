@@ -123,7 +123,7 @@ class DecoderBlock(nn.Module):
         )
 
         self.norm = group_norm(in_channels, num_groups=num_groups)
-        self.norm2 = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(out_channels, num_groups=num_groups)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
