@@ -38,6 +38,8 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
                 global_step: int = 0,
                 last_layer=None,
                 split="train"):
+
+        labels = labels.long().float()
         # now the GAN part
         if optimizer_idx == 0:
             rec_loss = (labels.contiguous() - preds.contiguous()) ** 2

@@ -7,8 +7,8 @@ from timm.models.layers import DropPath
 from typing import Union, List, Tuple
 from utils import conv_nd, to_2tuple, get_act, instantiate_from_config, group_norm
 from modules.blocks import DownBlock, PatchMerging
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock
-from modules.blocks.res_block import ResidualBlock
+from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, DoubleWindowCrossAttentionBlock
+from modules.blocks.mlp import ConvMLP
 
 
 class EncoderBlock(nn.Module):
@@ -25,6 +25,7 @@ class EncoderBlock(nn.Module):
                  qkv_bias: bool = True,
                  bias: bool = True,
                  act: str = 'relu',
+                 mlp_ratio: float = 4.0,
                  use_conv: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
@@ -34,20 +35,8 @@ class EncoderBlock(nn.Module):
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.residual_block = ResidualBlock(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            dropout=dropout,
-            drop_path=drop_path,
-            act=act,
-            dim=dim,
-            num_groups=num_groups,
-            use_conv=use_conv,
-            use_checkpoint=use_checkpoint,
-        )
-
         self.attn = DoubleWindowSelfAttentionBlock(
-            in_channels=out_channels,
+            in_channels=in_channels,
             in_res=to_2tuple(in_res),
             num_heads=num_heads,
             window_size=window_size,
@@ -58,14 +47,102 @@ class EncoderBlock(nn.Module):
             attn_mode=attn_mode,
             dim=dim
         )
-        self.norm = group_norm(out_channels, num_groups=num_groups)
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(in_channels, num_groups=num_groups)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
+        self.mlp = ConvMLP(
+            in_channels=in_channels,
+            embed_dim=int(in_channels * mlp_ratio),
+            dropout=dropout,
+            act=act,
+            num_groups=num_groups,
+            dim=dim,
+            use_checkpoint=use_checkpoint
+        )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.residual_block(x)
-        z, attn_map = self.attn(h)
-        z = self.act(self.norm(h + self.drop_path(z)))
+        h, attn_map = self.attn(x)
+        h = self.act(self.norm(x + self.drop_path(h)))
+        z = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
+
+        return z
+
+
+class DecoderBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 in_res: Union[int, List[int], Tuple[int]],
+                 out_channels: int = None,
+                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 num_groups: int = 16,
+                 num_heads: int = 8,
+                 dropout: float = 0.0,
+                 attn_dropout: float = 0.0,
+                 drop_path: float = 0.0,
+                 qkv_bias: bool = True,
+                 bias: bool = True,
+                 act: str = 'relu',
+                 mlp_ratio: float = 4.0,
+                 use_conv: bool = True,
+                 dim: int = 2,
+                 use_checkpoint: bool = True,
+                 attn_mode: str = 'cosine',
+                 ):
+        super().__init__()
+
+        out_channels = in_channels if out_channels is None else out_channels
+
+        self.self_attn = DoubleWindowSelfAttentionBlock(
+            in_channels=in_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
+
+        self.cross_attn = DoubleWindowCrossAttentionBlock(
+            in_channels=in_channels,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
+
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(in_channels, num_groups=num_groups)
+        self.norm3 = group_norm(in_channels, num_groups)
+        self.act = get_act(act)
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+        self.mlp = ConvMLP(
+            in_channels=in_channels,
+            embed_dim=int(in_channels * mlp_ratio),
+            dropout=dropout,
+            act=act,
+            num_groups=num_groups,
+            dim=dim,
+            use_checkpoint=use_checkpoint
+        )
+
+    def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
+        h, attn_map = self.self_attn(x)
+        h = self.act(self.norm(x + self.drop_path(h)))
+        z, attn_map = self.cross_attn(context, h)
+        z = self.act(self.norm2(h + self.drop_path(z)))
+        z = self.act(self.norm3(z + self.drop_path(self.mlp(z))))
+
         return z
 
 
@@ -87,6 +164,7 @@ class Discriminator(nn.Module):
                  qkv_bias: bool = True,
                  bias: bool = True,
                  act: str = 'relu',
+                 mlp_ratio: float = 4.0,
                  num_groups: int = 32,
                  pool_type: str = 'conv',
                  dim: int = 2,
@@ -103,37 +181,26 @@ class Discriminator(nn.Module):
             self.use_num_head_channels = False
 
         self.encoder = nn.ModuleList()
+        self.decoder = nn.ModuleList()
 
-        self.img_embed = nn.Sequential(
+        self.embed = nn.Sequential(
             conv_nd(2, in_channels, embed_dim, kernel_size=4, stride=4),
             group_norm(embed_dim, num_groups=num_groups),
             get_act(act),
-        )
-        self.edge_embed = nn.Sequential(
-            conv_nd(2, in_channels, embed_dim, kernel_size=4, stride=4),
-            group_norm(embed_dim, num_groups=num_groups),
-            get_act(act),
-        )
-
-        self.quant_embed = nn.Sequential(
-            conv_nd(2, embed_dim * 2, embed_dim, kernel_size=1, stride=1),
-            group_norm(embed_dim, num_groups=num_groups),
-            get_act(act)
         )
 
         in_ch = embed_dim
         cur_res = in_res // patch_size
-
+        hidden_dims.append(1) # dummy
         for i, out_ch in enumerate(hidden_dims):
-            for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
+            for j in range(num_blocks):
                 self.encoder.append(
                     EncoderBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
-                        num_heads=(out_ch // num_head_channels) if self.use_num_head_channels else num_heads,
+                        num_heads=(in_ch // num_head_channels) if self.use_num_head_channels else num_heads,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
@@ -144,24 +211,73 @@ class Discriminator(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
+                        mlp_ratio=mlp_ratio
+                    )
+                )
+
+                self.decoder.append(
+                    DecoderBlock(
+                        in_channels=in_ch,
+                        in_res=cur_res,
+                        window_size=window_size,
+                        num_groups=num_groups,
+                        num_heads=(in_ch // num_head_channels) if self.use_num_head_channels else num_heads,
+                        dropout=dropout,
+                        attn_dropout=attn_dropout,
+                        drop_path=drop_path,
+                        qkv_bias=qkv_bias,
+                        bias=bias,
+                        act=act,
+                        use_conv=use_conv,
+                        dim=dim,
+                        use_checkpoint=use_checkpoint,
+                        attn_mode=attn_mode,
+                        mlp_ratio=mlp_ratio,
+                    )
+                )
+
+            if cur_res >= window_size * 2:
+                self.encoder.append(
+                    PatchMerging(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        scale_factor=2,
+                        num_groups=num_groups,
+                        use_conv=use_conv,
+                        dim=dim,
+                    )
+                )
+
+                self.encoder.append(
+                    PatchMerging(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        scale_factor=2,
+                        num_groups=num_groups,
+                        use_conv=use_conv,
+                        dim=dim,
                     )
                 )
 
                 in_ch = out_ch
-
-            if i != len(hidden_dims) - 1:
-                self.encoder.append(DownBlock(in_channels=in_ch, dim=dim, scale_factor=2, pool_type=pool_type))
                 cur_res //= 2
 
-        self.fc_w = nn.Parameter(torch.randn(1, in_ch * cur_res ** 2))
+        quant_dim = in_ch if quant_dim is None else quant_dim
+        self.quant_conv = conv_nd(dim, in_ch, quant_dim, kernel_size=1, stride=1)
+        self.fc_w = nn.Parameter(torch.randn(1, quant_dim * cur_res ** 2))
 
     def forward(self, imgs: torch.Tensor, edges: torch.Tensor, training: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
-        h = self.quant_embed(torch.cat([self.img_embed(imgs), self.edge_embed(edges)], dim=1))
+        context = self.embed(imgs)
+        h = self.embed(edges)
 
-        for i, module in enumerate(self.encoder):
-            h = module(h)
+        for i, (enc, dec) in enumerate(zip(self.encoder, self.decoder)):
+            context = enc(context)
+            if isinstance(dec, DecoderBlock):
+                h = dec(h, context)
+            else:
+                h = dec(h)
 
-        # h = self.quant_conv(h)
+        h = self.quant_conv(h)
         h = torch.flatten(h, start_dim=1)
 
         weights = self.fc_w

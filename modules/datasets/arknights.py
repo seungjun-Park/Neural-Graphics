@@ -55,6 +55,8 @@ class ArknightsDataset(Dataset):
         self.scale = list(to_2tuple(scale))
         self.ratio = list(to_2tuple(ratio))
 
+        self.resize = transforms.Resize(size=self.size, antialias=True)
+
         if train:
             root = os.path.join(root, 'train')
         else:
@@ -76,10 +78,13 @@ class ArknightsDataset(Dataset):
         img = self.to_tensor(img)
         edge = self.to_tensor(edge)
 
-        i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
+        img = self.resize(img)
+        edge = self.resize(edge)
 
-        img = tf.resized_crop(img, i, j, h, w, size=self.size, antialias=True)
-        edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
+        # i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
+        #
+        # img = tf.resized_crop(img, i, j, h, w, size=self.size, antialias=True)
+        # edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
 
         return img, edge
 

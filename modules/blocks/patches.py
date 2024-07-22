@@ -74,7 +74,7 @@ class PatchMerging(nn.Module):
             self.norm = nn.LayerNorm(out_channels)
             self.reduction = nn.Linear((scale_factor ** 2) * in_channels, out_channels, bias=False)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         b, c, h, w = x.shape
         x0 = x[:, :, 0::2, 0::2]
         x1 = x[:, :, 1::2, 0::2]
@@ -97,29 +97,26 @@ class PatchMerging(nn.Module):
 class PatchExpanding(nn.Module):
     def __init__(self,
                  in_channels: int,
-                 out_channels: int,
+                 out_channels: int = None,
                  scale_factor: int = 2,
                  num_groups: int = 1,
                  use_conv: bool = True,
                  dim: int = 2,
-                 mode: str = 'nearest'
                  ):
         super().__init__()
 
         self.scale_factor = scale_factor
         self.use_conv = use_conv
-        self.mode = mode.lower()
+        out_channels = (in_channels if out_channels is None else out_channels) * self.scale_factor ** 2
+        self.expand = conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=1)
+        self.norm = group_norm(out_channels, num_groups=num_groups)
 
-        if use_conv:
-            self.expand = conv_nd(dim, in_channels, out_channels, kernel_size=3, stride=1, padding=1)
-            self.norm = group_norm(out_channels, num_groups=num_groups)
-        else:
-            self.expand = nn.Linear(in_channels, out_channels)
-            self.norm = nn.LayerNorm(out_channels)
+    def forward(self, x: torch.Tensor):
+        x = self.expand(x)
+        b, c, h, w = x.shape
+        x = rearrange(x, 'b (c p1 p2) h w -> b c (h p1) (w p2)', p1=self.scale_factor, p2=self.scale_factor, c=c//(self.scale_factor ** 2))
+        x = self.norm(x)
 
-    def forward(self, x):
-        h = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
-
-        return self.norm(self.expand(h))
+        return x
 
     

@@ -29,6 +29,7 @@ class UnetBlock(nn.Module):
                  drop_path: float = 0.0,
                  qkv_bias: bool = True,
                  bias: bool = True,
+                 mlp_ratio: float = 4.0,
                  act: str = 'relu',
                  use_conv: bool = True,
                  dim: int = 2,
@@ -39,22 +40,11 @@ class UnetBlock(nn.Module):
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.residual_block = ResidualBlock(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            dropout=dropout,
-            drop_path=drop_path,
-            act=act,
-            dim=dim,
-            num_groups=num_groups,
-            use_conv=use_conv,
-            use_checkpoint=use_checkpoint,
-        )
-
-        self.norm = group_norm(out_channels, num_groups=num_groups)
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(in_channels, num_groups=num_groups)
 
         self.attn = DoubleWindowSelfAttentionBlock(
-            in_channels=out_channels,
+            in_channels=in_channels,
             in_res=to_2tuple(in_res),
             num_heads=num_heads,
             window_size=window_size,
@@ -66,15 +56,26 @@ class UnetBlock(nn.Module):
             dim=dim
         )
 
-        self.norm = group_norm(out_channels, num_groups=num_groups)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
+        self.mlp = ConvMLP(
+            in_channels=in_channels,
+            embed_dim=int(in_channels * mlp_ratio),
+            out_channels=out_channels,
+            dropout=dropout,
+            act=act,
+            num_groups=num_groups,
+            dim=dim,
+            use_checkpoint=use_checkpoint
+        )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.residual_block(x)
-        z, attn_map = self.attn(h)
-        z = self.act(self.norm(h + self.drop_path(z)))
-        return z
+        h, attn_map = self.attn(x)
+        h = self.act(self.norm(x + self.drop_path(h)))
+        h = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
+
+        return h
 
 
 class UNet(nn.Module):
@@ -130,18 +131,17 @@ class UNet(nn.Module):
         in_ch = embed_dim
         skip_dims = [embed_dim]
         cur_res = in_res
-
+        hidden_dims.append(1) # dummy
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
                 down = list()
                 down.append(
                     UnetBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
-                        num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
+                        num_heads=in_ch // num_head_channels if use_num_head_channels else num_heads,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
@@ -154,21 +154,27 @@ class UNet(nn.Module):
                         attn_mode=attn_mode,
                     )
                 )
-                in_ch = out_ch
                 skip_dims.append(in_ch)
                 self.encoder.append(nn.Sequential(*down))
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
-                    DownBlock(
-                        in_ch,
-                        dim=dim,
-                        pool_type=pool_type,
+                    PatchMerging(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
                         scale_factor=2,
+                        num_groups=num_groups,
+                        use_conv=use_conv,
+                        dim=dim,
                     )
                 )
+                in_ch = out_ch
                 skip_dims.append(in_ch)
                 cur_res //= 2
+
+        # dummy
+        hidden_dims.pop()
+        hidden_dims.insert(0, 1)
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
@@ -176,7 +182,7 @@ class UNet(nn.Module):
                 up.append(
                     UnetBlock(
                         in_channels=in_ch + skip_dims.pop(),
-                        out_channels=out_ch,
+                        out_channels=in_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -193,19 +199,20 @@ class UNet(nn.Module):
                         attn_mode=attn_mode,
                     )
                 )
-                in_ch = out_ch
                 self.decoder.append(nn.Sequential(*up))
 
             if i != 0:
                 self.decoder.append(
-                    UpBlock(
-                        in_ch + skip_dims.pop(),
-                        out_channels=in_ch,
-                        dim=dim,
-                        mode=mode,
-                        scale_factor=2
+                    PatchExpanding(
+                        in_channels=in_ch + skip_dims.pop(),
+                        out_channels=out_ch,
+                        scale_factor=2,
+                        num_groups=num_groups,
+                        use_conv=use_conv,
+                        dim=dim
                     )
                 )
+                in_ch = out_ch
                 cur_res *= 2
 
         in_ch = in_ch + skip_dims.pop()
@@ -215,9 +222,8 @@ class UNet(nn.Module):
                 dim,
                 in_ch,
                 out_channels,
-                kernel_size=3,
+                kernel_size=1,
                 stride=1,
-                padding=1,
             )
         )
 

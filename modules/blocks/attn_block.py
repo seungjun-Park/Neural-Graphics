@@ -770,16 +770,16 @@ class DoubleWindowCrossAttentionBlock(nn.Module):
         self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, bias=qkv_bias)
         self.proj = conv_nd(dim, in_channels * 2 if self.shift_size > 0 else in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
-    def forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
-        return checkpoint(self._forward, (x, cond), self.parameters(), flag=self.use_checkpoint)
+    def forward(self, x: torch.Tensor, context: torch.Tensor) -> Tuple:
+        return checkpoint(self._forward, (x, context), self.parameters(), flag=self.use_checkpoint)
 
-    def _forward(self, x: torch.Tensor, cond: torch.Tensor) -> Tuple:
+    def _forward(self, x: torch.Tensor, context: torch.Tensor) -> Tuple:
         H, W = self.in_res
         b, c, h, w = x.shape
         assert h * w == H * W, "input feature has wrong size"
 
         q = self.q(x)
-        kv = self.kv(cond)
+        kv = self.kv(context)
         qkv = torch.cat([q, kv], dim=1)
         q, k, v = torch.chunk(qkv, 3, dim=1)
         msa, attn_map = self.attn(q=q, k=k, v=v, mask=self.attn_mask)
