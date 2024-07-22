@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from utils import get_act, conv_nd, to_ntuple, group_norm
-from torch.utils.checkpoint import checkpoint
+from utils.checkpoints import checkpoint
 
 
 class MLP(nn.Module):
@@ -31,9 +31,7 @@ class MLP(nn.Module):
         self.act = get_act(act)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x)
-        return self._forward(x)
+        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x):
         # x.shape == b, l, c
@@ -79,9 +77,7 @@ class ConvMLP(nn.Module):
         self.norm2 = group_norm(out_channels, num_groups=num_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x)
-        return self._forward(x)
+        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
         # x.shape == b, c, *...
