@@ -77,7 +77,7 @@ class ArknightsDataset(Dataset):
 
         img = self.to_tensor(img)
         edge = self.to_tensor(edge)
-
+        edge = torch.where(edge > 0.3, 1.0, 0.0)
         img = self.resize(img)
         edge = self.resize(edge)
 

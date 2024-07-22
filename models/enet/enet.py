@@ -60,7 +60,6 @@ class EDNSE(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         imgs, labels = batch
-        labels = labels.long().float()
         preds = self(imgs)
 
         opt_net, opt_disc = self.optimizers()

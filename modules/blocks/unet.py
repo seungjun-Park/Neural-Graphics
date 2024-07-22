@@ -220,9 +220,8 @@ class UNet(nn.Module):
                 dim,
                 in_ch,
                 out_channels,
-                kernel_size=3,
+                kernel_size=1,
                 stride=1,
-                padding=1,
             )
         )
 
@@ -236,6 +235,6 @@ class UNet(nn.Module):
         for i, block in enumerate(self.decoder):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
-            
+
         return self.out(h)
 
