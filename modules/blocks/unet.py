@@ -215,8 +215,6 @@ class UNet(nn.Module):
                 )
                 cur_res *= 2
 
-        in_ch = in_ch + skip_dims.pop()
-
         self.out = nn.Sequential(
             conv_nd(
                 dim,
@@ -238,6 +236,6 @@ class UNet(nn.Module):
         for i, block in enumerate(self.decoder):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
-        h = torch.cat([h, hs.pop()], dim=1)
+            
         return self.out(h)
 
