@@ -8,6 +8,7 @@ from typing import Union, List, Tuple
 from utils import conv_nd, to_2tuple, get_act, instantiate_from_config, group_norm
 from modules.blocks import DownBlock, PatchMerging
 from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, DoubleWindowCrossAttentionBlock
+from modules.blocks.res_block import ResidualBlock
 from modules.blocks.mlp import ConvMLP
 
 
@@ -48,33 +49,27 @@ class EncoderBlock(nn.Module):
             dim=dim
         )
         self.norm = group_norm(in_channels, num_groups=num_groups)
-        self.norm2 = group_norm(in_channels, num_groups=num_groups)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        self.mlp = ConvMLP(
+        self.res_block = ResidualBlock(
             in_channels=in_channels,
-            embed_dim=int(in_channels * mlp_ratio),
+            out_channels=out_channels,
             dropout=dropout,
+            drop_path=drop_path,
             act=act,
-            num_groups=num_groups,
             dim=dim,
-            use_checkpoint=use_checkpoint
+            num_groups=num_groups,
+            use_checkpoint=use_checkpoint,
+            use_conv=use_conv,
         )
-
-        if in_channels == out_channels:
-            self.shortcut = nn.Identity()
-        else:
-            self.shortcut = nn.Sequential(
-                conv_nd(2, in_channels, out_channels, kernel_size=1, stride=1),
-            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        z = self.act(self.norm2(self.shortcut(h) + self.drop_path(self.mlp(h))))
+        h = self.res_block(h)
 
-        return z
+        return h
 
 
 class DecoderBlock(nn.Module):
@@ -129,33 +124,40 @@ class DecoderBlock(nn.Module):
 
         self.norm = group_norm(in_channels, num_groups=num_groups)
         self.norm2 = group_norm(in_channels, num_groups=num_groups)
-        self.norm3 = group_norm(out_channels, num_groups)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        self.mlp = ConvMLP(
+        self.res_block1 = ResidualBlock(
             in_channels=in_channels,
-            embed_dim=int(in_channels * mlp_ratio),
+            out_channels=out_channels,
             dropout=dropout,
+            drop_path=drop_path,
             act=act,
-            num_groups=num_groups,
             dim=dim,
-            use_checkpoint=use_checkpoint
+            num_groups=num_groups,
+            use_checkpoint=use_checkpoint,
+            use_conv=use_conv,
         )
 
-        if in_channels == out_channels:
-            self.shortcut = nn.Identity()
-        else:
-            self.shortcut = nn.Sequential(
-                conv_nd(2, in_channels, out_channels, kernel_size=1, stride=1),
-            )
+        self.res_block2 = ResidualBlock(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            dropout=dropout,
+            drop_path=drop_path,
+            act=act,
+            dim=dim,
+            num_groups=num_groups,
+            use_checkpoint=use_checkpoint,
+            use_conv=use_conv,
+        )
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.self_attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        z, attn_map = self.cross_attn(context, h)
+        h = self.res_block1(h)
+        z, attn_map = self.cross_attn(h, context)
         z = self.act(self.norm2(h + self.drop_path(z)))
-        z = self.act(self.norm3(self.shortcut(h) + self.drop_path(self.mlp(z))))
+        z = self.res_block2(z)
 
         return z
 
@@ -211,6 +213,7 @@ class Discriminator(nn.Module):
                 self.encoder.append(
                     EncoderBlock(
                         in_channels=in_ch,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -232,6 +235,7 @@ class Discriminator(nn.Module):
                 self.decoder.append(
                     DecoderBlock(
                         in_channels=in_ch,
+                        out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
                         num_groups=num_groups,
@@ -250,30 +254,29 @@ class Discriminator(nn.Module):
                     )
                 )
 
+                in_ch = out_ch
+
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
-                    PatchMerging(
+                    DownBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
                         scale_factor=2,
-                        num_groups=num_groups,
-                        use_conv=use_conv,
                         dim=dim,
+                        num_groups=num_groups,
+                        pool_type=pool_type
                     )
                 )
 
                 self.decoder.append(
-                    PatchMerging(
+                    DownBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
                         scale_factor=2,
-                        num_groups=num_groups,
-                        use_conv=use_conv,
                         dim=dim,
+                        num_groups=num_groups,
+                        pool_type=pool_type
                     )
                 )
 
-                in_ch = out_ch
                 cur_res //= 2
 
         quant_dim = in_ch if quant_dim is None else quant_dim
