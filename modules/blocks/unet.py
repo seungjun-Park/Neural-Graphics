@@ -40,8 +40,6 @@ class UnetBlock(nn.Module):
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.norm = group_norm(in_channels, num_groups=num_groups)
-
         self.attn = DoubleWindowSelfAttentionBlock(
             in_channels=in_channels,
             in_res=to_2tuple(in_res),
@@ -55,25 +53,38 @@ class UnetBlock(nn.Module):
             dim=dim
         )
 
-        self.act = get_act(act)
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        # self.res_block = ResidualBlock(
+        #     in_channels=in_channels,
+        #     out_channels=out_channels,
+        #     dropout=dropout,
+        #     drop_path=drop_path,
+        #     act=act,
+        #     dim=dim,
+        #     num_groups=num_groups,
+        #     use_checkpoint=use_checkpoint,
+        #     use_conv=use_conv,
+        # )
 
-        self.res_block = ResidualBlock(
+        self.mlp = ConvMLP(
             in_channels=in_channels,
+            embed_dim=int(in_channels * mlp_ratio),
             out_channels=out_channels,
             dropout=dropout,
-            drop_path=drop_path,
             act=act,
-            dim=dim,
             num_groups=num_groups,
-            use_checkpoint=use_checkpoint,
-            use_conv=use_conv,
+            dim=dim,
+            use_checkpoint=use_checkpoint
         )
+
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(out_channels, num_groups=num_groups)
+        self.act = get_act(act)
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.res_block(h)
+        h = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
 
         return h
 

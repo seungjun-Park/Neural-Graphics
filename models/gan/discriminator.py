@@ -48,26 +48,39 @@ class EncoderBlock(nn.Module):
             attn_mode=attn_mode,
             dim=dim
         )
-        self.norm = group_norm(in_channels, num_groups=num_groups)
-        self.act = get_act(act)
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        self.res_block = ResidualBlock(
+        # self.res_block = ResidualBlock(
+        #     in_channels=in_channels,
+        #     out_channels=out_channels,
+        #     dropout=dropout,
+        #     drop_path=drop_path,
+        #     act=act,
+        #     dim=dim,
+        #     num_groups=num_groups,
+        #     use_checkpoint=use_checkpoint,
+        #     use_conv=use_conv,
+        # )
+
+        self.mlp = ConvMLP(
             in_channels=in_channels,
+            embed_dim=int(in_channels * mlp_ratio),
             out_channels=out_channels,
             dropout=dropout,
-            drop_path=drop_path,
             act=act,
-            dim=dim,
             num_groups=num_groups,
-            use_checkpoint=use_checkpoint,
-            use_conv=use_conv,
+            dim=dim,
+            use_checkpoint=use_checkpoint
         )
+
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(out_channels, num_groups=num_groups)
+        self.act = get_act(act)
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.res_block(h)
+        h = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
 
         return h
 
@@ -124,40 +137,40 @@ class DecoderBlock(nn.Module):
 
         self.norm = group_norm(in_channels, num_groups=num_groups)
         self.norm2 = group_norm(out_channels, num_groups=num_groups)
+        self.norm3 = group_norm(out_channels, num_groups=num_groups)
+        self.norm4 = group_norm(out_channels, num_groups=num_groups)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        self.res_block1 = ResidualBlock(
+        self.mlp1 = ConvMLP(
             in_channels=in_channels,
+            embed_dim=int(in_channels * mlp_ratio),
             out_channels=out_channels,
             dropout=dropout,
-            drop_path=drop_path,
             act=act,
-            dim=dim,
             num_groups=num_groups,
-            use_checkpoint=use_checkpoint,
-            use_conv=use_conv,
+            dim=dim,
+            use_checkpoint=use_checkpoint
         )
 
-        self.res_block2 = ResidualBlock(
+        self.mlp2 = ConvMLP(
             in_channels=out_channels,
+            embed_dim=int(out_channels * mlp_ratio),
             out_channels=out_channels,
             dropout=dropout,
-            drop_path=drop_path,
             act=act,
-            dim=dim,
             num_groups=num_groups,
-            use_checkpoint=use_checkpoint,
-            use_conv=use_conv,
+            dim=dim,
+            use_checkpoint=use_checkpoint
         )
 
     def forward(self, x: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.self_attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.res_block1(h)
+        h = self.act(self.norm2(h + self.drop_path(self.mlp1(h))))
         z, attn_map = self.cross_attn(h, context)
-        z = self.act(self.norm2(h + self.drop_path(z)))
-        z = self.res_block2(z)
+        z = self.act(self.norm3(h + self.drop_path(z)))
+        z = self.act(self.norm4(z + self.drop_path(self.mlp2(z))))
 
         return z
 
