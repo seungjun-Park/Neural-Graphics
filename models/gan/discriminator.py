@@ -207,7 +207,6 @@ class Discriminator(nn.Module):
 
         in_ch = embed_dim
         cur_res = in_res // patch_size
-        hidden_dims.append(1)  # dummy
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks):
                 self.encoder.append(
