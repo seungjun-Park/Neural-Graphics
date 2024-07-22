@@ -262,7 +262,7 @@ class Discriminator(nn.Module):
                     )
                 )
 
-                self.encoder.append(
+                self.decoder.append(
                     PatchMerging(
                         in_channels=in_ch,
                         out_channels=out_ch,
