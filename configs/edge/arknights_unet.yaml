@@ -24,7 +24,7 @@ module:
         drop_path: 0.0
         qkv_bias: True
         bias: True
-        mlp_ratio: 4.0
+        mlp_ratio: 2.0
         num_groups: 32
         act: 'gelu'
         use_conv: True
@@ -57,7 +57,7 @@ module:
           drop_path: 0.0
           qkv_bias: True
           bias: True
-          mlp_ratio: 4.0
+          mlp_ratio: 2.0
           act: 'gelu'
           num_groups: 32
           pool_type: 'conv'
