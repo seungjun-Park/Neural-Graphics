@@ -86,7 +86,7 @@ def test():
     model = instantiate_from_config(config.module).eval().to(device)
 
     data_path = './datasets/arknights_v2/train/amiya/images'
-    # data_path = '../test'
+    # data_path = './datasets/BIPEDv2/edges/imgs/train/rgbr/real'
     file_names = glob.glob(f'{data_path}/*.*')
     with torch.no_grad():
         for i, name in enumerate(file_names):
@@ -104,7 +104,8 @@ def test():
             if not os.path.isdir(f'{p1}/edges_v5'):
                 os.mkdir(f'{p1}/edges_v5')
             img.save(f'{p1}/edges_v5/{p2}.png', 'png')
-            # img.save(f'../test/{i}.png', 'png')
+            # p1, p2 = name.rsplit('imgs', 1)
+            # img.save(f'{p1}/edge_maps/{p2}', 'png')
 
 
 def classification_test():
