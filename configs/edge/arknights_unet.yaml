@@ -6,7 +6,6 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 25
-    accumulate_grad_batches: 25
     net_config:
       target: modules.blocks.UNet
       params:
