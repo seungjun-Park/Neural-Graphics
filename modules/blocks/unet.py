@@ -53,47 +53,26 @@ class UnetBlock(nn.Module):
             dim=dim
         )
 
-        # self.res_block = ResidualBlock(
-        #     in_channels=in_channels,
-        #     out_channels=out_channels,
-        #     dropout=dropout,
-        #     drop_path=drop_path,
-        #     act=act,
-        #     dim=dim,
-        #     num_groups=num_groups,
-        #     use_checkpoint=use_checkpoint,
-        #     use_conv=use_conv,
-        # )
-
-        self.mlp = ConvMLP(
+        self.res_block = ResidualBlock(
             in_channels=in_channels,
-            embed_dim=int(in_channels * mlp_ratio),
             out_channels=out_channels,
             dropout=dropout,
+            drop_path=drop_path,
             act=act,
-            num_groups=num_groups,
             dim=dim,
-            use_checkpoint=use_checkpoint
+            num_groups=num_groups,
+            use_checkpoint=use_checkpoint,
+            use_conv=use_conv,
         )
 
         self.norm = group_norm(in_channels, num_groups=num_groups)
-        self.norm2 = group_norm(out_channels, num_groups=num_groups)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-
-        if in_channels == out_channels:
-            self.shortcut = nn.Identity()
-        else:
-            self.shortcut = nn.Sequential(
-                conv_nd(2, in_channels, out_channels, kernel_size=1, stride=1),
-                group_norm(out_channels, num_groups=num_groups),
-                get_act(act)
-            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h, attn_map = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.act(self.norm2(self.shortcut(h) + self.drop_path(self.mlp(h))))
+        h = self.res_block(h)
 
         return h
 
@@ -235,10 +214,27 @@ class UNet(nn.Module):
                 )
                 cur_res *= 2
 
+        skip_dim = skip_dims.pop()
+
+        self.attn_out = DoubleWindowSelfAttentionBlock(
+            in_channels=in_ch + skip_dim,
+            in_res=to_2tuple(in_res),
+            num_heads=num_heads,
+            window_size=window_size,
+            qkv_bias=qkv_bias,
+            proj_bias=bias,
+            dropout=attn_dropout,
+            use_checkpoint=use_checkpoint,
+            attn_mode=attn_mode,
+            dim=dim
+        )
+
         self.out = nn.Sequential(
+            group_norm(in_ch + skip_dim, num_groups=num_groups),
+            get_act(act),
             conv_nd(
                 dim,
-                in_ch,
+                in_ch + skip_dim,
                 out_channels,
                 kernel_size=1,
                 stride=1,
@@ -256,5 +252,7 @@ class UNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
+        h = torch.cat([h, hs.pop()], dim=1)
+        h, attn_map = self.attn_out(h)
         return self.out(h)
 
