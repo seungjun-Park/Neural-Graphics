@@ -21,7 +21,7 @@ module:
         num_head_channels: -1
         dropout: 0.0
         attn_dropout: 0.0
-        drop_path: 0.0
+        drop_path: 0.1
         qkv_bias: True
         bias: True
         mlp_ratio: 4.0
