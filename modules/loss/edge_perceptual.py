@@ -13,16 +13,19 @@ from models.gan.discriminator import Discriminator
 class EdgeLPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_config: DictConfig,
                  disc_start: int, disc_factor: float = 1.0, disc_weight:float = 1.0,
-                 perceptual_weight: float = 1.0):
+                 perceptual_weight: float = 1.0, l1_weight: float = 1.0, edge_perceptual_weight: float = 1.0):
 
         super().__init__()
         self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
+        self.l1_weight = l1_weight
+        self.edge_perceptual_weight = edge_perceptual_weight
 
-        self.discriminator = Discriminator(**disc_config)
-        self.discriminator_iter_start = disc_start
-        self.disc_factor = disc_factor
-        self.discriminator_weight = disc_weight
+
+        # self.discriminator = Discriminator(**disc_config)
+        # self.discriminator_iter_start = disc_start
+        # self.disc_factor = disc_factor
+        # self.discriminator_weight = disc_weight
 
     def calculate_adaptive_weight(self, rec_loss: torch.Tensor, g_loss: torch.Tensor, last_layer):
         rec_grads = torch.autograd.grad(rec_loss, last_layer, retain_graph=True)[0]
@@ -40,36 +43,36 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
                 split="train"):
         # now the GAN part
         if optimizer_idx == 0:
-            rec_loss = (labels.contiguous() - preds.contiguous()) ** 2
+            l1_loss = F.l1_loss(preds, labels).mean()
 
             preds = preds.repeat(1, 3, 1, 1).contiguous()
             labels = labels.repeat(1, 3, 1, 1).contiguous()
 
-            p_loss = self.perceptual_loss(preds, labels)
-            rec_loss = rec_loss + self.perceptual_weight * p_loss
-            rec_loss = torch.sum(rec_loss) / rec_loss.shape[0]
+            p_loss = self.perceptual_loss(preds, labels).mean()
+            rec_loss = l1_loss + self.perceptual_weight * p_loss
+
             # generator update
-            logits_fake = self.discriminator(imgs=imgs, edges=preds, training=False)['logits']
-            g_loss = -torch.mean(logits_fake)
+            # logits_fake = self.discriminator(imgs=imgs, edges=preds, training=False)['logits']
+            # g_loss = -torch.mean(logits_fake)
 
-            if self.disc_factor > 0.0:
-                try:
-                    d_weight = self.calculate_adaptive_weight(rec_loss, g_loss, last_layer=last_layer)
-                except RuntimeError:
-                    assert not self.training
-                    d_weight = torch.tensor(0.0)
-            else:
-                d_weight = torch.tensor(0.0)
-
-            disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = rec_loss + d_weight * disc_factor * g_loss
-
+            # if self.disc_factor > 0.0:
+            #     try:
+            #         d_weight = self.calculate_adaptive_weight(rec_loss, g_loss, last_layer=last_layer)
+            #     except RuntimeError:
+            #         assert not self.training
+            #         d_weight = torch.tensor(0.0)
+            # else:
+            #     d_weight = torch.tensor(0.0)
+            #
+            # disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
+            # loss = rec_loss + d_weight * disc_factor * g_loss
+            loss = rec_loss
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
                    "{}/p_loss".format(split): p_loss.detach().mean(),
-                   "{}/d_weight".format(split): d_weight.detach(),
-                   "{}/disc_factor".format(split): torch.tensor(disc_factor),
-                   "{}/g_loss".format(split): g_loss.detach().mean(),
+                   # "{}/d_weight".format(split): d_weight.detach(),
+                   # "{}/disc_factor".format(split): torch.tensor(disc_factor),
+                   # "{}/g_loss".format(split): g_loss.detach().mean(),
                    }
 
             return loss, log

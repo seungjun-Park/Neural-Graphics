@@ -18,7 +18,6 @@ class EDNSE(pl.LightningModule):
                  log_interval: int = 100,
                  ckpt_path: str = None,
                  use_fp16: bool = False,
-                 accumulate_grad_batches: int = 1,
                  ignore_keys: Union[List[str], Tuple[str]] = (),
                  ):
         super().__init__()
@@ -27,10 +26,6 @@ class EDNSE(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
-
-        self.accumulate_grad_batches = accumulate_grad_batches
-        self.disc_update_freq = accumulate_grad_batches // 2
-        self.automatic_optimization = False
 
         self._dtype = torch.float16 if use_fp16 else torch.float32
 
@@ -62,33 +57,35 @@ class EDNSE(pl.LightningModule):
         imgs, labels = batch
         preds = self(imgs)
 
-        opt_net, opt_disc = self.optimizers()
+        # opt_net, opt_disc = self.optimizers()
+        #
+        # d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.get_last_layer(),
+        #                                split='train')
+        # d_loss = d_loss / self.disc_update_freq
+        # self.manual_backward(d_loss)
 
-        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.get_last_layer(),
-                                       split='train')
-        d_loss = d_loss / self.disc_update_freq
-        self.manual_backward(d_loss)
-
-        if (batch_idx + 1) % self.disc_update_freq == 0:
-            opt_disc.step()
-            opt_disc.zero_grad()
+        # if (batch_idx + 1) % self.disc_update_freq == 0:
+        #     opt_disc.step()
+        #     opt_disc.zero_grad()
 
         net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.get_last_layer(),
                                            split='train')
-        net_loss = net_loss / self.accumulate_grad_batches
-        self.manual_backward(net_loss)
+        # net_loss = net_loss / self.accumulate_grad_batches
+        # self.manual_backward(net_loss)
 
-        if (batch_idx + 1) % self.accumulate_grad_batches == 0:
-            opt_net.step()
-            opt_net.zero_grad()
+        # if (batch_idx + 1) % self.accumulate_grad_batches == 0:
+        #     opt_net.step()
+        #     opt_net.zero_grad()
 
         if self.global_step % self.log_interval == 0:
             self.log_img(preds, 'edge')
             self.log_img(labels, 'label')
             self.log_img(imgs, 'img')
 
-        self.log_dict(d_loss_log)
+        # self.log_dict(d_loss_log)
         self.log_dict(net_loss_log)
+
+        return net_loss
 
     def validation_step(self, batch, batch_idx):
         imgs, labels = batch
@@ -96,14 +93,14 @@ class EDNSE(pl.LightningModule):
 
         net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.get_last_layer(),
                                            split='val')
-        d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.get_last_layer(), split='val')
+        # d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.get_last_layer(), split='val')
 
         if self.global_step % self.log_interval == 0:
             self.log_img(preds, 'edge')
             self.log_img(labels, 'label')
             self.log_img(imgs, 'img')
 
-        self.log_dict(d_loss_log)
+        # self.log_dict(d_loss_log)
         self.log_dict(net_loss_log)
 
     def get_last_layer(self):
@@ -124,12 +121,12 @@ class EDNSE(pl.LightningModule):
 
         opts = [opt_net]
 
-        if isinstance(self.loss, EdgeLPIPSWithDiscriminator):
-            opt_disc = torch.optim.AdamW(list(self.loss.discriminator.parameters()),
-                                         lr=self.lr,
-                                         weight_decay=self.weight_decay,
-                                         betas=(0.5, 0.9),
-                                         )
-            opts.append(opt_disc)
+        # if isinstance(self.loss, EdgeLPIPSWithDiscriminator):
+        #     opt_disc = torch.optim.AdamW(list(self.loss.discriminator.parameters()),
+        #                                  lr=self.lr,
+        #                                  weight_decay=self.weight_decay,
+        #                                  betas=(0.5, 0.9),
+        #                                  )
+        #     opts.append(opt_disc)
 
         return opts
