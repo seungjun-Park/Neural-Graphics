@@ -102,7 +102,7 @@ checkpoints:
   latest_checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/bipedv2/'
+      dirpath: './checkpoints/endse/bipedv2/'
       filename: 'ednse'
       monitor: 'step'
       mode: 'max'
@@ -111,7 +111,7 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/bipedv2/'
+      dirpath: './checkpoints/endse/bipedv2/'
       filename: 'ednse_best'
       monitor: 'val/total_loss'
       mode: 'min'
