@@ -63,7 +63,7 @@ class BIPEDDataset(Dataset):
         img_name = self.img_names[index]
         edge_name = img_name.rsplit('imgs')
         edge_name = f'{edge_name[0]}/edge_maps/{edge_name[1]}'
-        edge_name = edge_name.rsplit('.', 1) + '.png'
+        edge_name = edge_name.rsplit('.', 1)[0] + '.png'
 
         img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, self.color_space)
