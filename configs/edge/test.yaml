@@ -6,7 +6,6 @@ module:
     lr_decay_epoch: 100
     use_fp16: False
     log_interval: 50
-    accumulate_grad_batches: 10
     ckpt_path: './checkpoints/ednse/arknights_unet/ednse_best.ckpt'
     net_config:
       target: modules.blocks.UNet
@@ -16,13 +15,13 @@ module:
         window_size: 8
         out_channels: 1
         embed_dim: 32
-        hidden_dims: [ 64, 64, 128, 128, 256, 256 ]
+        hidden_dims: [ 64, 64, 128, 128, 256, 256, 512]
         num_blocks: 1
         num_heads: 8
         num_head_channels: -1
         dropout: 0.0
         attn_dropout: 0.0
-        drop_path: 0.0
+        drop_path: 0.1
         qkv_bias: True
         bias: True
         mlp_ratio: 4.0
