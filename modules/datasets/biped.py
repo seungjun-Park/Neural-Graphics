@@ -65,6 +65,10 @@ class BIPEDDataset(Dataset):
         edge_name = self.edge_names[index]
         img_name = self.img_names[index]
 
+        en, _ = edge_name.rsplit('edge_maps', 1)[1].rsplit('.', 1)
+        img, _ = img_name.rsplit('imgs', 1)[1].rsplit('.', 1)
+        assert en == img, f'{en} != {img}'
+
         img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, self.color_space)
         edge = cv2.imread(f'{edge_name}', cv2.IMREAD_GRAYSCALE)
