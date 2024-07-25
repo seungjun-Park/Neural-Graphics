@@ -58,8 +58,8 @@ class BIPEDDataset(Dataset):
             self.edge_names = glob.glob(f'{root}/edges/edge_maps/train/*/*/*.*')
             self.img_names = glob.glob(f'{root}/edges/imgs/train/*/*/*.*')
         else:
-            self.edge_names = glob.glob(f'{root}/edges/edge_maps/test/*/*/*.*')
-            self.img_names = glob.glob(f'{root}/edges/imgs/test/*/*/*.*')
+            self.edge_names = glob.glob(f'{root}/edges/edge_maps/test/*/*.*')
+            self.img_names = glob.glob(f'{root}/edges/imgs/test/*/*.*')
 
     def __getitem__(self, index):
         edge_name = self.edge_names[index]
