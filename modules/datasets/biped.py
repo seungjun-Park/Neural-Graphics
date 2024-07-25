@@ -55,19 +55,15 @@ class BIPEDDataset(Dataset):
         self.resize = transforms.Resize(size=self.size, antialias=True)
 
         if train:
-            self.edge_names = glob.glob(f'{root}/edges/edge_maps/train/*/*/*.*')
             self.img_names = glob.glob(f'{root}/edges/imgs/train/*/*/*.*')
         else:
-            self.edge_names = glob.glob(f'{root}/edges/edge_maps/test/*/*.*')
             self.img_names = glob.glob(f'{root}/edges/imgs/test/*/*.*')
 
     def __getitem__(self, index):
-        edge_name = self.edge_names[index]
         img_name = self.img_names[index]
-
-        en, _ = edge_name.rsplit('edge_maps', 1)[1].rsplit('.', 1)
-        img, _ = img_name.rsplit('imgs', 1)[1].rsplit('.', 1)
-        assert en == img, f'{en} != {img}'
+        edge_name = img_name.rsplit('imgs')
+        edge_name = f'{edge_name[0]}/edge_maps/{edge_name[1]}'
+        edge_name = edge_name.rsplit('.', 1) + '.png'
 
         img = cv2.imread(f'{img_name}', cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, self.color_space)
