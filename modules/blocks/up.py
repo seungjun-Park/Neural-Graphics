@@ -25,6 +25,8 @@ class UpBlock(nn.Module):
 
         out_channels = out_channels if out_channels is not None else in_channels
 
+        self.up = []
+
         if self.mode == 'conv':
             self.up.append(
                 conv_transpose_nd(
