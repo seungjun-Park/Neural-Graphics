@@ -15,11 +15,12 @@ class DownBlock(nn.Module):
                  dim: int = 2,
                  num_groups: int = 1,
                  pool_type: str = 'conv',
+                 use_checkpoint: bool = True,
                  ):
         super().__init__()
 
+        self.use_checkpoint = use_checkpoint
         scale_factor = int(scale_factor)
-
         pool_type = pool_type.lower()
         out_channels = in_channels if out_channels is None else out_channels
         if pool_type == 'conv':

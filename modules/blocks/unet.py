@@ -124,7 +124,6 @@ class UNet(nn.Module):
             nn.Sequential(
                 conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
                 group_norm(embed_dim, num_groups=num_groups),
-                get_act(act)
             )
         )
 
@@ -166,7 +165,8 @@ class UNet(nn.Module):
                         scale_factor=2,
                         dim=2,
                         num_groups=num_groups,
-                        pool_type=pool_type
+                        pool_type=pool_type,
+                        use_checkpoint=use_checkpoint
                     )
                 )
                 cur_res //= 2
@@ -203,7 +203,8 @@ class UNet(nn.Module):
                         in_channels=in_ch,
                         scale_factor=2,
                         mode=mode,
-                        num_groups=num_groups
+                        num_groups=num_groups,
+                        use_checkpoint=use_checkpoint
                     )
                 )
                 cur_res *= 2
