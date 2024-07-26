@@ -212,11 +212,10 @@ class UNet(nn.Module):
         self.out = nn.Sequential(
             conv_nd(
                 dim,
-                in_ch,
+                in_ch + skip_dims.pop(),
                 out_channels,
-                kernel_size=3,
+                kernel_size=1,
                 stride=1,
-                padding=1,
             )
         )
 
@@ -232,6 +231,6 @@ class UNet(nn.Module):
             if isinstance(block, UnetBlock):
                 h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
-
+        h = torch.cat([h, hs.pop()], dim=1)
         return self.out(h)
 

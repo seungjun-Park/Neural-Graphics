@@ -28,7 +28,7 @@ module:
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
-        mode: 'bilinear'
+        mode: 'conv'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
