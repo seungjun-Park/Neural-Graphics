@@ -171,7 +171,6 @@ class UNet(nn.Module):
                         pool_type=pool_type
                     )
                 )
-                skip_dims.append(in_ch)
                 cur_res //= 2
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
@@ -203,7 +202,6 @@ class UNet(nn.Module):
                 self.decoder.append(nn.Sequential(*up))
 
             if i != 0:
-                in_ch = in_ch + skip_dims.pop()
                 self.decoder.append(
                     UpBlock(
                         in_channels=in_ch,
@@ -215,26 +213,12 @@ class UNet(nn.Module):
                 cur_res *= 2
 
         skip_dim = skip_dims.pop()
-
-        self.attn_out = DoubleWindowSelfAttentionBlock(
-            in_channels=in_ch + skip_dim,
-            in_res=to_2tuple(in_res),
-            num_heads=num_heads,
-            window_size=window_size,
-            qkv_bias=qkv_bias,
-            proj_bias=bias,
-            dropout=attn_dropout,
-            use_checkpoint=use_checkpoint,
-            attn_mode=attn_mode,
-            dim=dim
-        )
+        in_ch = in_ch + skip_dim
 
         self.out = nn.Sequential(
-            group_norm(in_ch + skip_dim, num_groups=num_groups),
-            get_act(act),
             conv_nd(
                 dim,
-                in_ch + skip_dim,
+                in_ch,
                 out_channels,
                 kernel_size=3,
                 stride=1,
@@ -250,7 +234,8 @@ class UNet(nn.Module):
             hs.append(h)
 
         for i, block in enumerate(self.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
+            if isinstance(block, UnetBlock):
+                h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
         h = torch.cat([h, hs.pop()], dim=1)

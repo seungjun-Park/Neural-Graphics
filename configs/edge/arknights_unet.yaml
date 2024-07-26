@@ -10,7 +10,7 @@ module:
       target: modules.blocks.UNet
       params:
         in_channels: 3
-        in_res: 512
+        in_res: 1024
         window_size: 8
         out_channels: 1
         embed_dim: 32
@@ -68,14 +68,14 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
         root: '/local_datasets/anime'
         train: True
-        size: 512
+        size: 1024
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -85,7 +85,7 @@ data:
       params:
         root: '/local_datasets/anime'
         train: False
-        size: 512
+        size: 1024
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
