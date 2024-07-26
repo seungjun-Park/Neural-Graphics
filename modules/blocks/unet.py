@@ -236,8 +236,9 @@ class UNet(nn.Module):
                 dim,
                 in_ch + skip_dim,
                 out_channels,
-                kernel_size=1,
+                kernel_size=3,
                 stride=1,
+                padding=1,
             )
         )
 
