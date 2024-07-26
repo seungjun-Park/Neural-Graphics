@@ -134,8 +134,7 @@ class UNet(nn.Module):
 
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
-                down = list()
-                down.append(
+                self.encoder.append(
                     UnetBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
@@ -159,7 +158,6 @@ class UNet(nn.Module):
 
                 in_ch = out_ch
                 skip_dims.append(in_ch)
-                self.encoder.append(nn.Sequential(*down))
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
@@ -175,9 +173,8 @@ class UNet(nn.Module):
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
-                up = list()
                 skip_dim = skip_dims.pop()
-                up.append(
+                self.decoder.append(
                     UnetBlock(
                         in_channels=in_ch + skip_dim,
                         out_channels=out_ch,
@@ -199,7 +196,6 @@ class UNet(nn.Module):
                     )
                 )
                 in_ch = out_ch
-                self.decoder.append(nn.Sequential(*up))
 
             if i != 0:
                 self.decoder.append(
