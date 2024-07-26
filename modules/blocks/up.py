@@ -19,7 +19,7 @@ class UpBlock(nn.Module):
         super().__init__()
         mode = mode.lower()
         self.use_checkpoint = use_checkpoint
-        assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct']
+        assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct', 'conv']
         self.mode = mode.lower()
         self.scale_factor = int(scale_factor)
 
