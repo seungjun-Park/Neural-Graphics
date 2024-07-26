@@ -212,9 +212,6 @@ class UNet(nn.Module):
                 )
                 cur_res *= 2
 
-        skip_dim = skip_dims.pop()
-        in_ch = in_ch + skip_dim
-
         self.out = nn.Sequential(
             conv_nd(
                 dim,
@@ -231,14 +228,13 @@ class UNet(nn.Module):
         h = x
         for i, block in enumerate(self.encoder):
             h = block(h)
-            hs.append(h)
+            if isinstance(block, UnetBlock):
+                hs.append(h)
 
         for i, block in enumerate(self.decoder):
             if isinstance(block, UnetBlock):
                 h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
-        h = torch.cat([h, hs.pop()], dim=1)
-        h, attn_map = self.attn_out(h)
         return self.out(h)
 
