@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, List, Tuple
 
-from utils import conv_nd, group_norm
+from utils import conv_nd, group_norm, conv_transpose_nd
 
 
 class UpBlock(nn.Module):
@@ -17,23 +17,41 @@ class UpBlock(nn.Module):
                  ):
         super().__init__()
         mode = mode.lower()
-        assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct']
+        assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct', 'conv']
         self.mode = mode.lower()
         self.scale_factor = int(scale_factor)
 
         out_channels = out_channels if out_channels is not None else in_channels
 
-        self.up = conv_nd(
+        self.up = []
+
+        if self.mode == 'conv':
+            self.up.append(
+                conv_transpose_nd(
+                    dim,
+                    in_channels,
+                    out_channels,
+                    kernel_size=self.scale_factor,
+                    stride=self.scale_factor,
+                )
+            )
+
+        self.up.append(
+            conv_nd(
                 dim,
-                in_channels,
+                out_channels,
                 out_channels,
                 kernel_size=3,
                 stride=1,
                 padding=1,
+                groups=out_channels,
             )
+        )
 
+        self.up = nn.Sequential(*self.up)
         self.norm = group_norm(out_channels, num_groups=num_groups)
 
     def forward(self, x):
-        x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
+        if self.mode != 'conv':
+            x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         return self.norm(self.up(x))

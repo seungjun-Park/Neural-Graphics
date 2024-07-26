@@ -72,5 +72,5 @@ class ResidualBlock(nn.Module):
         h = self.act(h)
         h = self.dropout(h)
 
-        return self.act(self.norm3(self.drop_path(h) + self.shortcut(x)))
+        return self.norm3(self.drop_path(h) + self.shortcut(x))
 
