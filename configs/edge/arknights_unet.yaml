@@ -31,7 +31,7 @@ module:
         mode: 'bilinear'
         dim: 2
         use_checkpoint: True
-        attn_mode: 'vanilla'
+        attn_mode: 'cosine'
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
