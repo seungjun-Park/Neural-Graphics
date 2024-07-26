@@ -224,7 +224,7 @@ class UNet(nn.Module):
         h = x
         for i, block in enumerate(self.encoder):
             h = block(h)
-            if isinstance(block, UnetBlock):
+            if not isinstance(block, DownBlock):
                 hs.append(h)
 
         for i, block in enumerate(self.decoder):
