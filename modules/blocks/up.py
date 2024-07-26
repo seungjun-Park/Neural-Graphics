@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from typing import Union, List, Tuple
 
 from utils import conv_nd, group_norm, conv_transpose_nd
-
+from utils.checkpoints import checkpoint
 
 class UpBlock(nn.Module):
     def __init__(self,
@@ -14,9 +14,11 @@ class UpBlock(nn.Module):
                  scale_factor: Union[int, float] = 2.0,
                  mode: str = 'nearest',
                  num_groups: int = 1,
+                 use_checkpoint: bool = True
                  ):
         super().__init__()
         mode = mode.lower()
+        self.use_checkpoint = use_checkpoint
         assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct']
         self.mode = mode.lower()
         self.scale_factor = int(scale_factor)
@@ -35,6 +37,9 @@ class UpBlock(nn.Module):
 
         self.norm = group_norm(out_channels, num_groups=num_groups)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
+        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
+
+    def _forward(self, x: torch.Tensor):
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         return self.norm(self.up(x))

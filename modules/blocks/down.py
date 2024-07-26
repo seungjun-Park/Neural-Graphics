@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from typing import Union, Tuple, List
 
 from utils import conv_nd, pool_nd, group_norm
+from utils.checkpoints import checkpoint
 
 
 class DownBlock(nn.Module):
@@ -35,5 +36,8 @@ class DownBlock(nn.Module):
 
         self.norm = group_norm(out_channels, num_groups=num_groups)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor):
+        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
+
+    def _forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.norm(self.pooling(x))
