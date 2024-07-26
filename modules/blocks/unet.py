@@ -203,10 +203,10 @@ class UNet(nn.Module):
                 self.decoder.append(nn.Sequential(*up))
 
             if i != 0:
+                in_ch = in_ch + skip_dims.pop()
                 self.decoder.append(
                     UpBlock(
-                        in_channels=in_ch + skip_dims.pop(),
-                        out_channels=in_ch,
+                        in_channels=in_ch,
                         scale_factor=2,
                         mode=mode,
                         num_groups=num_groups
