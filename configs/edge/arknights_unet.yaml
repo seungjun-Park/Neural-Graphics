@@ -36,8 +36,34 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
       params:
+        disc_start: 2000
+        disc_factor: 1.0
+        disc_weight: 0.1
         perceptual_weight: 1.0
-
+        disc_config:
+          in_channels: 3
+          in_res: 512
+          embed_dim: 32
+          quant_dim: 512
+          hidden_dims: [ 64, 128, 256, 256, 512]
+          num_blocks: 1
+          window_size: 8
+          patch_size: 4
+          num_heads: 8
+          num_head_channels: -1
+          dropout: 0.0
+          attn_dropout: 0.0
+          drop_path: 0.0
+          qkv_bias: True
+          bias: True
+          mlp_ratio: 2.0
+          act: 'gelu'
+          num_groups: 32
+          pool_type: 'conv'
+          dim: 2
+          use_conv: True
+          use_checkpoint: True
+          attn_mode: 'cosine'
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
