@@ -28,7 +28,7 @@ module:
         act: 'sine'
         use_conv: True
         pool_type: 'conv'
-        mode: 'conv'
+        mode: 'bilinear'
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
