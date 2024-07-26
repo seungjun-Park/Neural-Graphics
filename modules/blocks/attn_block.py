@@ -265,9 +265,6 @@ class WindowAttention(nn.Module):
         trunc_normal_(self.relative_position_bias_table, std=.02)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        return checkpoint(self._forward, (q, k, v, mask,), self.parameters(), flag=self.use_checkpoint)
-
-    def _forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
         l = np.prod(spatial)
