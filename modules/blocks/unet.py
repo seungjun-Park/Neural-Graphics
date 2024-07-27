@@ -100,6 +100,7 @@ class UNet(nn.Module):
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_mode: str = 'cosine',
+                 attn_type: str = 'mha',
                  ):
         super().__init__()
 
@@ -150,6 +151,7 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
+                        attn_type=attn_type,
                     )
                 )
 
@@ -190,6 +192,7 @@ class UNet(nn.Module):
                         dim=dim,
                         use_checkpoint=use_checkpoint,
                         attn_mode=attn_mode,
+                        attn_type=attn_type,
                     )
                 )
                 in_ch = out_ch
