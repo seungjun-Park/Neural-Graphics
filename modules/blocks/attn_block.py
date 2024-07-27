@@ -111,7 +111,7 @@ class LinearMultiHeadAttention(nn.Module):
                  in_channels: int,
                  num_heads: int,
                  dropout: float = 0.1,
-                 scale_factor: Optional[int, float] = 4.0,
+                 scale_factor: float = 4.0,
                  use_checkpoint: Optional[bool] = True,
                  dim: int = 2,
                  ):
