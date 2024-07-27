@@ -92,7 +92,7 @@ class MultiHeadAttention(nn.Module):
         l = np.prod(spatial)
         q = q.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
         k = k.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-        v = k.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
+        v = v.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
 
         attn = torch.einsum('bhct,bhcs->bhts', q, k)
         attn = attn * self.scale
@@ -123,11 +123,11 @@ class LinearMultiHeadAttention(nn.Module):
         d_k = in_channels // num_heads
         self.E = nn.Sequential(
             conv_nd(dim, in_channels, in_channels, kernel_size=int(scale_factor), stride=int(scale_factor), groups=in_channels),
-            group_norm(in_channels)
+            group_norm(in_channels, in_channels)
         )
         self.F = nn.Sequential(
             conv_nd(dim, in_channels, in_channels, kernel_size=int(scale_factor), stride=int(scale_factor), groups=in_channels),
-            group_norm(in_channels)
+            group_norm(in_channels, num_groups=in_channels)
         )
         self.scale = 1. / math.sqrt(d_k)
         self.softmax = nn.Softmax(dim=-1)
@@ -140,12 +140,12 @@ class LinearMultiHeadAttention(nn.Module):
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
         l = np.prod(spatial)
-        q = q.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-        k = k.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-        v = k.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-
         k = self.E(k)
         v = self.F(v)
+        q = q.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
+        k = k.reshape(b, c, -1).reshape(b, self.num_heads, c // self.num_heads, -1)
+        v = v.reshape(b, c, -1).reshape(b, self.num_heads, c // self.num_heads, -1)
+
         attn = torch.einsum('bhct,bhcs->bhts', q, k)
         attn = attn * self.scale
 
