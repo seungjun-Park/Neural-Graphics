@@ -140,7 +140,6 @@ class LinearMultiHeadAttention(nn.Module):
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
         l = np.prod(spatial)
-        assert l == self.seq_len
         q = q.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
         k = k.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
         v = k.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
