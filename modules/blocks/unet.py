@@ -12,8 +12,6 @@ from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttent
 from modules.blocks.res_block import ResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
-from modules.blocks.positional_encoding import PositionalEncoding
-from modules.sequential import AttentionSequential
 
 
 class UnetBlock(nn.Module):
@@ -34,23 +32,23 @@ class UnetBlock(nn.Module):
                  use_conv: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
+                 attn_type: str = 'mha',
                  attn_mode: str = 'cosine',
                  ):
         super().__init__()
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.attn = DoubleWindowSelfAttentionBlock(
+        self.attn = SelfAttentionBlock(
             in_channels=in_channels,
-            in_res=to_2tuple(in_res),
+            in_res=in_res,
             num_heads=num_heads,
-            window_size=window_size,
             qkv_bias=qkv_bias,
             proj_bias=bias,
             dropout=attn_dropout,
             use_checkpoint=use_checkpoint,
-            attn_mode=attn_mode,
-            dim=dim
+            attn_type=attn_type,
+            dim=dim,
         )
 
         self.res_block = ResidualBlock(
@@ -164,7 +162,6 @@ class UNet(nn.Module):
                         in_channels=in_ch,
                         scale_factor=2,
                         dim=2,
-                        num_groups=num_groups,
                         pool_type=pool_type,
                         use_checkpoint=use_checkpoint
                     )
@@ -203,7 +200,6 @@ class UNet(nn.Module):
                         in_channels=in_ch,
                         scale_factor=2,
                         mode=mode,
-                        num_groups=num_groups,
                         use_checkpoint=use_checkpoint
                     )
                 )

@@ -6,6 +6,7 @@ from typing import Union, List, Tuple
 from utils import conv_nd, group_norm, conv_transpose_nd
 from utils.checkpoints import checkpoint
 
+
 class UpBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
@@ -13,7 +14,6 @@ class UpBlock(nn.Module):
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
                  mode: str = 'nearest',
-                 num_groups: int = 1,
                  use_checkpoint: bool = True
                  ):
         super().__init__()
@@ -53,7 +53,7 @@ class UpBlock(nn.Module):
 
         self.up = nn.Sequential(*self.up)
 
-        self.norm = group_norm(out_channels, num_groups=num_groups)
+        self.norm = group_norm(out_channels, num_groups=out_channels)
 
     def forward(self, x: torch.Tensor):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
