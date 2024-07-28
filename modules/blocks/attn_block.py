@@ -10,6 +10,7 @@ from functools import partial
 from utils.checkpoints import checkpoint
 
 from modules.blocks.mlp import MLP, ConvMLP
+from modules.blocks.positional_encoding import PositionalEncoding
 from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, functional_conv_nd, get_act
 from timm.models.layers import DropPath
 
@@ -104,6 +105,7 @@ class MultiHeadAttention(nn.Module):
 class AdditiveAttention(nn.Module):
     def __init__(self,
                  in_channels: int,
+                 in_res: Union[int, List[int], Tuple[int]],
                  num_heads: int,
                  dropout: float = 0.1,
                  dim: int = 2,
@@ -113,15 +115,18 @@ class AdditiveAttention(nn.Module):
         self.d_k = in_channels // num_heads
         self.num_heads = num_heads
 
-        self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
         self.scale = 1 / math.sqrt(self.d_k)
 
         self.attn = conv_nd(dim, self.d_k * 2, self.d_k, kernel_size=1, stride=1, bias=False)
+        self.pos_enc = PositionalEncoding(self.d_k, to_2tuple(in_res))
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
+
+        q = self.pos_enc(q)
+        k = self.pos_enc(k)
 
         q = q.reshape(b * self.num_heads, self.d_k, *spatial)
         k = k.reshape(b * self.num_heads, self.d_k, *spatial)
@@ -129,7 +134,7 @@ class AdditiveAttention(nn.Module):
 
         attn_score = self.attn(torch.cat([q, k], dim=1))
 
-        attn_score = self.softmax(attn_score)
+        attn_score = F.sigmoid(attn_score)
         attn_score = self.dropout(attn_score)
 
         out = attn_score * v
@@ -364,6 +369,7 @@ class SelfAttentionBlock(nn.Module):
         elif attn_type == 'additive':
             self.attn = AdditiveAttention(
                 in_channels=in_channels,
+                in_res=in_res,
                 num_heads=num_heads,
                 dropout=dropout,
                 dim=dim

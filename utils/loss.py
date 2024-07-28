@@ -14,7 +14,7 @@ def FD(target, pred, dim=2, type='l2'):
     assert type in ['l1', 'l2']
     dim = [-i for i in range(dim, 0, -1)]
     target_freq = rfftn(target, dim=dim)
-    pred_freq = rfftn(target, dim=dim)
+    pred_freq = rfftn(pred, dim=dim)
 
     # general form of frequency distance
     fd = (target_freq - pred_freq).abs()

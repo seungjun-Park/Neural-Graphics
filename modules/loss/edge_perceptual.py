@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from typing import Union, List, Tuple
 from omegaconf import DictConfig
 from utils import cats_loss, bdcn_loss2, adopt_weight
-from utils.loss import hinge_d_loss, vanilla_d_loss, san_d_loss, wasserstein_d_loss
+from utils.loss import hinge_d_loss, vanilla_d_loss, san_d_loss, wasserstein_d_loss, LFD
 from taming.modules.losses import LPIPS
 from models.gan.discriminator import Discriminator
 
@@ -13,14 +13,15 @@ from models.gan.discriminator import Discriminator
 class EdgeLPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_config: DictConfig,
                  disc_start: int, disc_factor: float = 1.0, disc_weight:float = 1.0,
-                 perceptual_weight: float = 1.0, l1_weight: float = 1.0, edge_perceptual_weight: float = 1.0):
+                 perceptual_weight: float = 1.0, l1_weight: float = 1.0, edge_perceptual_weight: float = 1.0,
+                 lfd_weight: float = 1.0,):
 
         super().__init__()
         self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
         self.l1_weight = l1_weight
         self.edge_perceptual_weight = edge_perceptual_weight
-
+        self.lfd_weight = lfd_weight
 
         # self.discriminator = Discriminator(**disc_config)
         # self.discriminator_iter_start = disc_start
@@ -48,8 +49,10 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             preds = preds.repeat(1, 3, 1, 1).contiguous()
             labels = labels.repeat(1, 3, 1, 1).contiguous()
 
+            lfd_loss = LFD(labels, preds).mean()
+
             p_loss = self.perceptual_loss(preds, labels).mean()
-            rec_loss = l1_loss + self.perceptual_weight * p_loss
+            loss = self.l1_weight * l1_loss + self.perceptual_weight * p_loss + self.lfd_weight * lfd_loss
 
             # generator update
             # logits_fake = self.discriminator(imgs=imgs, edges=preds, training=False)['logits']
@@ -66,10 +69,11 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             #
             # disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
             # loss = rec_loss + d_weight * disc_factor * g_loss
-            loss = rec_loss
+
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
-                   "{}/rec_loss".format(split): rec_loss.detach().mean(),
+                   "{}/l1_loss".format(split): l1_loss.detach().mean(),
                    "{}/p_loss".format(split): p_loss.detach().mean(),
+                   "{}/lfd_loss".format(split): lfd_loss.detach().mean(),
                    # "{}/d_weight".format(split): d_weight.detach(),
                    # "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    # "{}/g_loss".format(split): g_loss.detach().mean(),
