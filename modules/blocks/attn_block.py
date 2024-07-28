@@ -10,6 +10,7 @@ from functools import partial
 from utils.checkpoints import checkpoint
 
 from modules.blocks.mlp import MLP, ConvMLP
+from modules.blocks.positional_encoding import PositionalEncoding
 from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, functional_conv_nd, get_act
 from timm.models.layers import DropPath
 
@@ -106,32 +107,25 @@ class MultiHeadAttention(nn.Module):
         return score
 
 
-class LinearMultiHeadAttention(nn.Module):
+class AdditiveAttention(nn.Module):
     def __init__(self,
                  in_channels: int,
                  num_heads: int,
                  dropout: float = 0.1,
-                 scale_factor: float = 4.0,
-                 use_checkpoint: Optional[bool] = True,
+                 use_checkpoint: bool = True,
                  dim: int = 2,
                  ):
         super().__init__()
 
+        self.d_k = in_channels // num_heads
+        self.num_heads = num_heads
         self.use_checkpoint = use_checkpoint
 
-        self.num_heads = num_heads
-        d_k = in_channels // num_heads
-        self.E = nn.Sequential(
-            conv_nd(dim, in_channels, in_channels, kernel_size=int(scale_factor), stride=int(scale_factor), groups=in_channels),
-            group_norm(in_channels, in_channels)
-        )
-        self.F = nn.Sequential(
-            conv_nd(dim, in_channels, in_channels, kernel_size=int(scale_factor), stride=int(scale_factor), groups=in_channels),
-            group_norm(in_channels, num_groups=in_channels)
-        )
-        self.scale = 1. / math.sqrt(d_k)
         self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
+        self.scale = 1 / math.sqrt(self.d_k)
+
+        self.attn = conv_nd(dim, self.d_k * 2, self.d_k, kernel_size=1, stride=1, bias=False)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         return checkpoint(self._forward, (q, k, v, mask), self.parameters(), self.use_checkpoint)
@@ -139,39 +133,20 @@ class LinearMultiHeadAttention(nn.Module):
     def _forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
-        l = np.prod(spatial)
-        k = self.E(k)
-        v = self.F(v)
-        q = q.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-        k = k.reshape(b, c, -1).reshape(b, self.num_heads, c // self.num_heads, -1)
-        v = v.reshape(b, c, -1).reshape(b, self.num_heads, c // self.num_heads, -1)
 
-        attn = torch.einsum('bhct,bhcs->bhts', q, k)
-        attn = attn * self.scale
+        q = q.reshape(b * self.num_heads, self.d_k, *spatial)
+        k = k.reshape(b * self.num_heads, self.d_k, *spatial)
+        v = v.reshape(b * self.num_heads, self.d_k, *spatial)
 
-        attn = self.softmax(attn)
-        attn = self.dropout(attn)
+        attn_score = self.attn(torch.cat([q, k], dim=1))
 
-        score = torch.einsum('bhts,bhcs->bhct', attn, v)
-        score = score.reshape(b, -1, *spatial)
+        attn_score = self.softmax(attn_score)
+        attn_score = self.dropout(attn_score)
 
-        return score
+        out = attn_score * v
+        out = out.reshape(b, -1, *spatial)
 
-
-class FavorAttention(nn.Module):
-    def __init__(self,
-                 use_checkpoint: bool = True,
-                 use_causal: bool = False,
-                 ):
-        super().__init__()
-
-        self.use_checkpoint = use_checkpoint
-
-    def forward(self, ) -> torch.Tensor:
-        return
-
-    def _forward(self, q, k, v, mask: torch.Tensor = None) -> torch.Tensor:
-        return
+        return out
 
 
 class WindowAttention(nn.Module):
@@ -397,17 +372,13 @@ class SelfAttentionBlock(nn.Module):
                 dropout=dropout,
                 use_checkpoint=use_checkpoint
             )
-        elif attn_type == 'linformer':
-            self.attn = LinearMultiHeadAttention(
+        elif attn_type == 'additive':
+            self.attn = AdditiveAttention(
                 in_channels=in_channels,
                 num_heads=num_heads,
                 dropout=dropout,
                 use_checkpoint=use_checkpoint,
                 dim=dim
-            )
-        elif attn_type == 'performer':
-            self.attn = FavorAttention(
-
             )
 
         else:

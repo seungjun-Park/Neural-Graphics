@@ -32,7 +32,7 @@ module:
         dim: 2
         use_checkpoint: True
         attn_mode: 'cosine'
-        attn_type: 'linformer'
+        attn_type: 'additive'
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
