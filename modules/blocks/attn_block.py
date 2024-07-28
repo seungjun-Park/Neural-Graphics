@@ -10,7 +10,6 @@ from functools import partial
 from utils.checkpoints import checkpoint
 
 from modules.blocks.mlp import MLP, ConvMLP
-from modules.blocks.positional_encoding import PositionalEncoding
 from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, functional_conv_nd, get_act
 from timm.models.layers import DropPath
 
@@ -72,22 +71,17 @@ class MultiHeadAttention(nn.Module):
                  in_channels: int,
                  num_heads: int,
                  dropout: float = 0.1,
-                 use_checkpoint: bool = True
                  ):
         super().__init__()
 
         self.d_k = in_channels // num_heads
         self.num_heads = num_heads
-        self.use_checkpoint = use_checkpoint
 
         self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
         self.scale = 1 / math.sqrt(self.d_k)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        return checkpoint(self._forward, (q, k, v, mask), self.parameters(), self.use_checkpoint)
-
-    def _forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
         l = np.prod(spatial)
@@ -112,14 +106,12 @@ class AdditiveAttention(nn.Module):
                  in_channels: int,
                  num_heads: int,
                  dropout: float = 0.1,
-                 use_checkpoint: bool = True,
                  dim: int = 2,
                  ):
         super().__init__()
 
         self.d_k = in_channels // num_heads
         self.num_heads = num_heads
-        self.use_checkpoint = use_checkpoint
 
         self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
@@ -128,9 +120,6 @@ class AdditiveAttention(nn.Module):
         self.attn = conv_nd(dim, self.d_k * 2, self.d_k, kernel_size=1, stride=1, bias=False)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        return checkpoint(self._forward, (q, k, v, mask), self.parameters(), self.use_checkpoint)
-
-    def _forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
 
@@ -365,19 +354,18 @@ class SelfAttentionBlock(nn.Module):
         super().__init__()
 
         attn_type = attn_type.lower()
+        self.use_checkpoint = use_checkpoint
         if attn_type == 'mha':
             self.attn = MultiHeadAttention(
                 in_channels=in_channels,
                 num_heads=num_heads,
                 dropout=dropout,
-                use_checkpoint=use_checkpoint
             )
         elif attn_type == 'additive':
             self.attn = AdditiveAttention(
                 in_channels=in_channels,
                 num_heads=num_heads,
                 dropout=dropout,
-                use_checkpoint=use_checkpoint,
                 dim=dim
             )
 
@@ -388,6 +376,9 @@ class SelfAttentionBlock(nn.Module):
         self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
+
+    def _forward(self, x: torch.Tensor) -> torch.Tensor:
         qkv = self.qkv(x)
         q, k, v = torch.chunk(qkv, 3, dim=1)
         attn = self.attn(q, k, v)

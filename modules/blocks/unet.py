@@ -68,7 +68,7 @@ class UnetBlock(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h, attn_map = self.attn(x)
+        h = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
         h = self.res_block(h)
 
