@@ -125,12 +125,12 @@ class AdditiveAttention(nn.Module):
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
 
-        q = self.pos_enc(q)
-        k = self.pos_enc(k)
-
         q = q.reshape(b * self.num_heads, self.d_k, *spatial)
         k = k.reshape(b * self.num_heads, self.d_k, *spatial)
         v = v.reshape(b * self.num_heads, self.d_k, *spatial)
+
+        q = self.pos_enc(q)
+        k = self.pos_enc(k)
 
         attn_score = self.attn(torch.cat([q, k], dim=1))
 
