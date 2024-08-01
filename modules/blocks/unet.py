@@ -8,7 +8,7 @@ from omegaconf import ListConfig
 from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
+from modules.blocks.attn_block import AttentionBlock
 from modules.blocks.res_block import ResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
@@ -19,58 +19,64 @@ class UnetBlock(nn.Module):
                  in_channels: int,
                  in_res: Union[int, List[int], Tuple[int]],
                  out_channels: int = None,
-                 window_size: Union[int, List[int], Tuple[int]] = 7,
+                 window_size: int = 7,
+                 shift_size: int = 0,
                  num_groups: int = 16,
                  num_heads: int = -1,
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
                  drop_path: float = 0.0,
                  qkv_bias: bool = True,
-                 bias: bool = True,
+                 proj_bias: bool = True,
+                 qk_scale: float = None,
                  mlp_ratio: float = 4.0,
                  act: str = 'relu',
                  use_conv: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_type: str = 'mha',
-                 attn_mode: str = 'cosine',
+                 scale_factor: int = 1,
                  ):
         super().__init__()
 
         out_channels = in_channels if out_channels is None else out_channels
 
-        self.attn = SelfAttentionBlock(
+        self.attn = AttentionBlock(
             in_channels=in_channels,
             in_res=in_res,
+            window_size=window_size,
+            shift_size=shift_size,
             num_heads=num_heads,
             qkv_bias=qkv_bias,
-            proj_bias=bias,
-            dropout=attn_dropout,
-            use_checkpoint=use_checkpoint,
+            proj_bias=proj_bias,
+            qk_scale=qk_scale,
+            attn_dropout=attn_dropout,
+            proj_dropout=dropout,
             attn_type=attn_type,
             dim=dim,
+            scale_factor=scale_factor,
+            use_checkpoint=use_checkpoint,
         )
 
-        self.res_block = ResidualBlock(
+        self.mlp = ConvMLP(
             in_channels=in_channels,
+            embed_dim=int(in_channels * mlp_ratio),
             out_channels=out_channels,
             dropout=dropout,
-            drop_path=drop_path,
             act=act,
             dim=dim,
-            num_groups=num_groups,
-            use_checkpoint=use_checkpoint,
-            use_conv=use_conv,
+            use_checkpoint=use_checkpoint
         )
 
-        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.norm = group_norm(in_channels, num_groups=1)
+        self.norm2 = group_norm(out_channels, num_groups=1)
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.res_block(h)
+        h = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
 
         return h
 
@@ -79,6 +85,7 @@ class UNet(nn.Module):
     def __init__(self,
                  in_channels: int,
                  in_res: Union[int, List[int], Tuple[int]],
+                 attn_types: Union[List[str], Tuple[str]],
                  window_size: Union[int, List[int], Tuple[int]] = 7,
                  out_channels: int = None,
                  embed_dim: int = 16,
@@ -90,7 +97,7 @@ class UNet(nn.Module):
                  attn_dropout: float = 0.0,
                  drop_path: float = 0.0,
                  qkv_bias: bool = True,
-                 bias: bool = True,
+                 proj_bias: bool = True,
                  mlp_ratio: float = 4.0,
                  num_groups: int = 32,
                  act: str = 'relu',
@@ -99,15 +106,10 @@ class UNet(nn.Module):
                  mode: str = 'nearest',
                  dim: int = 2,
                  use_checkpoint: bool = True,
-                 attn_mode: str = 'cosine',
-                 attn_type: str = 'mha',
                  ):
         super().__init__()
 
-        self.in_channels = in_channels
-        self.in_res = in_res
-        self.out_channels = out_channels
-        self.hidden_dims = hidden_dims
+        out_channels = out_channels if out_channels else in_channels
 
         assert num_head_channels != -1 or num_heads != -1
 
@@ -144,14 +146,13 @@ class UNet(nn.Module):
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
                         qkv_bias=qkv_bias,
-                        bias=bias,
+                        proj_bias=proj_bias,
                         mlp_ratio=mlp_ratio,
                         act=act,
                         use_conv=use_conv,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
-                        attn_mode=attn_mode,
-                        attn_type=attn_type,
+                        attn_type=attn_types[i],
                     )
                 )
 
@@ -179,20 +180,20 @@ class UNet(nn.Module):
                         out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
+                        shift_size=window_size // 2 if i % 2 == 0 else 0,
                         num_groups=num_groups,
                         num_heads=(in_ch + skip_dim) // num_head_channels if use_num_head_channels else num_heads,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
                         qkv_bias=qkv_bias,
-                        bias=bias,
+                        proj_bias=proj_bias,
                         mlp_ratio=mlp_ratio,
                         act=act,
                         use_conv=use_conv,
                         dim=dim,
                         use_checkpoint=use_checkpoint,
-                        attn_mode=attn_mode,
-                        attn_type=attn_type,
+                        attn_type=attn_types[i],
                     )
                 )
                 in_ch = out_ch

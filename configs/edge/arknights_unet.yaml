@@ -31,7 +31,6 @@ module:
         mode: 'conv'
         dim: 2
         use_checkpoint: True
-        attn_mode: 'cosine'
         attn_type: 'additive'
 
     loss_config:
