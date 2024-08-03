@@ -49,8 +49,6 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             preds = preds.repeat(1, 3, 1, 1).contiguous()
             labels = labels.repeat(1, 3, 1, 1).contiguous()
 
-            lfd_loss = LFD(labels, preds).mean()
-
             p_loss = self.perceptual_loss(preds, labels).mean()
             loss = self.l1_weight * l1_loss + self.perceptual_weight * p_loss + self.lfd_weight * lfd_loss
 
@@ -73,7 +71,6 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/l1_loss".format(split): l1_loss.detach().mean(),
                    "{}/p_loss".format(split): p_loss.detach().mean(),
-                   "{}/lfd_loss".format(split): lfd_loss.detach().mean(),
                    # "{}/d_weight".format(split): d_weight.detach(),
                    # "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    # "{}/g_loss".format(split): g_loss.detach().mean(),
