@@ -11,7 +11,7 @@ from timm.models.layers import DropPath
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, to_3tuple, conv_nd, get_act, group_norm, normalize_img
 from modules.blocks.res_block import ResidualBlock
-from modules.blocks.attn_block import DoubleWindowCrossAttentionBlock, DoubleWindowSelfAttentionBlock
+from modules.blocks.attn_block import AttentionBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.mlp import ConvMLP, MLP
 from modules.blocks.patches import PatchMerging

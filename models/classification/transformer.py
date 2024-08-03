@@ -5,7 +5,6 @@ import pytorch_lightning as pl
 from typing import Any, Union, List, Tuple, Dict
 
 from utils import group_norm
-from modules.blocks.encoder import SwinEncoder
 from omegaconf import ListConfig, DictConfig
 
 

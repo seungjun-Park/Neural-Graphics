@@ -35,7 +35,7 @@ class UnetBlock(nn.Module):
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  attn_type: str = 'mha',
-                 scale_factor: int = 1,
+                 scale_factor: int = 4,
                  ):
         super().__init__()
 
@@ -73,10 +73,15 @@ class UnetBlock(nn.Module):
         self.act = get_act(act)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
+        if in_channels == out_channels:
+            self.shortcut = nn.Identity()
+        else:
+            self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=1)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.attn(x)
         h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.act(self.norm2(h + self.drop_path(self.mlp(h))))
+        h = self.act(self.norm2(self.shortcut(h) + self.drop_path(self.mlp(h))))
 
         return h
 
@@ -124,7 +129,7 @@ class UNet(nn.Module):
         self.encoder.append(
             nn.Sequential(
                 conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
-                group_norm(embed_dim, num_groups=num_groups),
+                group_norm(embed_dim, num_groups=1),
             )
         )
 
@@ -140,6 +145,7 @@ class UNet(nn.Module):
                         out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
+                        shift_size=0 if i % 2 == 0 else window_size // 2,
                         num_groups=num_groups,
                         num_heads=in_ch // num_head_channels if use_num_head_channels else num_heads,
                         dropout=dropout,
@@ -180,7 +186,7 @@ class UNet(nn.Module):
                         out_channels=out_ch,
                         in_res=cur_res,
                         window_size=window_size,
-                        shift_size=window_size // 2 if i % 2 == 0 else 0,
+                        shift_size=0 if i % 2 == 0 else window_size // 2,
                         num_groups=num_groups,
                         num_heads=(in_ch + skip_dim) // num_head_channels if use_num_head_channels else num_heads,
                         dropout=dropout,

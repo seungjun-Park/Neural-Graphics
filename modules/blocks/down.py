@@ -34,7 +34,7 @@ class DownBlock(nn.Module):
         else:
             self.pooling = pool_nd(pool_type, dim=dim, kernel_size=scale_factor, stride=scale_factor)
 
-        self.norm = group_norm(out_channels, num_groups=out_channels)
+        self.norm = group_norm(out_channels, num_groups=1)
 
     def forward(self, x: torch.Tensor):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)

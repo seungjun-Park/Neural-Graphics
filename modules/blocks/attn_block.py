@@ -301,9 +301,9 @@ class WindowAttention(nn.Module):
 
         l = self.window_size * self.window_size
 
-        q = q.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-        k = k.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-        v = v.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
+        q = q.reshape(-1, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
+        k = k.reshape(-1, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
+        v = v.reshape(-1, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
 
         # scaled dot attention
         if self.attn_mode == 'v1':
@@ -333,14 +333,14 @@ class WindowAttention(nn.Module):
 
         if self.attn_mask is not None:
             nW = self.attn_mask.shape[0]
-            attn = attn.reshape(b // nW, nW, self.num_heads, l, l) + self.attn_mask.unsqueeze(1).unsqueeze(0).to(attn.device)
+            attn = attn.reshape(-1, nW, self.num_heads, l, l) + self.attn_mask.unsqueeze(1).unsqueeze(0).to(attn.device)
             attn = attn.reshape(-1, self.num_heads, l, l)
 
         attn = F.softmax(attn, dim=-1)
         attn = self.dropout(attn)
 
         v = torch.einsum('bhts,bhcs->bhct', attn, v)
-        v = v.reshape(b, -1, self.window_size, self.window_size)
+        v = v.reshape(-1, c, self.window_size, self.window_size)
         v = window_reverse(v, self.window_size, *spatial)  # B c, H' W'
 
         if self.shift_size > 0:
@@ -477,7 +477,7 @@ class DoubleWindowAttention(nn.Module):
 
         assert q.shape == k.shape == v.shape
         b, c, *spatial = q.shape
-        assert spatial == self.in_res, "input feature has wrong size"
+        assert tuple(spatial) == self.in_res, "input feature has wrong size"
 
         if self.shift_size > 0:
             _, _, h, w = q.shape
@@ -499,9 +499,9 @@ class DoubleWindowAttention(nn.Module):
 
         l = self.window_size * self.window_size
 
-        q = q.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-        k = k.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
-        v = v.reshape(b, c, l).reshape(b, self.num_heads, c // self.num_heads, l)
+        q = q.reshape(-1, c, l).reshape(-1, self.num_heads, c // self.num_heads, l)
+        k = k.reshape(-1, c, l).reshape(-1, self.num_heads, c // self.num_heads, l)
+        v = v.reshape(-1, c, l).reshape(-1, self.num_heads, c // self.num_heads, l)
 
         # scaled dot attention
         if self.attn_mode == 'v1':
@@ -532,7 +532,7 @@ class DoubleWindowAttention(nn.Module):
 
         if self.attn_mask is not None:
             nW = self.attn_mask.shape[0]
-            attn = attn.reshape(b // nW, nW, self.num_heads, l, l) + self.attn_mask.unsqueeze(1).unsqueeze(0).to(
+            attn = attn.reshape(-1, nW, self.num_heads, l, l) + self.attn_mask.unsqueeze(1).unsqueeze(0).to(
                 attn.device)
             attn = attn.reshape(-1, self.num_heads, l, l)
 
@@ -540,7 +540,7 @@ class DoubleWindowAttention(nn.Module):
         attn = self.attn_dropout(attn)
 
         v = torch.einsum('bhts,bhcs->bhct', attn, v)
-        v = v.reshape(b, -1, self.window_size, self.window_size)
+        v = v.reshape(-1, c, self.window_size, self.window_size)
         v = window_reverse(v, self.window_size, *spatial)  # B c, H' W'
 
         if self.shift_size > 0:
@@ -569,8 +569,11 @@ class DeformableAttention(nn.Module):
                  ):
         super().__init__()
 
-        self.scale = qk_scale if qk_scale else 1 / ((in_channels // num_heads) ** 0.5)
+        assert in_channels % num_heads == 0
+
         self.num_heads = num_heads
+        self.d_k = in_channels // num_heads
+        self.scale = qk_scale if qk_scale else 1 / (self.d_k ** 2)
         self.res = in_res // scale_factor
 
         self.conv_offset = nn.Sequential(
@@ -589,92 +592,91 @@ class DeformableAttention(nn.Module):
         trunc_normal_(self.rpe_table, std=0.01)
 
         self.q = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=qkv_bias)
-        self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, stride=1,)
+        self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, stride=1, bias=qkv_bias)
         self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
 
     @torch.no_grad()
-    def _get_ref_points(self, H_key, W_key, B, dtype, device):
+    def _get_ref_points(self, offset: torch.Tensor):
+        b, h, w, c = offset.shape
+        dtype = offset.dtype
+        device = offset.device
 
         ref_y, ref_x = torch.meshgrid(
-            torch.linspace(0.5, H_key - 0.5, H_key, dtype=dtype, device=device),
-            torch.linspace(0.5, W_key - 0.5, W_key, dtype=dtype, device=device),
+            torch.linspace(0.5, h - 0.5, h, dtype=dtype, device=device),
+            torch.linspace(0.5, w - 0.5, w, dtype=dtype, device=device),
             indexing='ij'
         )
         ref = torch.stack((ref_y, ref_x), -1)
-        ref[..., 1].div_(W_key - 1.0).mul_(2.0).sub_(1.0)
-        ref[..., 0].div_(H_key - 1.0).mul_(2.0).sub_(1.0)
-        ref = ref[None, ...].expand(B * self.n_groups, -1, -1, -1)  # B * g H W 2
+        ref[..., 1].div_(w - 1.0).mul_(2.0).sub_(1.0)
+        ref[..., 0].div_(h - 1.0).mul_(2.0).sub_(1.0)
+        ref = ref[None, ...].expand(b, -1, -1, -1)  # B * g H W 2
 
         return ref
 
     @torch.no_grad()
-    def _get_q_grid(self, H, W, B, dtype, device):
+    def _get_q_grid(self, q: torch.Tensor):
+        b, c, h, w = q.shape
 
         ref_y, ref_x = torch.meshgrid(
-            torch.arange(0, H, dtype=dtype, device=device),
-            torch.arange(0, W, dtype=dtype, device=device),
+            torch.arange(0, h, dtype=q.dtype, device=q.device),
+            torch.arange(0, w, dtype=q.dtype, device=q.device),
             indexing='ij'
         )
         ref = torch.stack((ref_y, ref_x), -1)
-        ref[..., 1].div_(W - 1.0).mul_(2.0).sub_(1.0)
-        ref[..., 0].div_(H - 1.0).mul_(2.0).sub_(1.0)
-        ref = ref[None, ...].expand(B * self.n_groups, -1, -1, -1)  # B * g H W 2
+        ref[..., 1].div_(w - 1.0).mul_(2.0).sub_(1.0)
+        ref[..., 0].div_(h - 1.0).mul_(2.0).sub_(1.0)
+        ref = ref[None, ...].expand(b, -1, -1, -1)  # B * g H W 2
 
         return ref
 
     def forward(self, x: torch.Tensor, context: torch.Tensor = None) -> torch.Tensor:
-        b, c, h, w = x.shape
-        l = h * w
-        dtype, device = x.dtype, x.device
+        b, c, *spatial = x.shape
+        l = np.prod(spatial)
+        if context is None:
+            context = x
 
         q = self.q(x)
-        # q_off = einops.rearrange(q, 'b (g c) h w -> (b g) c h w', g=2, c=c//2)
         offset = self.conv_offset(q).contiguous()  # B * g 2 Hg Wg
-        Hk, Wk = offset.size(2), offset.size(3)
-        n_sample = Hk * Wk
+        n_sample = np.prod(offset.shape[2:])
 
-        offset = einops.rearrange(offset, 'b p h w -> b h w p')
-        reference = self._get_ref_points(Hk, Wk, b, dtype, device)
+        offset = offset.permute(0, 2, 3, 1)
+        reference = self._get_ref_points(offset)
 
-        pos = (offset + reference).tanh()
+        pos = (offset + reference).clamp(-1., 1.)
 
-        x_sampled = F.grid_sample(
-            input=x,
+        sampled = F.grid_sample(
+            input=context,
             grid=pos[..., (1, 0)],  # y, x -> x, y
             mode='bilinear', align_corners=True)  # B * g, Cg, Hg, Wg
 
-        x_sampled = x_sampled.reshape(b, c, 1, n_sample)
+        sampled = sampled.reshape(b, c, 1, n_sample)
 
-        q = q.reshape(b * self.n_heads, self.n_head_channels, h * w)
-        k = self.proj_k(x_sampled).reshape(b * self.n_heads, self.n_head_channels, n_sample)
-        v = self.proj_v(x_sampled).reshape(b * self.n_heads, self.n_head_channels, n_sample)
+        q = q.reshape(b * self.num_heads, self.d_k, l)
+        k, v = self.kv(sampled).chunk(2, dim=1)
+        k = k.reshape(b * self.num_heads, self.d_k, n_sample)
+        v = v.reshape(b * self.num_heads, self.d_k, n_sample)
 
         attn = torch.einsum('b c m, b c n -> b m n', q, k)  # B * h, HW, Ns
-        attn = attn.mul(self.scale)
+        attn = attn * self.scale
 
         rpe_table = self.rpe_table
         rpe_bias = rpe_table[None, ...].expand(b, -1, -1, -1)
-        q_grid = self._get_q_grid(h, w, b, dtype, device)
-        displacement = (
-                    q_grid.reshape(b * self.n_groups, l, 2).unsqueeze(2) - pos.reshape(b * self.n_groups,
-                                                                                           n_sample,
-                                                                                           2).unsqueeze(1)).mul(
-            0.5)
+        q_grid = self._get_q_grid(x)
+        displacement = (q_grid.reshape(b, l, 2).unsqueeze(2) - pos.reshape(b, n_sample, 2).unsqueeze(1)).mul(0.5)
         attn_bias = F.grid_sample(
-            input=einops.rearrange(rpe_bias, 'b (g c) h w -> (b g) c h w', c=self.n_group_heads,
-                                   g=self.n_groups),
+            input=rpe_bias,
             grid=displacement[..., (1, 0)],
             mode='bilinear', align_corners=True)  # B * g, h_g, HW, Ns
 
         attn_bias = attn_bias.reshape(b * self.num_heads, l, n_sample)
         attn = attn + attn_bias
 
-        attn = F.softmax(attn, dim=2)
-        attn = self.attn_drop(attn)
+        attn = F.softmax(attn, dim=-1)
+        attn = self.attn_dropout(attn)
 
         v = torch.einsum('b m n, b c n -> b c m', attn, v)
-        v = v.reshape(b, c, h, w)
-        v = self.proj_drop(self.proj_out(v))
+        v = v.reshape(b, c, *spatial)
+        v = self.proj_dropout(self.proj(v))
 
         return v
 
@@ -716,7 +718,7 @@ class AttentionBlock(nn.Module):
         elif attn_type == 'swin-v1':
             self.attn = WindowAttention(
                 in_channels=in_channels,
-                in_res=in_res,
+                in_res=to_2tuple(in_res),
                 window_size=window_size,
                 shift_size=shift_size,
                 pretrained_window_size=pretrained_window_size,
@@ -733,7 +735,7 @@ class AttentionBlock(nn.Module):
         elif attn_type == 'swin-v2':
             self.attn = WindowAttention(
                 in_channels=in_channels,
-                in_res=in_res,
+                in_res=to_2tuple(in_res),
                 window_size=window_size,
                 shift_size=shift_size,
                 pretrained_window_size=pretrained_window_size,
@@ -749,7 +751,7 @@ class AttentionBlock(nn.Module):
         elif attn_type == 'dswin-v1':
             self.attn = DoubleWindowAttention(
                 in_channels=in_channels,
-                in_res=in_res,
+                in_res=to_2tuple(in_res),
                 window_size=window_size,
                 pretrained_window_size=pretrained_window_size,
                 num_heads=num_heads,
@@ -765,7 +767,7 @@ class AttentionBlock(nn.Module):
         elif attn_type == 'dswin-v2':
             self.attn = DoubleWindowAttention(
                 in_channels=in_channels,
-                in_res=in_res,
+                in_res=to_2tuple(in_res),
                 window_size=window_size,
                 pretrained_window_size=pretrained_window_size,
                 num_heads=num_heads,

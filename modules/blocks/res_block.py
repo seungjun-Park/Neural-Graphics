@@ -6,7 +6,6 @@ from timm.models.layers import DropPath
 
 from typing import Union, List, Tuple
 from utils import get_act, conv_nd, group_norm, to_2tuple
-from modules.blocks.attn_block import DoubleWindowSelfAttentionBlock, SelfAttentionBlock
 
 
 class ResidualBlock(nn.Module):
