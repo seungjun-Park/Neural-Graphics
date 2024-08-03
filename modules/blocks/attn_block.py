@@ -566,8 +566,11 @@ class DeformableAttention(nn.Module):
                  proj_dropout: float = 0.0,
                  act: str = 'gelu',
                  dim: int = 2,
+                 use_checkpoint: bool = True,
                  ):
         super().__init__()
+
+        self.use_checkpoint = use_checkpoint
 
         assert in_channels % num_heads == 0
 
@@ -798,7 +801,10 @@ class AttentionBlock(nn.Module):
             raise NotImplementedError(f'{attn_type} was not implemented.')
 
     def forward(self, x: torch.Tensor, context: torch.Tensor = None) -> torch.Tensor:
-        return checkpoint(self._forward, (x, context), self.parameters(), flag=self.use_checkpoint)
+        inputs = [x]
+        if context:
+            inputs.append(context)
+        return checkpoint(self._forward, inputs, self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor, context: torch.Tensor = None) -> torch.Tensor:
         return self.attn(x, context)
