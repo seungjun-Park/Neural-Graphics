@@ -23,7 +23,7 @@ module:
         drop_path: 0.1
         qkv_bias: True
         proj_bias: True
-        mlp_ratio: 2.0
+        mlp_ratio: 4.0
         num_groups: 32
         act: 'gelu'
         use_conv: True
@@ -39,7 +39,7 @@ module:
         disc_start: 2000
         disc_factor: 1.0
         disc_weight: 0.1
-        perceptual_weight: 1.0
+        perceptual_weight: 2.0
         disc_config:
           in_channels: 3
           in_res: 512

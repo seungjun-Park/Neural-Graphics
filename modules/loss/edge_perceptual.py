@@ -50,7 +50,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             labels = labels.repeat(1, 3, 1, 1).contiguous()
 
             p_loss = self.perceptual_loss(preds, labels).mean()
-            loss = self.l1_weight * l1_loss + self.perceptual_weight * p_loss + self.lfd_weight * lfd_loss
+            loss = self.l1_weight * l1_loss + self.perceptual_weight * p_loss
 
             # generator update
             # logits_fake = self.discriminator(imgs=imgs, edges=preds, training=False)['logits']
