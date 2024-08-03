@@ -73,7 +73,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '7/local_datasets/anime'
+        root: '/local_datasets/anime'
         train: True
         size: 512
         scale: [ 0.95, 1.0 ]
