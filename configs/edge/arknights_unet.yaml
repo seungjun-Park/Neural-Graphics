@@ -10,11 +10,11 @@ module:
       target: modules.blocks.UNet
       params:
         in_channels: 3
-        in_res: 256
+        in_res: 512
         window_size: 8
         out_channels: 1
         embed_dim: 32
-        hidden_dims: [ 64, 128, 256, 256 ]
+        hidden_dims: [ 64, 128, 256, 256, 512 ]
         num_blocks: 1
         num_heads: 8
         num_head_channels: -1
@@ -23,7 +23,7 @@ module:
         drop_path: 0.1
         qkv_bias: True
         proj_bias: True
-        mlp_ratio: 4.0
+        mlp_ratio: 2.0
         num_groups: 32
         act: 'gelu'
         use_conv: True
@@ -31,7 +31,7 @@ module:
         mode: 'conv'
         dim: 2
         use_checkpoint: True
-        attn_types: ['dswin-v2', 'dswin-v2', 'da', 'da']
+        attn_types: ['dswin-v2', 'dswin-v2', 'dswin-v2', 'da', 'da']
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
@@ -73,22 +73,22 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: './datasets/anime'
+        root: '/local_datasets/anime'
         train: True
-        size: 256
+        size: 512
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
-    validation:
-      target: modules.datasets.arknights.ArknightsDataset
-      params:
-        root: './datasets/anime'
-        train: False
-        size: 256
-        scale: [ 0.95, 1.0 ]
-        ratio: [ 1.0, 1.0 ]
-        color_space: 'rgb'
+#    validation:
+#      target: modules.datasets.arknights.ArknightsDataset
+#      params:
+#        root: './datasets/anime'
+#        train: False
+#        size: 256
+#        scale: [ 0.95, 1.0 ]
+#        ratio: [ 1.0, 1.0 ]
+#        color_space: 'rgb'
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
@@ -113,11 +113,11 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/arknights_unet'
       filename: 'ednse_best'
-      monitor: 'val/total_loss'
+      monitor: 'train/total_loss'
       mode: 'min'
       save_top_k: 1
 
 trainer:
   accelerator: 'gpu'
   max_epochs: 500
-  accumulate_grad_batches: 10
+  accumulate_grad_batches: 25
