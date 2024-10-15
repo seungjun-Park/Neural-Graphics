@@ -12,7 +12,6 @@ dependencies:
   - torchaudio=2.1.0
   - pytorch-cuda=11.8
   - numpy=1.26.4
-  - pybind
   - pip:
       - huggingface
       - einops
