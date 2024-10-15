@@ -5,11 +5,11 @@ from typing import Union, List, Tuple
 from timm.models.layers import DropPath
 from omegaconf import ListConfig
 
-from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
+from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act, deform_conv_nd
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.attn_block import AttentionBlock
-from modules.blocks.res_block import ResidualBlock
+from modules.blocks.res_block import ResidualBlock, DeformableResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
 
@@ -240,3 +240,123 @@ class UNet(nn.Module):
         h = torch.cat([h, hs.pop()], dim=1)
         return self.out(h)
 
+
+class DeformableUNet(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int = None,
+                 embed_dim: int = 16,
+                 hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
+                 num_blocks: Union[int, List[int], Tuple[int]] = 2,
+                 dropout: float = 0.0,
+                 drop_path: float = 0.0,
+                 num_groups: int = 8,
+                 act: str = 'relu',
+                 use_conv: bool = True,
+                 pool_type: str = 'conv',
+                 mode: str = 'nearest',
+                 dim: int = 2,
+                 use_checkpoint: bool = True,
+                 ):
+        super().__init__()
+
+        out_channels = out_channels if out_channels else in_channels
+
+        self.encoder = nn.ModuleList()
+        self.decoder = nn.ModuleList()
+
+        self.encoder.append(
+            nn.Sequential(
+                deform_conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
+                group_norm(embed_dim, num_groups=num_groups),
+            )
+        )
+
+        in_ch = embed_dim
+        skip_dims = [embed_dim]
+
+        for i, out_ch in enumerate(hidden_dims):
+            for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
+                self.encoder.append(
+                    DeformableResidualBlock(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        dropout=dropout,
+                        drop_path=drop_path,
+                        act=act,
+                        dim=dim,
+                        num_groups=num_groups,
+                        use_checkpoint=use_checkpoint,
+                        use_conv=use_conv,
+                    )
+                )
+
+                in_ch = out_ch
+                skip_dims.append(in_ch)
+
+            if i != len(hidden_dims) - 1:
+                self.encoder.append(
+                    DownBlock(
+                        in_channels=in_ch,
+                        scale_factor=2,
+                        dim=2,
+                        pool_type=pool_type,
+                        use_checkpoint=use_checkpoint
+                    )
+                )
+
+        for i, out_ch in list(enumerate(hidden_dims))[::-1]:
+            for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
+                skip_dim = skip_dims.pop()
+                self.decoder.append(
+                    DeformableResidualBlock(
+                        in_channels=in_ch + skip_dim,
+                        out_channels=out_ch,
+                        dropout=dropout,
+                        drop_path=drop_path,
+                        act=act,
+                        dim=dim,
+                        num_groups=num_groups,
+                        use_checkpoint=use_checkpoint,
+                        use_conv=use_conv,
+                    )
+                )
+                in_ch = out_ch
+
+            if i != 0:
+                self.decoder.append(
+                    UpBlock(
+                        in_channels=in_ch,
+                        scale_factor=2,
+                        mode=mode,
+                        use_checkpoint=use_checkpoint,
+                        num_groups=num_groups,
+                    )
+                )
+
+        self.out = nn.Sequential(
+            deform_conv_nd(
+                dim,
+                in_ch + skip_dims.pop(),
+                out_channels,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            )
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        hs = []
+        h = x
+        for i, block in enumerate(self.encoder):
+            h = block(h)
+            if not isinstance(block, DownBlock):
+                hs.append(h)
+
+        for i, block in enumerate(self.decoder):
+            if isinstance(block, DeformableResidualBlock):
+                h = torch.cat([h, hs.pop()], dim=1)
+            h = block(h)
+
+        h = torch.cat([h, hs.pop()], dim=1)
+        return self.out(h)

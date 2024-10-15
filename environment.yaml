@@ -7,11 +7,12 @@ channels:
   - defaults
 dependencies:
   - python=3.10
-  - pytorch=2.1.1
-  - torchvision=0.16.1
-  - torchaudio=2.1.1
+  - pytorch=2.1.0
+  - torchvision=0.16.0
+  - torchaudio=2.1.0
   - pytorch-cuda=11.8
-  - numpy
+  - numpy=1.26.4
+  - pybind
   - pip:
       - huggingface
       - einops
@@ -30,4 +31,5 @@ dependencies:
       - configargparse
       - lmdb
       - timm
-      - -e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
+      - ninja
+      # - -e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers

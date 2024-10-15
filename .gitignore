@@ -181,3 +181,6 @@ datasets/BIPEDv2/edges/test_pairMULTICUEdataset.lst
 HW3_SAC.py
 video/pendulum.mp4
 *.lst
+modules/build/*
+modules/*.egg-info
+modules/dist/*

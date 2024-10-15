@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, List, Tuple
 
-from utils import conv_nd, group_norm, conv_transpose_nd
+from utils import conv_nd, group_norm, conv_transpose_nd, deform_conv_nd
 from utils.checkpoints import checkpoint
 
 
@@ -11,6 +11,7 @@ class UpBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int = None,
+                 num_groups: int = 1,
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
                  mode: str = 'nearest',
@@ -47,13 +48,12 @@ class UpBlock(nn.Module):
                 kernel_size=3,
                 stride=1,
                 padding=1,
-                groups=in_channels,
             )
         )
 
         self.up = nn.Sequential(*self.up)
 
-        self.norm = group_norm(out_channels, num_groups=1)
+        self.norm = group_norm(out_channels, num_groups=num_groups)
 
     def forward(self, x: torch.Tensor):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)

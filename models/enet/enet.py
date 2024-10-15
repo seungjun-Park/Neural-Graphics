@@ -6,6 +6,7 @@ import pytorch_lightning as pl
 from typing import Union, List, Tuple, Any, Optional
 from utils import instantiate_from_config, to_2tuple, conv_nd, get_act, group_norm, normalize_img, to_rgb
 from modules.loss.edge_perceptual import EdgeLPIPSWithDiscriminator
+import pdb
 
 
 class EDNSE(pl.LightningModule):
@@ -67,7 +68,7 @@ class EDNSE(pl.LightningModule):
         # if (batch_idx + 1) % self.disc_update_freq == 0:
         #     opt_disc.step()
         #     opt_disc.zero_grad()
-
+        # pdb.set_trace()
         net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.get_last_layer(),
                                            split='train')
         # net_loss = net_loss / self.accumulate_grad_batches
@@ -83,7 +84,7 @@ class EDNSE(pl.LightningModule):
             self.log_img(imgs, 'img')
 
         # self.log_dict(d_loss_log)
-        self.log_dict(net_loss_log)
+        self.log_dict(net_loss_log, prog_bar=True)
 
         return net_loss
 

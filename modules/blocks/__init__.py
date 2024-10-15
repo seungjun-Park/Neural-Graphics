@@ -7,5 +7,5 @@ from .up import UpBlock
 from .fourier_mask import LearnableFourierMask
 from .skip_block import ScaledSkipBlock
 from .norm import SpectralNorm
-from .unet import UNet
+from .unet import UNet, DeformableUNet
 from .attn_block import AttentionBlock

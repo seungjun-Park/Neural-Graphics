@@ -1,3 +1,4 @@
+import os
 import argparse
 import glob
 import math
@@ -10,11 +11,34 @@ import torch.nn.functional as F
 
 import torchvision
 from omegaconf import OmegaConf
+import torch
+import pytorch_lightning as pl
 from pytorch_lightning.trainer import Trainer
 import matplotlib.pyplot as plt
 
 from utils import instantiate_from_config
 from models.classification.transformer import SwinTransformer
+
+
+class GradientNormCallback(pl.Callback):
+    def __init__(self, threshold=2e5):
+        super().__init__()
+        self.threshold = threshold
+
+    def on_before_zero_grad(self, trainer, pl_module, *args, **kwargs):
+        grad_norms = {}
+        total_norm = 0.0
+
+        for name, param in pl_module.named_parameters():
+            if param.grad is not None:
+                param_norm = param.grad.data.norm(2).item()
+                grad_norms[name] = param_norm
+                total_norm += param_norm ** 2
+
+        total_norm = total_norm ** 0.5
+
+        # Log total gradient norm
+        print(f'\ngrad_norm/total: {total_norm}')
 
 
 def get_parser(**parser_kwargs):
@@ -60,10 +84,17 @@ def main():
 
     logger = instantiate_from_config(config.logger)
 
-    checkpoint_callbacks = [instantiate_from_config(config.checkpoints[cfg]) for cfg in config.checkpoints]
+    callbacks = [instantiate_from_config(config.checkpoints[cfg]) for cfg in config.checkpoints]
+    # callbacks.append(GradientNormCallback(threshold=2e5))
 
     trainer_configs = config.trainer
-    trainer = Trainer(logger=logger, callbacks=checkpoint_callbacks, enable_progress_bar=False, **trainer_configs)
+    trainer = Trainer(
+        logger=logger,
+        callbacks=callbacks,
+        enable_progress_bar=True,
+        detect_anomaly=True,
+        **trainer_configs
+    )
     trainer.fit(model=model, datamodule=datamodule)
     # trainer.test(model=model)
 

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .activation import Sine, Cosine
+from modules.ops.modules.deform_conv import DeformConv1d, DeformConv2d, DeformConv3d
 
 
 def functional_conv_nd(dim: int = 2, *args, **kwargs):
@@ -17,6 +18,19 @@ def functional_conv_nd(dim: int = 2, *args, **kwargs):
     else:
         NotImplementedError("The dims should have a value between 1 and 3.")
 
+
+def deform_conv_nd(dim: int = 2, *args, **kwargs):
+    if dim == 1:
+        return DeformConv1d(*args, **kwargs)
+
+    elif dim == 2:
+        return DeformConv2d(*args, **kwargs)
+
+    elif dim == 3:
+        return DeformConv3d(*args, **kwargs)
+
+    else:
+        NotImplementedError("The dims should have a value between 1 and 3.")
 
 def conv_nd(dim: int = 2, *args, **kwargs):
     if dim == 1:
