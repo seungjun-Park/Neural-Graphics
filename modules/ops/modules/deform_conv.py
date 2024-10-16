@@ -231,10 +231,7 @@ class DeformConv1d(nn.Module):
         b, c, l = off.shape
         off = off.reshape(b, self.dim + 1, -1, l)
         offset_field = off[:, 0: self.dim, :, :]
-        attn_mask = off[:, self.dim: self.dim + 1, :, :]
-        b, _, c, l = attn_mask.shape
-        attn_mask = F.softmax(attn_mask.reshape(b, 1, self.groups, -1, l), dim=2).reshape(b, 1, c, l)
-
+        attn_mask = off[:, self.dim: self.dim + 1, :, :].tanh()
         return deform_conv_1d(
             inps,
             self.weight,
@@ -323,9 +320,7 @@ class DeformConv2d(nn.Module):
         b, c, h, w = off.shape
         off = off.reshape(b, self.dim + 1, -1, h, w)
         offset_field = off[:, 0: self.dim, :, :, :]
-        attn_mask = off[:, self.dim: self.dim + 1, :, :, :]
-        b, _, c, h, w = attn_mask.shape
-        attn_mask = F.softmax(attn_mask.reshape(b, 1, self.groups, -1, h, w), dim=2).reshape(b, 1, c, h, w)
+        attn_mask = off[:, self.dim: self.dim + 1, :, :, :].tanh()
 
         return deform_conv_2d(
             inps,
@@ -412,9 +407,7 @@ class DeformConv3d(nn.Module):
         b, c, d, h, w = off.shape
         off = off.reshape(b, self.dim + 1, -1, d, h, w)
         offset_field = off[:, 0: self.dim, :, :, :, :]
-        attn_mask = off[:, self.dim: self.dim + 1, :, :, :, :]
-        b, _, c, d, h, w = attn_mask.shape
-        attn_mask = F.softmax(attn_mask.reshape(b, 1, self.groups, -1, d, h, w), dim=2).reshape(b, 1, c, d, h, w)
+        attn_mask = off[:, self.dim: self.dim + 1, :, :, :, :].tanh()
 
         return deform_conv_3d(
             inps,
