@@ -64,7 +64,7 @@ data:
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: './datasets/anime'
+        root: '/local_datasets/anime'
         train: True
         size: 512
         scale: [ 0.95, 1.0 ]
@@ -74,7 +74,7 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: './datasets/anime'
+        root: '/local_datasets/anime'
         train: False
         size: 512
         scale: [ 0.95, 1.0 ]
