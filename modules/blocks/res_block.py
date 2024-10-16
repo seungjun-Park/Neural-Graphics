@@ -105,7 +105,8 @@ class DeformableResidualBlock(nn.Module):
             dilation=1,
             groups=num_groups,
             bias=True,
-            dilation_off=2,
+            kernel_size_off=5,
+            padding_off=2,
         )
         self.deform_conv2 = deform_conv_nd(
             dim=dim,
@@ -117,7 +118,8 @@ class DeformableResidualBlock(nn.Module):
             dilation=1,
             groups=num_groups,
             bias=True,
-            dilation_off=2,
+            kernel_size_off=5,
+            padding_off=2,
         )
 
         self.norm1 = group_norm(out_channels, num_groups=num_groups)

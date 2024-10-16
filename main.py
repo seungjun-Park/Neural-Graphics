@@ -92,7 +92,7 @@ def main():
         logger=logger,
         callbacks=callbacks,
         enable_progress_bar=True,
-        detect_anomaly=True,
+        # detect_anomaly=True,
         **trainer_configs
     )
     trainer.fit(model=model, datamodule=datamodule)

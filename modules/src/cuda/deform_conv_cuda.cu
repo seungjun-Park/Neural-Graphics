@@ -2,6 +2,7 @@
 #include <cuda/im2col_cuda.h>
 #include <cuda/col2im_cuda.h>
 #include <cuda_runtime.h>
+#include <c10/cuda/CUDAStream.h>
 
 #include <GPUInfo.h>
 #include <deform_conv_utils.h>
@@ -88,6 +89,8 @@ at::Tensor _deform_conv_nd_forward_cuda(
 		output_n_size[2 + i] = output_size.slice(2)[i];
 	}
 
+	auto cudaStream = c10::cuda::getCurrentCUDAStream();
+
 	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "deform_conv_nd_forward<>", [&]() {
 		using scalar_t = scalar_t;
 
@@ -98,7 +101,7 @@ at::Tensor _deform_conv_nd_forward_cuda(
 			at::Tensor offset_field_n = offset_field.slice(0, batch_start, batch_start + sub_batch_size);
 			at::Tensor attn_mask_n = attn_mask.slice(0, batch_start, batch_start + sub_batch_size);
 
-			im2col_nd_cuda<scalar_t, dim><<<num_blocks, block_size>>>(
+			im2col_nd_cuda<scalar_t, dim><<<num_blocks, block_size, 0, cudaStream>>>(
 				input_n.const_data_ptr<scalar_t>(),
 				offset_field_n.const_data_ptr<scalar_t>(),
 				attn_mask_n.const_data_ptr<scalar_t>(),
@@ -281,6 +284,8 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cuda(
 	int64_t sub_batch_size = (num_blocks * block_size) / per_elements_in_batch;
 	int64_t total_iteration = batch_size / sub_batch_size;
 
+	auto cudaStream = c10::cuda::getCurrentCUDAStream();
+
 	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "deform_conv_nd_backward<>", [&]() {
 		using scalar_t = scalar_t;
 
@@ -302,7 +307,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cuda(
 				grad_output_n.transpose(0, 1).reshape({ groups, grouped_out_channels, -1 }));
 
 			// compute gradient of inputs, offset_field, attn_mask
-			col2im_nd_cuda<scalar_t, dim> << <num_blocks, block_size>> > (
+			col2im_nd_cuda<scalar_t, dim> << <num_blocks, block_size, 0, cudaStream>> > (
 				input_n.const_data_ptr<scalar_t>(),
 				columns.const_data_ptr<scalar_t>(),
 				offset_field_n.const_data_ptr<scalar_t>(),
@@ -324,7 +329,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cuda(
 			cudaDeviceSynchronize();
 
 			// compute grad_weight = grad_output * col^T
-			im2col_nd_cuda<scalar_t, dim><<<num_blocks, block_size>>>(
+			im2col_nd_cuda<scalar_t, dim><<<num_blocks, block_size, 0, cudaStream >>>(
 				input_n.const_data_ptr<scalar_t>(),
 				offset_field_n.const_data_ptr<scalar_t>(),
 				attn_mask_n.const_data_ptr<scalar_t>(),
