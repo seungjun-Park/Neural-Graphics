@@ -91,7 +91,7 @@ def main():
     trainer = Trainer(
         logger=logger,
         callbacks=callbacks,
-        enable_progress_bar=True,
+        enable_progress_bar=False,
         # detect_anomaly=True,
         **trainer_configs
     )
