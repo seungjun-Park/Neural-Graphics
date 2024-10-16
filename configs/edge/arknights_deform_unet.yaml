@@ -71,15 +71,15 @@ data:
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
-#    validation:
-#      target: modules.datasets.arknights.ArknightsDataset
-#      params:
-#        root: './datasets/anime'
-#        train: False
-#        size: 64
-#        scale: [ 0.95, 1.0 ]
-#        ratio: [ 1.0, 1.0 ]
-#        color_space: 'rgb'
+    validation:
+      target: modules.datasets.arknights.ArknightsDataset
+      params:
+        root: './datasets/anime'
+        train: False
+        size: 512
+        scale: [ 0.95, 1.0 ]
+        ratio: [ 1.0, 1.0 ]
+        color_space: 'rgb'
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
@@ -104,7 +104,7 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/arknights_deform_unet'
       filename: 'ednse_best'
-      monitor: 'train/total_loss'
+      monitor: 'val/total_loss'
       mode: 'min'
       save_top_k: 1
 
