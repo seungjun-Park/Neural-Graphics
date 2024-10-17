@@ -252,6 +252,7 @@ class DeformableUNet(nn.Module):
                  drop_path: float = 0.0,
                  num_groups: int = 8,
                  act: str = 'relu',
+                 modulation_type: str = None,
                  use_conv: bool = True,
                  pool_type: str = 'conv',
                  mode: str = 'nearest',
@@ -288,6 +289,7 @@ class DeformableUNet(nn.Module):
                         num_groups=num_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
+                        modulation_type=modulation_type,
                     )
                 )
 
@@ -319,6 +321,7 @@ class DeformableUNet(nn.Module):
                         num_groups=num_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
+                        modulation_type=modulation_type,
                     )
                 )
                 in_ch = out_ch
@@ -339,9 +342,8 @@ class DeformableUNet(nn.Module):
                 dim,
                 in_ch + skip_dims.pop(),
                 out_channels,
-                kernel_size=3,
+                kernel_size=1,
                 stride=1,
-                padding=1,
             )
         )
 
