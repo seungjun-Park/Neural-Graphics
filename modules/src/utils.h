@@ -2,7 +2,7 @@
 
 #include <torch/extension.h>
 #include <cuda_runtime.h>
-#include <assert.h>
+#include <cassert>
 #include <vector>
 
 // replace to at::IntArrayRef in device code.
@@ -46,7 +46,7 @@ Array<T, size> ArrayRef2Array(at::ArrayRef<T> arr)
 {
 	assert(arr.size() == size);
 	Array<T, size> target;
-	for (size_t i = 0; i < length; i++)
+	for (size_t i = 0; i < size; i++)
 	{
 		target[i] = arr[i];
 	}
