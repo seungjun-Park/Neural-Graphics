@@ -352,9 +352,6 @@ class DeformableUNet(nn.Module):
                 out_channels,
                 kernel_size=1,
                 stride=1,
-                kernel_size_off=3,
-                padding_off=2,
-                dilation_off=2,
             )
         )
 
