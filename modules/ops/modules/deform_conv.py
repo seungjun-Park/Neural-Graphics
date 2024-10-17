@@ -28,10 +28,10 @@ def _multiply_integers(target: abc.Iterable) -> int:
 
 def _apply_modulation_type(
         x: torch.Tensor,
-        modulation_type: str = None,
+        modulation_type: str = 'none',
         groups: int = None):
 
-    if modulation_type is None:
+    if modulation_type == 'none':
         return x
     elif modulation_type == 'sigmoid':
         return x.sigmoid()
@@ -189,7 +189,7 @@ class DeformConv1d(nn.Module):
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: Union[int, List[int], Tuple[int]] = 1,
                  bias: bool = True,
-                 modulation_type: str = None,
+                 modulation_type: str = 'none',
                  kernel_size_off: Union[int, List[int], Tuple[int]] = None,
                  stride_off: Union[int, List[int], Tuple[int]] = None,
                  padding_off: Union[int, List[int], Tuple[int]] = None,
@@ -200,7 +200,7 @@ class DeformConv1d(nn.Module):
         super().__init__()
 
         assert in_channels % groups == 0 and out_channels % groups == 0
-        assert modulation_type.lower() in [None, 'sigmoid', 'softmax']
+        assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
         self.dim = 1
@@ -275,7 +275,7 @@ class DeformConv2d(nn.Module):
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: Union[int, List[int], Tuple[int]] = 1,
                  bias: bool = True,
-                 modulation_type: str = None,
+                 modulation_type: str = 'none',
                  kernel_size_off: Union[int, List[int], Tuple[int]] = None,
                  stride_off: Union[int, List[int], Tuple[int]] = None,
                  padding_off: Union[int, List[int], Tuple[int]] = None,
@@ -286,7 +286,7 @@ class DeformConv2d(nn.Module):
         super().__init__()
 
         assert in_channels % groups == 0 and out_channels % groups == 0
-        assert modulation_type.lower() in [None, 'sigmoid', 'softmax']
+        assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
         self.dim = 2
@@ -365,7 +365,7 @@ class DeformConv3d(nn.Module):
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: Union[int, List[int], Tuple[int]] = 1,
                  bias: bool = True,
-                 modulation_type: str = None,
+                 modulation_type: str = 'none',
                  kernel_size_off: Union[int, List[int], Tuple[int]] = None,
                  stride_off: Union[int, List[int], Tuple[int]] = None,
                  padding_off: Union[int, List[int], Tuple[int]] = None,
@@ -376,7 +376,7 @@ class DeformConv3d(nn.Module):
         super().__init__()
 
         assert in_channels % groups == 0 and out_channels % groups == 0
-        assert modulation_type.lower() in [None, 'sigmoid', 'softmax']
+        assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
         self.dim = 3

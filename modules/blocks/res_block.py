@@ -85,6 +85,7 @@ class DeformableResidualBlock(nn.Module):
                  num_groups: int = 8,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
+                 modulation_type: str = 'none',
                  **ignored_kwargs,
                  ):
         super().__init__()
@@ -105,6 +106,7 @@ class DeformableResidualBlock(nn.Module):
             dilation=1,
             groups=num_groups,
             bias=True,
+            modulation_type=modulation_type,
             kernel_size_off=3,
             padding_off=2,
             dilation_off=2
@@ -119,6 +121,7 @@ class DeformableResidualBlock(nn.Module):
             dilation=1,
             groups=num_groups,
             bias=True,
+            modulation_type=modulation_type,
             kernel_size_off=3,
             padding_off=2,
             dilation_off=2
