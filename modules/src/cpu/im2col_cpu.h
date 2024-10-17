@@ -115,7 +115,7 @@ im2col_nd_cpu(
         {
             for (int64_t k = 0; k < kernel_sizes; k++)
             {
-                for (int64_t out = 0; out < output_sizes; out++)
+                for (int64_t col = 0; col < output_sizes; col++)
                 {
                     T val = 0;
                     FloatArray<dim> coord;
@@ -128,7 +128,7 @@ im2col_nd_cpu(
                     int64_t k_div = 1;
                     for (int32_t i = dim - 1; i >= 0; i--)
                     {
-                        current_output_size[i] = out / out_div % output_size[i];
+                        current_output_size[i] = col / out_div % output_size[i];
                         current_kernel_size[i] = k / k_div % kernel_size[i];
                         out_div *= output_size[i];
                         k_div *= kernel_size[i];
