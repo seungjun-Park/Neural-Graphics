@@ -96,42 +96,49 @@ class DeformableResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
-        self.deform_conv1 = deform_conv_nd(
-            dim=dim,
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            padding=1,
-            stride=1,
-            dilation=1,
-            groups=num_groups,
-            bias=True,
-            modulation_type=modulation_type,
-            kernel_size_off=3,
-            padding_off=2,
-            dilation_off=2
-        )
-        self.deform_conv2 = deform_conv_nd(
-            dim=dim,
-            in_channels=out_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            padding=1,
-            stride=1,
-            dilation=1,
-            groups=num_groups,
-            bias=True,
-            modulation_type=modulation_type,
-            kernel_size_off=3,
-            padding_off=2,
-            dilation_off=2
+        self.block = nn.Sequential(
+            deform_conv_nd(
+                dim=dim,
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=1,
+                stride=1,
+                dilation=1,
+                groups=num_groups,
+                bias=True,
+                modulation_type=modulation_type,
+                kernel_size_off=3,
+                padding_off=2,
+                dilation_off=2
+            ),
+            group_norm(out_channels, num_groups=num_groups),
+            get_act(act),
+            nn.Dropout(dropout)
         )
 
-        self.norm1 = group_norm(out_channels, num_groups=num_groups)
-        self.norm2 = group_norm(out_channels, num_groups=num_groups)
-        self.norm3 = group_norm(out_channels, num_groups=num_groups)
-        self.dropout = nn.Dropout(dropout)
-        self.act = get_act(act)
+        self.block2 = nn.Sequential(
+            deform_conv_nd(
+                dim=dim,
+                in_channels=out_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=1,
+                stride=1,
+                dilation=1,
+                groups=num_groups,
+                bias=True,
+                modulation_type=modulation_type,
+                kernel_size_off=3,
+                padding_off=2,
+                dilation_off=2
+            ),
+            group_norm(out_channels, num_groups=num_groups),
+            get_act(act),
+            nn.Dropout(dropout)
+        )
+
+        self.norm = group_norm(out_channels, num_groups=num_groups)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         if self.in_channels == self.out_channels:
@@ -152,18 +159,7 @@ class DeformableResidualBlock(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
+        h = checkpoint(self.block, (x,), self.block.parameters(), flag=self.use_checkpoint)
+        h = checkpoint(self.block2, (h,), self.block2.parameters(), flag=self.use_checkpoint)
 
-    def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = x
-        h = self.deform_conv1(h)
-        h = self.norm1(h)
-        h = self.act(h)
-        h = self.dropout(h)
-
-        h = self.deform_conv2(h)
-        h = self.norm2(h)
-        h = self.act(h)
-        h = self.dropout(h)
-
-        return self.norm3(self.drop_path(h) + self.shortcut(x))
+        return self.norm(self.drop_path(h) + self.shortcut(x))

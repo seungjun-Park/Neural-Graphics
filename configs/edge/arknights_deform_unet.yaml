@@ -11,12 +11,12 @@ module:
       params:
         in_channels: 3
         out_channels: 1
-        embed_dim: 16
-        hidden_dims: [32, 64, 96, 128]
+        embed_dim: 32
+        hidden_dims: [64, 128, 128, 256]
         num_blocks: 2
         dropout: 0.0
         drop_path: 0.1
-        num_groups: 8
+        num_groups: 16
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
@@ -66,7 +66,7 @@ data:
       params:
         root: '/local_datasets/anime'
         train: True
-        size: 512
+        size: 1024
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -76,7 +76,7 @@ data:
       params:
         root: '/local_datasets/anime'
         train: False
-        size: 512
+        size: 1024
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -86,14 +86,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'ednse'
-    version: 'arknights_deform_unet'
+    version: 'test'
 
 
 checkpoints:
   latest_checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/arknights_deform_unet'
+      dirpath: './checkpoints/ednse/test'
       filename: 'ednse'
       monitor: 'step'
       mode: 'max'
@@ -102,7 +102,7 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/arknights_deform_unet'
+      dirpath: './checkpoints/ednse/test'
       filename: 'ednse_best'
       monitor: 'val/total_loss'
       mode: 'min'
@@ -110,5 +110,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 250
-  accumulate_grad_batches: 5
+  max_epochs: 300
+  accumulate_grad_batches: 10
