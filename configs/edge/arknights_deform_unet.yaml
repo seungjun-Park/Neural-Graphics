@@ -12,17 +12,19 @@ module:
         in_channels: 3
         out_channels: 1
         embed_dim: 16
-        hidden_dims: [ 32, 64, 96, 128]
+        hidden_dims: [32, 64, 128, 256]
         num_blocks: 1
         dropout: 0.0
         drop_path: 0.1
         num_groups: 8
+        offset_field_channels_per_groups: [2, 4, 8, 16]
         act: 'gelu'
         use_conv: True
+        modulation_type: 'none'
         pool_type: 'conv'
         mode: 'bilinear'
         dim: 2
-        use_checkpoint: True
+        use_checkpoint: False
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
@@ -59,14 +61,15 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 1
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
         root: '/local_datasets/anime'
+        # root: './datasets/anime'
         train: True
-        size: 1024
+        size: 512
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -75,8 +78,9 @@ data:
       target: modules.datasets.arknights.ArknightsDataset
       params:
         root: '/local_datasets/anime'
+        # root: './datasets/anime'
         train: False
-        size: 1024
+        size: 512
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -86,14 +90,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'ednse'
-    version: 'test'
+    version: 'arknights_deform_unet'
 
 
 checkpoints:
   latest_checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/test'
+      dirpath: './checkpoints/ednse/arknights_deform_unet'
       filename: 'ednse'
       monitor: 'step'
       mode: 'max'
@@ -102,7 +106,7 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/test'
+      dirpath: './checkpoints/ednse/arknights_deform_unet'
       filename: 'ednse_best'
       monitor: 'val/total_loss'
       mode: 'min'
@@ -110,5 +114,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 300
-  accumulate_grad_batches: 10
+  max_epochs: 250
+  accumulate_grad_batches: 5

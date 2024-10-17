@@ -1,3 +1,4 @@
+from collections import abc
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -138,7 +139,7 @@ class UNet(nn.Module):
         cur_res = in_res
 
         for i, out_ch in enumerate(hidden_dims):
-            for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
+            for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
                 self.encoder.append(
                     UnetBlock(
                         in_channels=in_ch,
@@ -251,6 +252,7 @@ class DeformableUNet(nn.Module):
                  dropout: float = 0.0,
                  drop_path: float = 0.0,
                  num_groups: int = 8,
+                 offset_field_channels_per_groups: Union[int, List[int], Tuple[int]] = 1,
                  act: str = 'relu',
                  modulation_type: str = 'none',
                  use_conv: bool = True,
@@ -277,7 +279,7 @@ class DeformableUNet(nn.Module):
         skip_dims = [embed_dim]
 
         for i, out_ch in enumerate(hidden_dims):
-            for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
+            for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
                 self.encoder.append(
                     DeformableResidualBlock(
                         in_channels=in_ch,
@@ -287,6 +289,9 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
+                        offset_field_channels_per_groups=offset_field_channels_per_groups[i]
+                        if isinstance(offset_field_channels_per_groups, abc.Iterable) else
+                        offset_field_channels_per_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -319,6 +324,9 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
+                        offset_field_channels_per_groups=offset_field_channels_per_groups[i]
+                        if isinstance(offset_field_channels_per_groups, abc.Iterable) else
+                        offset_field_channels_per_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -344,6 +352,9 @@ class DeformableUNet(nn.Module):
                 out_channels,
                 kernel_size=1,
                 stride=1,
+                kernel_size_off=3,
+                padding_off=2,
+                dilation_off=2,
             )
         )
 

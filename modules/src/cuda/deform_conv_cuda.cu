@@ -20,6 +20,7 @@ at::Tensor _deform_conv_nd_forward_cuda(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias) {
 
 	// template function assumes batched tensors.  unsqueeze(0) will
@@ -69,7 +70,7 @@ at::Tensor _deform_conv_nd_forward_cuda(
 	int64_t per_elements_in_batch = groups * kernel_sizes * grouped_in_channels * output_sizes;
 
 	int min_grid_size, block_size;
-	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "get_blocks", [&]() {
+	AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "get_blocks", [&]() {
 		using scalar_t = scalar_t;
 		cudaOccupancyMaxPotentialBlockSize(&min_grid_size, &block_size, im2col_nd_cuda<scalar_t, dim>, 0, device_properties.maxThreadsPerBlock);
 	});
@@ -89,7 +90,7 @@ at::Tensor _deform_conv_nd_forward_cuda(
 		output_n_size[2 + i] = output_size.slice(2)[i];
 	}
 
-	auto cudaStream = c10::cuda::getCurrentCUDAStream();
+	auto cudaStream = c10::cuda::getCurrentCUDAStream(device.index());
 
 	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "deform_conv_nd_forward<>", [&]() {
 		using scalar_t = scalar_t;
@@ -114,6 +115,7 @@ at::Tensor _deform_conv_nd_forward_cuda(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
+				offset_field_channels_per_groups,
 				columns.mutable_data_ptr<scalar_t>()
 			);
 
@@ -149,6 +151,7 @@ at::Tensor deform_conv_nd_forward_cuda(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias)
 {
 	TORCH_CHECK(input.is_cuda());
@@ -167,6 +170,7 @@ at::Tensor deform_conv_nd_forward_cuda(
 		at::IntArrayRef padding,
 		at::IntArrayRef dilation,
 		int64_t groups,
+		int64_t	offset_field_channels_per_groups,
 		const at::Tensor & bias) = nullptr;
 
 	switch (dim)
@@ -192,6 +196,7 @@ at::Tensor deform_conv_nd_forward_cuda(
 		padding,
 		dilation,
 		groups,
+		offset_field_channels_per_groups,
 		bias
 		);
 
@@ -210,6 +215,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cuda(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias) {
 
 	// template function assumes batched tensors.  unsqueeze(0) will
@@ -284,7 +290,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cuda(
 	int64_t sub_batch_size = (num_blocks * block_size) / per_elements_in_batch;
 	int64_t total_iteration = batch_size / sub_batch_size;
 
-	auto cudaStream = c10::cuda::getCurrentCUDAStream();
+	auto cudaStream = c10::cuda::getCurrentCUDAStream(device.index());
 
 	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "deform_conv_nd_backward<>", [&]() {
 		using scalar_t = scalar_t;
@@ -307,7 +313,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cuda(
 				grad_output_n.transpose(0, 1).reshape({ groups, grouped_out_channels, -1 }));
 
 			// compute gradient of inputs, offset_field, attn_mask
-			col2im_nd_cuda<scalar_t, dim> << <num_blocks, block_size, 0, cudaStream>> > (
+			col2im_nd_cuda<scalar_t, dim> << <num_blocks, block_size, 0, cudaStream >> > (
 				input_n.const_data_ptr<scalar_t>(),
 				columns.const_data_ptr<scalar_t>(),
 				offset_field_n.const_data_ptr<scalar_t>(),
@@ -321,6 +327,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cuda(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
+				offset_field_channels_per_groups,
 				grad_input_n.mutable_data_ptr<scalar_t>(),
 				grad_offset_field_n.mutable_data_ptr<scalar_t>(),
 				grad_attn_mask_n.mutable_data_ptr<scalar_t>()
@@ -342,6 +349,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cuda(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
+				offset_field_channels_per_groups,
 				columns.mutable_data_ptr<scalar_t>()
 			);
 
@@ -376,6 +384,7 @@ std::vector<at::Tensor> deform_conv_nd_backward_cuda(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias)
 {
 	TORCH_CHECK(input.is_cuda());
@@ -395,6 +404,7 @@ std::vector<at::Tensor> deform_conv_nd_backward_cuda(
 		at::IntArrayRef padding,
 		at::IntArrayRef dilation,
 		int64_t groups,
+		int64_t	offset_field_channels_per_groups,
 		const at::Tensor & bias) = nullptr;
 
 	switch (dim)
@@ -421,6 +431,7 @@ std::vector<at::Tensor> deform_conv_nd_backward_cuda(
 		padding,
 		dilation,
 		groups,
+		offset_field_channels_per_groups,
 		bias
 		);
 

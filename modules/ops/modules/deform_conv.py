@@ -53,6 +53,7 @@ def deform_conv_1d(inps: torch.Tensor,
                    padding: Union[int, List[int], Tuple[int]] = 0,
                    dilation: Union[int, List[int], Tuple[int]] = 1,
                    groups: int = 1,
+                   offset_field_channels_per_groups: int = 1,
                    bias: Optional[torch.Tensor] = None) -> torch.Tensor:
 
     if isinstance(kernel_size, int):
@@ -85,6 +86,7 @@ def deform_conv_1d(inps: torch.Tensor,
         padding,
         dilation,
         groups,
+        offset_field_channels_per_groups,
         bias,
     )
 
@@ -98,6 +100,7 @@ def deform_conv_2d(inps: torch.Tensor,
                    padding: Union[int, List[int], Tuple[int]],
                    dilation: Union[int, List[int], Tuple[int]],
                    groups: int,
+                   offset_field_channels_per_groups: int = 1,
                    bias: Optional[torch.Tensor] = None) -> torch.Tensor:
 
     if isinstance(kernel_size, int):
@@ -130,6 +133,7 @@ def deform_conv_2d(inps: torch.Tensor,
         padding,
         dilation,
         groups,
+        offset_field_channels_per_groups,
         bias,
     )
 
@@ -142,7 +146,8 @@ def deform_conv_3d(inps: torch.Tensor,
                    stride: Union[int, List[int], Tuple[int]],
                    padding: Union[int, List[int], Tuple[int]],
                    dilation: Union[int, List[int], Tuple[int]],
-                   groups: int,
+                   groups: int = 1,
+                   offset_field_channels_per_groups: int = 1,
                    bias: Optional[torch.Tensor] = None) -> torch.Tensor:
 
     if isinstance(kernel_size, int):
@@ -175,6 +180,7 @@ def deform_conv_3d(inps: torch.Tensor,
         padding,
         dilation,
         groups,
+        offset_field_channels_per_groups,
         bias,
     )
 
@@ -187,7 +193,8 @@ class DeformConv1d(nn.Module):
                  stride: Union[int, List[int], Tuple[int]] = 1,
                  padding: Union[int, List[int], Tuple[int]] = 0,
                  dilation: Union[int, List[int], Tuple[int]] = 1,
-                 groups: Union[int, List[int], Tuple[int]] = 1,
+                 groups: int = 1,
+                 offset_field_channels_per_groups: int = 1,
                  bias: bool = True,
                  modulation_type: str = 'none',
                  kernel_size_off: Union[int, List[int], Tuple[int]] = None,
@@ -199,7 +206,7 @@ class DeformConv1d(nn.Module):
                  ):
         super().__init__()
 
-        assert in_channels % groups == 0 and out_channels % groups == 0
+        assert in_channels % groups == 0 and out_channels % groups == 0 and (in_channels // groups) % offset_field_channels_per_groups == 0
         assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
@@ -210,6 +217,7 @@ class DeformConv1d(nn.Module):
         self.padding = to_1tuple(padding)
         self.dilation = to_1tuple(dilation)
         self.groups = groups
+        self.offset_field_channels_per_groups = offset_field_channels_per_groups
 
         kernel_size_off = kernel_size_off if kernel_size_off else kernel_size
         stride_off = stride_off if stride_off else stride
@@ -220,7 +228,7 @@ class DeformConv1d(nn.Module):
 
         self.conv_off = nn.Conv1d(
             in_channels,
-            in_channels * _multiply_integers(self.kernel_size) * (self.dim + 1),
+            groups * offset_field_channels_per_groups * _multiply_integers(self.kernel_size) * (self.dim + 1),
             kernel_size_off,
             stride_off,
             padding_off,
@@ -261,6 +269,7 @@ class DeformConv1d(nn.Module):
             self.padding,
             self.dilation,
             self.groups,
+            self.offset_field_channels_per_groups,
             self.bias,
         )
 
@@ -273,7 +282,8 @@ class DeformConv2d(nn.Module):
                  stride: Union[int, List[int], Tuple[int]] = 1,
                  padding: Union[int, List[int], Tuple[int]] = 0,
                  dilation: Union[int, List[int], Tuple[int]] = 1,
-                 groups: Union[int, List[int], Tuple[int]] = 1,
+                 groups: int = 1,
+                 offset_field_channels_per_groups: int = 1,
                  bias: bool = True,
                  modulation_type: str = 'none',
                  kernel_size_off: Union[int, List[int], Tuple[int]] = None,
@@ -285,7 +295,7 @@ class DeformConv2d(nn.Module):
                  ):
         super().__init__()
 
-        assert in_channels % groups == 0 and out_channels % groups == 0
+        assert in_channels % groups == 0 and out_channels % groups == 0 and (in_channels // groups) % offset_field_channels_per_groups == 0
         assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
@@ -299,6 +309,7 @@ class DeformConv2d(nn.Module):
         self.padding = to_2tuple(padding)
         self.dilation = to_2tuple(dilation)
         self.groups = groups
+        self.offset_field_channels_per_groups = offset_field_channels_per_groups
 
         kernel_size_off = kernel_size_off if kernel_size_off is not None else kernel_size
         stride_off = stride_off if stride_off is not None else stride
@@ -309,7 +320,7 @@ class DeformConv2d(nn.Module):
 
         self.conv_off = nn.Conv2d(
             in_channels,
-            in_channels * _multiply_integers(self.kernel_size) * (self.dim + 1),
+            groups * offset_field_channels_per_groups * _multiply_integers(self.kernel_size) * (self.dim + 1),
             kernel_size=kernel_size_off,
             stride=stride_off,
             padding=padding_off,
@@ -351,6 +362,7 @@ class DeformConv2d(nn.Module):
             self.padding,
             self.dilation,
             self.groups,
+            self.offset_field_channels_per_groups,
             self.bias,
         )
 
@@ -363,7 +375,8 @@ class DeformConv3d(nn.Module):
                  stride: Union[int, List[int], Tuple[int]] = 1,
                  padding: Union[int, List[int], Tuple[int]] = 0,
                  dilation: Union[int, List[int], Tuple[int]] = 1,
-                 groups: Union[int, List[int], Tuple[int]] = 1,
+                 groups: int = 1,
+                 offset_field_channels_per_groups: int = 1,
                  bias: bool = True,
                  modulation_type: str = 'none',
                  kernel_size_off: Union[int, List[int], Tuple[int]] = None,
@@ -375,7 +388,7 @@ class DeformConv3d(nn.Module):
                  ):
         super().__init__()
 
-        assert in_channels % groups == 0 and out_channels % groups == 0
+        assert in_channels % groups == 0 and out_channels % groups == 0 and (in_channels // groups) % offset_field_channels_per_groups == 0
         assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
@@ -386,6 +399,7 @@ class DeformConv3d(nn.Module):
         self.padding = to_3tuple(padding)
         self.dilation = to_3tuple(dilation)
         self.groups = groups
+        self.offset_field_channels_per_groups = offset_field_channels_per_groups
 
         kernel_size_off = kernel_size_off if kernel_size_off else kernel_size
         stride_off = stride_off if stride_off else stride
@@ -396,7 +410,7 @@ class DeformConv3d(nn.Module):
 
         self.conv_off = nn.Conv3d(
             in_channels,
-            in_channels * _multiply_integers(self.kernel_size) * (self.dim + 1),
+            groups * offset_field_channels_per_groups * _multiply_integers(self.kernel_size) * (self.dim + 1),
             kernel_size_off,
             stride_off,
             padding_off,
@@ -438,6 +452,7 @@ class DeformConv3d(nn.Module):
             self.padding,
             self.dilation,
             self.groups,
+            self.offset_field_channels_per_groups,
             self.bias,
         )
 

@@ -26,6 +26,7 @@ class DeformConvNd(Function):
             padding: Union[List[int], Tuple[int]] = 0,
             dilation: Union[List[int], Tuple[int]] = 1,
             groups: int = 1,
+            offset_field_channels_per_groups: int = 1,
             bias: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
@@ -34,6 +35,7 @@ class DeformConvNd(Function):
         ctx.padding = padding
         ctx.dilation = dilation
         ctx.groups = groups
+        ctx.offset_field_channels_per_groups = offset_field_channels_per_groups
 
         ctx.save_for_backward(inps, weight, offset_field, attn_mask, bias)
 
@@ -47,6 +49,7 @@ class DeformConvNd(Function):
             padding,
             dilation,
             groups,
+            offset_field_channels_per_groups,
             bias
         )
 
@@ -66,10 +69,11 @@ class DeformConvNd(Function):
             ctx.padding,
             ctx.dilation,
             ctx.groups,
+            ctx.offset_field_channels_per_groups,
             bias
         )
 
-        return grad_input, grad_weight, grad_offset_field, grad_attn_mask, None, None, None, None, None, grad_bias
+        return grad_input, grad_weight, grad_offset_field, grad_attn_mask, None, None, None, None, None, None, grad_bias
 
 
 _deform_conv_nd = DeformConvNd.apply

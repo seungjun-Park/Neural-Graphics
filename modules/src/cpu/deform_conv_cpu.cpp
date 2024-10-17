@@ -17,6 +17,7 @@ at::Tensor _deform_conv_nd_forward_cpu(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias) {
 
 	at::Tensor output = at::zeros(get_output_size<dim>(input, weight, kernel_size, stride, padding, dilation), input.options().memory_format(at::MemoryFormat::Contiguous));
@@ -50,7 +51,7 @@ at::Tensor _deform_conv_nd_forward_cpu(
 	int64_t kernel_sizes = c10::multiply_integers(kernel_size);
 	int64_t output_sizes = c10::multiply_integers(output_size.slice(2));
 
-	at::Tensor columns = at::empty({ groups, kernel_sizes * grouped_in_channels, output_sizes }, input.options().memory_format(at::MemoryFormat::Contiguous));
+	at::Tensor columns = at::zeros({ groups, kernel_sizes * grouped_in_channels, output_sizes }, input.options().memory_format(at::MemoryFormat::Contiguous));
 
 	AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "deform_conv_nd_forward<>", [&]() {
 
@@ -74,6 +75,7 @@ at::Tensor _deform_conv_nd_forward_cpu(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
+				offset_field_channels_per_groups,
 				columns.mutable_data_ptr<scalar_t>()
 			);
 
@@ -103,6 +105,7 @@ at::Tensor deform_conv_nd_forward_cpu(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias)
 {
 	TORCH_CHECK(input.is_cpu());
@@ -121,6 +124,7 @@ at::Tensor deform_conv_nd_forward_cpu(
 		at::IntArrayRef padding,
 		at::IntArrayRef dilation,
 		int64_t groups,
+		int64_t	offset_field_channels_per_groups,
 		const at::Tensor & bias) = nullptr;
 
 	switch (dim)
@@ -146,6 +150,7 @@ at::Tensor deform_conv_nd_forward_cpu(
 		padding,
 		dilation,
 		groups,
+		offset_field_channels_per_groups,
 		bias
 		);
 
@@ -164,21 +169,8 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cpu(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias) {
-
-	/*check_deform_conv_shape<dim>(
-		input,
-		weight,
-		offset_field,
-		attn_mask,
-		grad_output,
-		kernel_size,
-		stride,
-		padding,
-		dilation,
-		groups,
-		bias
-	);*/
 
 	at::Tensor output = at::zeros(get_output_size<dim>(input, weight, kernel_size, stride, padding, dilation), input.options().memory_format(at::MemoryFormat::Contiguous));
 
@@ -234,6 +226,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cpu(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
+				offset_field_channels_per_groups,
 				grad_input_n.mutable_data_ptr<scalar_t>(),
 				grad_offset_field_n.mutable_data_ptr<scalar_t>(),
 				grad_attn_mask_n.mutable_data_ptr<scalar_t>()
@@ -253,6 +246,7 @@ std::vector<at::Tensor> _deform_conv_nd_backward_cpu(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
+				offset_field_channels_per_groups,
 				columns.mutable_data_ptr<scalar_t>()
 			);
 
@@ -288,6 +282,7 @@ std::vector<at::Tensor> deform_conv_nd_backward_cpu(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias)
 {
 	TORCH_CHECK(input.is_cpu());
@@ -307,6 +302,7 @@ std::vector<at::Tensor> deform_conv_nd_backward_cpu(
 		at::IntArrayRef padding,
 		at::IntArrayRef dilation,
 		int64_t groups,
+		int64_t	offset_field_channels_per_groups,
 		const at::Tensor & bias) = nullptr;
 
 	switch (dim)
@@ -333,6 +329,7 @@ std::vector<at::Tensor> deform_conv_nd_backward_cpu(
 		padding,
 		dilation,
 		groups,
+		offset_field_channels_per_groups,
 		bias
 		);
 

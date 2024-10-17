@@ -25,6 +25,7 @@ im2col_nd_cuda(
     const IntArray<dim> padding,
     const IntArray<dim> dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_col) {
 
     int64_t input_sizes = multiply_integers<dim>(input_size);
@@ -42,7 +43,7 @@ im2col_nd_cuda(
     int64_t col = idx % output_sizes;
     int64_t k = idx / output_sizes % kernel_sizes;
     int64_t ch = idx / (kernel_sizes * output_sizes) % channels;
-    int64_t group_idx = idx / (channels * kernel_sizes * output_sizes) % groups;
+    int64_t g = idx / (channels * kernel_sizes * output_sizes) % groups;
     int64_t batch_idx = idx / (groups * channels * kernel_sizes * output_sizes) % sub_batch;
 
     int64_t current_kernel_size[dim];
@@ -53,16 +54,14 @@ im2col_nd_cuda(
 
     FloatArray<dim> coord;
 
-    int64_t col_idx = (((group_idx * channels + ch) * kernel_sizes + k) * sub_batch + batch_idx) * output_sizes + col;
-    int64_t offset_field_idx = (((batch_idx * dim * groups + group_idx) * channels + ch) * kernel_sizes + k) * output_sizes + col;
-    int64_t attn_mask_idx = (((batch_idx * groups + group_idx) * channels + ch) * kernel_sizes + k) * output_sizes + col;
-    int64_t additional_offset_field_idx = groups * channels * kernel_sizes * output_sizes; // for each dimension
+    int64_t col_idx = (((g * channels + ch) * kernel_sizes + k) * sub_batch + batch_idx) * output_sizes + col;
+    int64_t im_idx = ((batch_idx * groups + g) * channels + ch) * input_sizes;
+    int64_t offset_field_idx = (((batch_idx * dim * groups + g) * offset_field_channels_per_groups + (ch * offset_field_channels_per_groups / channels)) * kernel_sizes + k) * output_sizes + col;
+    int64_t base_offset_field_idx = groups * offset_field_channels_per_groups * kernel_sizes * output_sizes;
+    int64_t attn_mask_idx = (((batch_idx * groups + g) * offset_field_channels_per_groups + (ch * offset_field_channels_per_groups / channels)) * kernel_sizes + k) * output_sizes + col;
 
-    data_im += ((batch_idx * groups + group_idx) * channels + ch) * input_sizes;
-    
+    data_im += ((batch_idx * groups + g) * channels + ch) * input_sizes;
     data_col += col_idx;
-    data_offset_field += offset_field_idx;
-    data_attn_mask += attn_mask_idx;
 
     // compute current kernel size, output size and coord.
     for (int i = dim - 1; i >= 0; i--)
@@ -72,12 +71,10 @@ im2col_nd_cuda(
         k_div *= kernel_size[i];
         out_div *= output_size[i];
 
-        coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + *(data_offset_field + additional_offset_field_idx * i);
+        coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + (data_offset_field + base_offset_field_idx * i)[offset_field_idx];
     }
 
-    T val = 0.f;
+    T val = linear_interp_nd<T, dim>(data_im, coord, input_size);
 
-    val = linear_interp_nd<T, dim>(data_im, coord, input_size);
-
-    *data_col = val * (*data_attn_mask);
+    *data_col = val * data_attn_mask[attn_mask_idx];
 }

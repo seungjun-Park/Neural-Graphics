@@ -24,6 +24,7 @@ col2im_nd_cpu(
     const IntArray<dim>& padding,
     const IntArray<dim>& dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_grad_im,
     T* data_grad_offset_field,
     T* data_grad_attn_mask
@@ -44,6 +45,7 @@ col2im_nd_cpu(
     const IntArray<1>& padding,
     const IntArray<1>& dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_grad_im,
     T* data_grad_offset_field,
     T* data_grad_attn_mask);
@@ -63,6 +65,7 @@ col2im_nd_cpu(
     const IntArray<2>& padding,
     const IntArray<2>& dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_grad_im,
     T* data_grad_offset_field,
     T* data_grad_attn_mask);
@@ -82,6 +85,7 @@ col2im_nd_cpu(
     const IntArray<3>& padding,
     const IntArray<3>& dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_grad_im,
     T* data_grad_offset_field,
     T* data_grad_attn_mask);
@@ -103,6 +107,7 @@ col2im_nd_cpu(
     const IntArray<dim>& padding,
     const IntArray<dim>& dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_grad_im,
     T* data_grad_offset_field,
     T* data_grad_attn_mask
@@ -114,9 +119,9 @@ col2im_nd_cpu(
     int64_t current_kernel_size[dim];
     int64_t current_output_size[dim];
 
-    int64_t base_offset_field_idx = groups * channels * kernel_sizes * output_sizes;
+    int64_t base_offset_field_idx = groups * offset_field_channels_per_groups * kernel_sizes * output_sizes;
 
-    for (int64_t group_idx = 0; group_idx < groups; group_idx++)
+    for (int64_t g = 0; g < groups; g++)
     {
         for (int64_t ch = 0; ch < channels; ch++)
         {
@@ -124,39 +129,38 @@ col2im_nd_cpu(
             {
                 for (int64_t col = 0; col < output_sizes; col++)
                 {
+                    int64_t idx = ((g * offset_field_channels_per_groups + (ch * offset_field_channels_per_groups / channels)) *
+                        kernel_sizes + k) * output_sizes + col;
+
                     FloatArray<dim> coord;
                     T val = 0.f;
 
                     // compute n-dimensional current kernel/output size
                     int64_t out_div = 1;
                     int64_t k_div = 1;
+                    
                     for (int32_t i = dim - 1; i >= 0; i--)
                     {
                         current_output_size[i] = col / out_div % output_size[i];
                         current_kernel_size[i] = k / k_div % kernel_size[i];
                         out_div *= output_size[i];
                         k_div *= kernel_size[i];
-                        coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + *(data_offset_field + base_offset_field_idx * i);
+                        coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + (data_offset_field + base_offset_field_idx * i)[idx];
                     }
 
                     val = linear_interp_nd<T, dim>(data_im + ch * input_sizes, coord, input_size);
-                    *data_grad_attn_mask = (*data_col) * val;
+                    data_grad_attn_mask[idx] += (*data_col) * val;
 
                     Array<T, dim> grad_coord = linear_interp_nd_grad<T, dim>(data_im + ch * input_sizes, coord, input_size);
 
                     for (int32_t i = dim - 1; i >= 0; i--)
                     {
-                        *(data_grad_offset_field + i * base_offset_field_idx) = (*data_col) * grad_coord[i] * (*data_attn_mask);
+                        (data_grad_offset_field + i * base_offset_field_idx)[idx] += (*data_col) * grad_coord[i] * data_attn_mask[idx];
                     }
 
-                    linear_interp_nd_weight<T, dim>(*data_col, *data_attn_mask, coord, input_size, data_grad_im + ch * input_sizes);
+                    linear_interp_nd_weight<T, dim>(*data_col, data_attn_mask[idx], coord, input_size, data_grad_im + ch * input_sizes);
 
                     data_col++;
-                    data_offset_field++;
-                    data_attn_mask++;
-
-                    data_grad_offset_field++;
-                    data_grad_attn_mask++;
                 }
             }
         }
@@ -181,6 +185,7 @@ col2im_nd_cpu(
     const IntArray<1>& padding,
     const IntArray<1>& dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_grad_im,
     T* data_grad_offset_field,
     T* data_grad_attn_mask) {
@@ -189,7 +194,7 @@ col2im_nd_cpu(
     const int64_t output_sizes = multiply_integers(output_size);
     const int64_t kernel_sizes = multiply_integers(kernel_size);
 
-    for (int64_t group_idx = 0; group_idx < groups; group_idx++)
+    for (int64_t g = 0; g < groups; g++)
     {
         for (int64_t ch = 0; ch < channels; ch++)
         {
@@ -197,25 +202,21 @@ col2im_nd_cpu(
             {
                 for (int64_t col = 0; col < output_size[0]; col++)
                 {
-                    float_t im = col * stride[0] - padding[0] + k * dilation[0] + (*data_offset_field);
+                    int64_t idx = ((g * offset_field_channels_per_groups + (ch * offset_field_channels_per_groups / channels)) * 
+                        kernel_size[0] + k) * output_size[0] + col;
 
                     FloatArray<1> coord;
-                    coord[0] = im;
+                    coord[0] = col * stride[0] - padding[0] + k * dilation[0] + data_offset_field[idx];
                     T val = 0.f;
                     val = linear_interp_nd<T, 1>(data_im + ch * input_sizes, coord, input_size);
-                    *data_grad_attn_mask = (*data_col) * val;
+                    data_grad_attn_mask[idx] += (*data_col) * val;
 
                     Array<T, 1> grad_coord = linear_interp_nd_grad<T, 1>(data_im + ch * input_sizes, coord, input_size);
-                    *data_grad_offset_field = (*data_col) * grad_coord[0] * (*data_attn_mask);
+                    data_grad_offset_field[idx] += (*data_col) * grad_coord[0] * data_attn_mask[idx];
 
-                    linear_interp_nd_weight<T, 1>(*data_col, *data_attn_mask, coord, input_size, data_grad_im + ch * input_sizes);
+                    linear_interp_nd_weight<T, 1>(*data_col, data_attn_mask[idx], coord, input_size, data_grad_im + ch * input_sizes);
 
                     data_col++;
-                    data_offset_field++;
-                    data_attn_mask++;
-
-                    data_grad_offset_field++;
-                    data_grad_attn_mask++;
                 }
             }
         }
@@ -240,6 +241,7 @@ col2im_nd_cpu(
     const IntArray<2>& padding,
     const IntArray<2>& dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_grad_im,
     T* data_grad_offset_field,
     T* data_grad_attn_mask) {
@@ -249,12 +251,12 @@ col2im_nd_cpu(
     const int64_t kernel_sizes = multiply_integers(kernel_size);
 
     const T* data_offset_field_h = data_offset_field;
-    const T* data_offset_field_w = (data_offset_field + groups * channels * kernel_sizes * output_sizes);
+    const T* data_offset_field_w = (data_offset_field + groups * offset_field_channels_per_groups * kernel_sizes * output_sizes);
 
     T* data_grad_offset_field_h = data_grad_offset_field;
-    T* data_grad_offset_field_w = (data_grad_offset_field + groups * channels * kernel_sizes * output_sizes);
+    T* data_grad_offset_field_w = (data_grad_offset_field + groups * offset_field_channels_per_groups * kernel_sizes * output_sizes);
 
-    for (int64_t group_idx = 0; group_idx < groups; group_idx++)
+    for (int64_t g = 0; g < groups; g++)
     {
         for (int64_t ch = 0; ch < channels; ch++)
         {
@@ -266,30 +268,22 @@ col2im_nd_cpu(
                     {
                         for (int64_t w_col = 0; w_col < output_size[1]; w_col++)
                         {
-                            float_t h_im = h_col * stride[0] - padding[0] + h_k * dilation[0] + (*data_offset_field_h);
-                            float_t w_im = w_col * stride[1] - padding[1] + w_k * dilation[1] + (*data_offset_field_w);
+                            int64_t idx = ((((g * offset_field_channels_per_groups + (ch * offset_field_channels_per_groups / channels)) * 
+                                kernel_size[0] + h_k) * kernel_size[1] + w_k) * output_size[0] + h_col) * output_size[1] + w_col;
 
                             FloatArray<2> coord;
-                            coord[0] = h_im;
-                            coord[1] = w_im;
-                            T val = 0.f;
-                            val = linear_interp_nd<T, 2>(data_im + ch * input_sizes, coord, input_size);
-                            *data_grad_attn_mask = (*data_col) * val;
+                            coord[0] = h_col * stride[0] - padding[0] + h_k * dilation[0] + data_offset_field_h[idx];
+                            coord[1] = w_col * stride[1] - padding[1] + w_k * dilation[1] + data_offset_field_w[idx];
+                            T val = linear_interp_nd<T, 2>(data_im + ch * input_sizes, coord, input_size);
+                            data_grad_attn_mask[idx] += (*data_col) * val;
 
                             Array<T, 2> grad_coord = linear_interp_nd_grad<T, 2>(data_im + ch * input_sizes, coord, input_size);
-                            *data_grad_offset_field_h = (*data_col) * grad_coord[0] * (*data_attn_mask);
-                            *data_grad_offset_field_w = (*data_col) * grad_coord[1] * (*data_attn_mask);
+                            data_grad_offset_field_h[idx] += (*data_col) * grad_coord[0] * data_attn_mask[idx];
+                            data_grad_offset_field_w[idx] += (*data_col) * grad_coord[1] * data_attn_mask[idx];
 
-                            linear_interp_nd_weight<T, 2>(*data_col, *data_attn_mask, coord, input_size, data_grad_im + ch * input_sizes);
+                            linear_interp_nd_weight<T, 2>(*data_col, data_attn_mask[idx], coord, input_size, data_grad_im + ch * input_sizes);
 
                             data_col++;
-                            data_offset_field_h++;
-                            data_offset_field_w++;
-                            data_attn_mask++;
-
-                            data_grad_offset_field_h++;
-                            data_grad_offset_field_w++;
-                            data_grad_attn_mask++;
                         }
                     }
                 }
@@ -316,6 +310,7 @@ col2im_nd_cpu(
     const IntArray<3>& padding,
     const IntArray<3>& dilation,
     const int64_t groups,
+    const int64_t offset_field_channels_per_groups,
     T* data_grad_im,
     T* data_grad_offset_field,
     T* data_grad_attn_mask) {
@@ -325,14 +320,14 @@ col2im_nd_cpu(
     const int64_t kernel_sizes = multiply_integers(kernel_size);
 
     const T* data_offset_field_d = data_offset_field;
-    const T* data_offset_field_h = (data_offset_field + groups * channels * kernel_sizes * output_sizes);
-    const T* data_offset_field_w = (data_offset_field + groups * channels * kernel_sizes * output_sizes * 2);
+    const T* data_offset_field_h = (data_offset_field + groups * offset_field_channels_per_groups * kernel_sizes * output_sizes);
+    const T* data_offset_field_w = (data_offset_field + groups * offset_field_channels_per_groups * kernel_sizes * output_sizes * 2);
 
     T* data_grad_offset_field_d = data_grad_offset_field;
-    T* data_grad_offset_field_h = (data_grad_offset_field + groups * channels * kernel_sizes * output_sizes);
-    T* data_grad_offset_field_w = (data_grad_offset_field + groups * channels * kernel_sizes * output_sizes * 2);
+    T* data_grad_offset_field_h = (data_grad_offset_field + groups * offset_field_channels_per_groups * kernel_sizes * output_sizes);
+    T* data_grad_offset_field_w = (data_grad_offset_field + groups * offset_field_channels_per_groups * kernel_sizes * output_sizes * 2);
 
-    for (int64_t group_idx = 0; group_idx < groups; group_idx++)
+    for (int64_t g = 0; g < groups; g++)
     {
         for (int64_t ch = 0; ch < channels; ch++)
         {
@@ -348,35 +343,26 @@ col2im_nd_cpu(
                             {
                                 for (int64_t w_col = 0; w_col < output_size[2]; w_col++)
                                 {
-                                    float_t d_im = d_col * stride[0] - padding[0] + d_k * dilation[0] + (*data_offset_field_d);
-                                    float_t h_im = h_col * stride[1] - padding[1] + h_k * dilation[1] + (*data_offset_field_h);
-                                    float_t w_im = w_col * stride[2] - padding[2] + w_k * dilation[2] + (*data_offset_field_w);
+                                    int64_t idx = (((((g * offset_field_channels_per_groups + (ch * offset_field_channels_per_groups / channels) * 
+                                        kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k) * output_size[0] + d_col) * 
+                                        output_size[1] + h_col) * output_size[2] + w_col;
 
                                     FloatArray<3> coord;
-                                    coord[0] = d_im;
-                                    coord[1] = h_im;
-                                    coord[2] = w_im;
+                                    coord[0] = d_col * stride[0] - padding[0] + d_k * dilation[0] + data_offset_field_d[idx];
+                                    coord[1] = h_col * stride[1] - padding[1] + h_k * dilation[1] + data_offset_field_h[idx];
+                                    coord[2] = w_col * stride[2] - padding[2] + w_k * dilation[2] + data_offset_field_w[idx];
                                     T val = 0.f;
                                     val = linear_interp_nd<T, 3>(data_im + ch * input_sizes, coord, input_size);
-                                    *data_grad_attn_mask = (*data_col) * val;
+                                    data_grad_attn_mask[idx] += (*data_col) * val;
 
                                     Array<T, 3> grad_coord = linear_interp_nd_grad<T, 3>(data_im + ch * input_sizes, coord, input_size);
-                                    *data_grad_offset_field_d = (*data_col) * grad_coord[0] * (*data_attn_mask);
-                                    *data_grad_offset_field_h = (*data_col) * grad_coord[1] * (*data_attn_mask);
-                                    *data_grad_offset_field_w = (*data_col) * grad_coord[2] * (*data_attn_mask);
+                                    data_grad_offset_field_d[idx] = (*data_col) * grad_coord[0] * data_attn_mask[idx];
+                                    data_grad_offset_field_h[idx] = (*data_col) * grad_coord[1] * data_attn_mask[idx];
+                                    data_grad_offset_field_w[idx] = (*data_col) * grad_coord[2] * data_attn_mask[idx];
 
-                                    linear_interp_nd_weight<T, 3>(*data_col, *data_attn_mask, coord, input_size, data_grad_im + ch * input_sizes);
+                                    linear_interp_nd_weight<T, 3>(*data_col, data_attn_mask[idx], coord, input_size, data_grad_im + ch * input_sizes);
 
                                     data_col++;
-                                    data_offset_field_d++;
-                                    data_offset_field_h++;
-                                    data_offset_field_w++;
-                                    data_attn_mask++;
-
-                                    data_grad_offset_field_d++;
-                                    data_grad_offset_field_h++;
-                                    data_grad_offset_field_w++;
-                                    data_grad_attn_mask++;
                                 }
                             }
                         }

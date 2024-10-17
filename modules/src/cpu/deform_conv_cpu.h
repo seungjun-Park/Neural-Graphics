@@ -13,6 +13,7 @@ at::Tensor deform_conv_nd_forward_cpu(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias);
 
 std::vector<at::Tensor> deform_conv_nd_backward_cpu(
@@ -26,4 +27,5 @@ std::vector<at::Tensor> deform_conv_nd_backward_cpu(
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	int64_t groups,
+	int64_t	offset_field_channels_per_groups,
 	const at::Tensor& bias);
