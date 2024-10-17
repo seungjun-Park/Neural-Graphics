@@ -12,19 +12,19 @@ module:
         in_channels: 3
         out_channels: 1
         embed_dim: 16
-        hidden_dims: [32, 64, 128, 256]
-        num_blocks: 1
+        hidden_dims: [32, 64, 128, 128, 256, 256]
+        num_blocks: 2
         dropout: 0.0
         drop_path: 0.1
         num_groups: 8
-        offset_field_channels_per_groups: [2, 4, 8, 16]
+        offset_field_channels_per_groups: [2, 4, 8, 8, 16, 16]
         act: 'gelu'
         use_conv: True
         modulation_type: 'none'
         pool_type: 'conv'
         mode: 'bilinear'
         dim: 2
-        use_checkpoint: False
+        use_checkpoint: True
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
@@ -61,7 +61,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
@@ -69,7 +69,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 512
+        size: 1024
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -80,7 +80,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: False
-        size: 512
+        size: 1024
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -114,5 +114,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 250
+  max_epochs: 300
   accumulate_grad_batches: 5
