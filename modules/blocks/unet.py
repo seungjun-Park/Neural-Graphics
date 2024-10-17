@@ -252,7 +252,7 @@ class DeformableUNet(nn.Module):
                  drop_path: float = 0.0,
                  num_groups: int = 8,
                  act: str = 'relu',
-                 modulation_type: str = None,
+                 modulation_type: str = 'none',
                  use_conv: bool = True,
                  pool_type: str = 'conv',
                  mode: str = 'nearest',
