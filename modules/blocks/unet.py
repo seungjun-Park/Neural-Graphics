@@ -366,6 +366,7 @@ class DeformableUNet(nn.Module):
                 self.decoder.append(
                     UpBlock(
                         in_channels=in_ch + skip_dims.pop(),
+                        out_channels=in_ch,
                         scale_factor=2,
                         mode=mode,
                         offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
