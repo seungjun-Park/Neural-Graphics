@@ -11,13 +11,13 @@ module:
       params:
         in_channels: 3
         out_channels: 1
-        embed_dim: 16
-        hidden_dims: [32, 64, 128, 128, 256, 256]
+        embed_dim: 32
+        hidden_dims: [64, 64, 128, 128 ]
         num_blocks: 2
         dropout: 0.0
         drop_path: 0.1
         num_groups: 8
-        offset_field_channels_per_groups: [2, 4, 8, 8, 16, 16]
+        offset_field_channels_per_groups: [4, 4, 8, 8]
         act: 'gelu'
         use_conv: True
         modulation_type: 'none'
@@ -61,7 +61,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 1
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
@@ -69,7 +69,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 1024
+        size: 512
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
