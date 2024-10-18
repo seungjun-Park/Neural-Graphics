@@ -206,7 +206,7 @@ class DeformConv1d(nn.Module):
                  ):
         super().__init__()
 
-        assert in_channels % groups == 0 and out_channels % groups == 0 and (in_channels // groups) % offset_field_channels_per_groups == 0
+        assert in_channels % groups == 0 and out_channels % groups == 0 and in_channels % (groups * offset_field_channels_per_groups) == 0
         assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
@@ -295,7 +295,7 @@ class DeformConv2d(nn.Module):
                  ):
         super().__init__()
 
-        assert in_channels % groups == 0 and out_channels % groups == 0 and (in_channels // groups) % offset_field_channels_per_groups == 0
+        assert in_channels % groups == 0 and out_channels % groups == 0 and in_channels % (groups * offset_field_channels_per_groups) == 0
         assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
@@ -388,7 +388,7 @@ class DeformConv3d(nn.Module):
                  ):
         super().__init__()
 
-        assert in_channels % groups == 0 and out_channels % groups == 0 and (in_channels // groups) % offset_field_channels_per_groups == 0
+        assert in_channels % groups == 0 and out_channels % groups == 0 and in_channels % (groups * offset_field_channels_per_groups) == 0
         assert modulation_type.lower() in ['none', 'sigmoid', 'softmax']
 
         self.modulation_type = modulation_type.lower()
