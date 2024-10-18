@@ -271,16 +271,13 @@ class DeformableUNet(nn.Module):
 
         self.encoder.append(
             nn.Sequential(
-                deform_conv_nd(
+                conv_nd(
                     dim,
                     in_channels,
                     embed_dim,
                     kernel_size=3,
                     stride=1,
                     padding=1,
-                    offset_field_channels_per_groups=in_channels,
-                    dilation_off=2,
-                    padding_off=2,
                 ),
                 group_norm(embed_dim, num_groups=num_groups),
             )
@@ -325,13 +322,7 @@ class DeformableUNet(nn.Module):
                         in_channels=in_ch,
                         scale_factor=2,
                         dim=2,
-                        offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
-                        if self.use_offset_field_channels else
-                        (offset_field_channels_per_groups[i]
-                         if isinstance(offset_field_channels_per_groups, abc.Iterable) else
-                         offset_field_channels_per_groups),
                         pool_type=pool_type,
-                        modulation_type=modulation_type,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
                     )
@@ -369,19 +360,13 @@ class DeformableUNet(nn.Module):
                         out_channels=in_ch,
                         scale_factor=2,
                         mode=mode,
-                        offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
-                        if self.use_offset_field_channels else
-                        (offset_field_channels_per_groups[i]
-                         if isinstance(offset_field_channels_per_groups, abc.Iterable) else
-                         offset_field_channels_per_groups),
                         use_checkpoint=use_checkpoint,
-                        modulation_type=modulation_type,
                         num_groups=num_groups,
                     )
                 )
 
         self.out = nn.Sequential(
-            deform_conv_nd(
+            conv_nd(
                 dim,
                 in_ch + skip_dims.pop(),
                 out_channels,

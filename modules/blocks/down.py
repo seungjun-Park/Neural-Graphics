@@ -14,9 +14,7 @@ class DownBlock(nn.Module):
                  num_groups: int = 1,
                  scale_factor: Union[int, float] = 2.0,
                  dim: int = 2,
-                 offset_field_channels_per_groups: int = 1,
                  pool_type: str = 'conv',
-                 modulation_type: str = 'none',
                  use_checkpoint: bool = True,
                  ):
         super().__init__()
@@ -32,19 +30,6 @@ class DownBlock(nn.Module):
                                    kernel_size=scale_factor,
                                    stride=scale_factor,
                                    )
-
-        elif pool_type == 'deform_conv':
-            self.pooling = deform_conv_nd(
-                dim,
-                in_channels,
-                out_channels,
-                kernel_size=scale_factor,
-                stride=scale_factor,
-                groups=num_groups,
-                offset_field_channels_per_groups=offset_field_channels_per_groups,
-                bias=True,
-                modulation_type=modulation_type,
-            )
 
         else:
             self.pooling = pool_nd(pool_type, dim=dim, kernel_size=scale_factor, stride=scale_factor)

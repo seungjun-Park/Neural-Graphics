@@ -43,20 +43,13 @@ class UpBlock(nn.Module):
             )
 
         self.up.append(
-            deform_conv_nd(
+            conv_nd(
                 dim,
                 in_channels,
                 out_channels,
                 kernel_size=3,
                 stride=1,
                 padding=1,
-                groups=num_groups,
-                offset_field_channels_per_groups=offset_field_channels_per_groups,
-                bias=True,
-                modulation_type=modulation_type,
-                kernel_size_off=3,
-                padding_off=2,
-                dilation_off=2
             )
         )
 
