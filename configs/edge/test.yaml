@@ -1,7 +1,7 @@
 module:
   target: models.enet.enet.EDNSE
   params:
-    lr: 1e-4
+    lr: 2e-5
     weight_decay: 0.0
     lr_decay_epoch: 100
     use_fp16: False
@@ -11,17 +11,17 @@ module:
       params:
         in_channels: 3
         out_channels: 1
-        embed_dim: 32
-        hidden_dims: [64, 64, 128, 128 ]
+        embed_dim: 16
+        hidden_dims: [32, 64, 128, 128 ]
         num_blocks: 2
         dropout: 0.0
         drop_path: 0.1
-        num_groups: 16
-        offset_field_channels: 2
+        num_groups: 8
+        offset_field_channels_per_groups: [2, 4, 8, 8]
         act: 'gelu'
         use_conv: True
         modulation_type: 'none'
-        pool_type: 'deform_conv'
+        pool_type: 'conv'
         mode: 'bilinear'
         dim: 2
         use_checkpoint: True
@@ -61,15 +61,15 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/anime'
-        # root: './datasets/anime'
+        # root: '/local_datasets/anime'
+        root: './datasets/anime'
         train: True
-        size: 512
+        size: 256
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -77,10 +77,10 @@ data:
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        root: '/local_datasets/anime'
-        # root: './datasets/anime'
+        # root: '/local_datasets/anime'
+        root: './datasets/anime'
         train: False
-        size: 512
+        size: 256
         scale: [ 0.95, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -90,14 +90,14 @@ logger:
   params:
     save_dir: './logs'
     name: 'ednse'
-    version: 'arknights_deform_unet'
+    version: 'test'
 
 
 checkpoints:
   latest_checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/arknights_deform_unet'
+      dirpath: './checkpoints/ednse/test'
       filename: 'ednse'
       monitor: 'step'
       mode: 'max'
@@ -106,7 +106,7 @@ checkpoints:
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/arknights_deform_unet'
+      dirpath: './checkpoints/ednse/test'
       filename: 'ednse_best'
       monitor: 'val/total_loss'
       mode: 'min'

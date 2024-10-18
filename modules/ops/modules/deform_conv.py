@@ -237,19 +237,12 @@ class DeformConv1d(nn.Module):
             bias_off
         )
 
-        self.weight = nn.Parameter(torch.empty(out_channels, in_channels // groups, *self.kernel_size), requires_grad=True)
+        self.weight = nn.Parameter(torch.randn(out_channels, in_channels // groups, *self.kernel_size), requires_grad=True)
 
         if bias:
-            self.bias = nn.Parameter(torch.empty(out_channels), requires_grad=True)
+            self.bias = nn.Parameter(torch.randn(out_channels), requires_grad=True)
         else:
             self.bias = None
-
-        self.reset_parameters()
-
-    def reset_parameters(self, std=0.02):
-        self.weight.data.normal_(std=std)
-        if self.bias is not None:
-            self.bias.data.normal_(std=std)
 
     def forward(self, inps: torch.Tensor) -> torch.Tensor:
         off = self.conv_off(inps)
@@ -329,20 +322,13 @@ class DeformConv2d(nn.Module):
             bias=bias_off
         )
 
-        self.weight = nn.Parameter(torch.empty(out_channels, in_channels // groups, *self.kernel_size),
+        self.weight = nn.Parameter(torch.randn(out_channels, in_channels // groups, *self.kernel_size),
                                    requires_grad=True)
 
         if bias:
-            self.bias = nn.Parameter(torch.empty(out_channels), requires_grad=True)
+            self.bias = nn.Parameter(torch.randn(out_channels), requires_grad=True)
         else:
             self.bias = None
-
-        self.reset_parameters()
-
-    def reset_parameters(self, std=0.02):
-        self.weight.data.normal_(std=std)
-        if self.bias is not None:
-            self.bias.data.normal_(std=std)
 
     def forward(self, inps: torch.Tensor) -> torch.Tensor:
         off = self.conv_off(inps)
@@ -419,20 +405,13 @@ class DeformConv3d(nn.Module):
             bias_off
         )
 
-        self.weight = nn.Parameter(torch.empty(out_channels, in_channels // groups, *self.kernel_size),
+        self.weight = nn.Parameter(torch.randn(out_channels, in_channels // groups, *self.kernel_size),
                                    requires_grad=True)
 
         if bias:
-            self.bias = nn.Parameter(torch.empty(out_channels), requires_grad=True)
+            self.bias = nn.Parameter(torch.randn(out_channels), requires_grad=True)
         else:
             self.bias = None
-
-        self.reset_parameters()
-
-    def reset_parameters(self, std=0.02):
-        self.weight.data.normal_(std=std)
-        if self.bias is not None:
-            self.bias.data.normal_(std=std)
 
     def forward(self, inps: torch.Tensor) -> torch.Tensor:
         off = self.conv_off(inps)

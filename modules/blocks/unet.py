@@ -253,6 +253,7 @@ class DeformableUNet(nn.Module):
                  drop_path: float = 0.0,
                  num_groups: int = 8,
                  offset_field_channels_per_groups: Union[int, List[int], Tuple[int]] = 1,
+                 offset_field_channels: int = None,
                  act: str = 'relu',
                  modulation_type: str = 'none',
                  use_conv: bool = True,
@@ -270,13 +271,28 @@ class DeformableUNet(nn.Module):
 
         self.encoder.append(
             nn.Sequential(
-                deform_conv_nd(dim, in_channels, embed_dim, kernel_size=3, stride=1, padding=1),
+                deform_conv_nd(
+                    dim,
+                    in_channels,
+                    embed_dim,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                    offset_field_channels_per_groups=in_channels,
+                    dilation_off=2,
+                    padding_off=2,
+                ),
                 group_norm(embed_dim, num_groups=num_groups),
             )
         )
 
         in_ch = embed_dim
         skip_dims = [embed_dim]
+
+        if offset_field_channels is not None:
+            self.use_offset_field_channels = True
+        else:
+            self.use_offset_field_channels = False
 
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
@@ -289,9 +305,11 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        offset_field_channels_per_groups=offset_field_channels_per_groups[i]
-                        if isinstance(offset_field_channels_per_groups, abc.Iterable) else
-                        offset_field_channels_per_groups,
+                        offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
+                        if self.use_offset_field_channels else
+                        (offset_field_channels_per_groups[i]
+                         if isinstance(offset_field_channels_per_groups, abc.Iterable) else
+                         offset_field_channels_per_groups),
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -307,26 +325,36 @@ class DeformableUNet(nn.Module):
                         in_channels=in_ch,
                         scale_factor=2,
                         dim=2,
+                        offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
+                        if self.use_offset_field_channels else
+                        (offset_field_channels_per_groups[i]
+                         if isinstance(offset_field_channels_per_groups, abc.Iterable) else
+                         offset_field_channels_per_groups),
                         pool_type=pool_type,
-                        use_checkpoint=use_checkpoint
+                        modulation_type=modulation_type,
+                        use_checkpoint=use_checkpoint,
+                        num_groups=num_groups,
                     )
                 )
 
+                skip_dims.append(in_ch)
+
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
-                skip_dim = skip_dims.pop()
                 self.decoder.append(
                     DeformableResidualBlock(
-                        in_channels=in_ch + skip_dim,
+                        in_channels=in_ch + skip_dims.pop(),
                         out_channels=out_ch,
                         dropout=dropout,
                         drop_path=drop_path,
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        offset_field_channels_per_groups=offset_field_channels_per_groups[i]
-                        if isinstance(offset_field_channels_per_groups, abc.Iterable) else
-                        offset_field_channels_per_groups,
+                        offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
+                        if self.use_offset_field_channels else
+                        (offset_field_channels_per_groups[i]
+                         if isinstance(offset_field_channels_per_groups, abc.Iterable) else
+                         offset_field_channels_per_groups),
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -337,10 +365,16 @@ class DeformableUNet(nn.Module):
             if i != 0:
                 self.decoder.append(
                     UpBlock(
-                        in_channels=in_ch,
+                        in_channels=in_ch + skip_dims.pop(),
                         scale_factor=2,
                         mode=mode,
+                        offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
+                        if self.use_offset_field_channels else
+                        (offset_field_channels_per_groups[i]
+                         if isinstance(offset_field_channels_per_groups, abc.Iterable) else
+                         offset_field_channels_per_groups),
                         use_checkpoint=use_checkpoint,
+                        modulation_type=modulation_type,
                         num_groups=num_groups,
                     )
                 )
@@ -360,12 +394,10 @@ class DeformableUNet(nn.Module):
         h = x
         for i, block in enumerate(self.encoder):
             h = block(h)
-            if not isinstance(block, DownBlock):
-                hs.append(h)
+            hs.append(h)
 
         for i, block in enumerate(self.decoder):
-            if isinstance(block, DeformableResidualBlock):
-                h = torch.cat([h, hs.pop()], dim=1)
+            h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
         h = torch.cat([h, hs.pop()], dim=1)

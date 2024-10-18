@@ -14,7 +14,9 @@ class UpBlock(nn.Module):
                  num_groups: int = 1,
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
+                 offset_field_channels_per_groups: int = 1,
                  mode: str = 'nearest',
+                 modulation_type: str = 'none',
                  use_checkpoint: bool = True
                  ):
         super().__init__()
@@ -41,13 +43,20 @@ class UpBlock(nn.Module):
             )
 
         self.up.append(
-            conv_nd(
+            deform_conv_nd(
                 dim,
                 in_channels,
                 out_channels,
                 kernel_size=3,
                 stride=1,
                 padding=1,
+                groups=num_groups,
+                offset_field_channels_per_groups=offset_field_channels_per_groups,
+                bias=True,
+                modulation_type=modulation_type,
+                kernel_size_off=3,
+                padding_off=2,
+                dilation_off=2
             )
         )
 
