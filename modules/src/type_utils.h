@@ -2,8 +2,6 @@
 
 #include <c10/core/ScalarType.h>
 #include <cuda_runtime.h>
-#include <cuda_fp16.h>
-#include <cuda_bf16.h>
 #include <type_traits>
 
 // to support half precision cuda version
@@ -15,6 +13,7 @@ struct type_mapper
 };
 
 #if defined(__CUDACC__) && (__CUDA_ARCH__ >= 700 || !defined(__CUDA_ARCH__))
+#include <cuda_fp16.h>
 template<>
 struct type_mapper<c10::Half>
 {
@@ -23,6 +22,7 @@ struct type_mapper<c10::Half>
 #endif
 
 #if defined(__CUDACC__) && (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#include <cuda_bf16.h>
 template<>
 struct type_mapper<c10::BFloat16>
 {

@@ -35,9 +35,9 @@ col2im_nd_cuda(
     mapped_type<T>* data_grad_offset_field,
     mapped_type<T>* data_grad_attn_mask
 ) {
-    int32_t input_sizes = multiply_integers(input_size);
-    int32_t output_sizes = multiply_integers(output_size);
-    int32_t kernel_sizes = multiply_integers(kernel_size);
+    int32_t input_sizes = multiply_integers<dim>(input_size);
+    int32_t output_sizes = multiply_integers<dim>(output_size);
+    int32_t kernel_sizes = multiply_integers<dim>(kernel_size);
 
     int64_t num_col = sub_batch * groups * channels * kernel_sizes * output_sizes;
     int64_t idx = threadIdx.x + blockDim.x * blockIdx.x;

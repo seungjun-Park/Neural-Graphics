@@ -40,7 +40,7 @@ using LongIntArray = Array<int64_t, size>;
 template<uint32_t size>
 using FloatArray = Array<float_t, size>;
 
-template<typename T, int64_t size>
+template<typename T, uint32_t size>
 Array<T, size> ArrayRef2Array(at::ArrayRef<T> arr)
 {
 	assert(arr.size() == size);
@@ -53,7 +53,7 @@ Array<T, size> ArrayRef2Array(at::ArrayRef<T> arr)
 	return target;
 }
 
-template<int64_t size>
+template<uint32_t size>
 IntArray<size> IntArrayRef2IntArray(at::IntArrayRef arr)
 {
 	assert(arr.size() == size);
@@ -66,7 +66,7 @@ IntArray<size> IntArrayRef2IntArray(at::IntArrayRef arr)
 	return target;
 }
 
-template<typename T, int64_t size>
+template<typename T, uint32_t size>
 Array<T, size> vector2Array(std::vector<T>& vec)
 {
 	assert(vec.size() == size);
@@ -79,7 +79,7 @@ Array<T, size> vector2Array(std::vector<T>& vec)
 	return target;
 }
 
-template<typename T, int64_t size>
+template<typename T, uint32_t size>
 __host__ __device__ T multiply_elements(const Array<T, size>& arr)
 {
 	T mul = 1;
@@ -92,14 +92,14 @@ __host__ __device__ T multiply_elements(const Array<T, size>& arr)
 	return (T)mul;
 }
 
-template<int64_t size>
+template<uint32_t size>
 __host__ __device__ int32_t multiply_integers(const IntArray<size>& arr)
 {
 	int32_t mul = 1;
 
 	for (int32_t i = 0; i < size; i++)
 	{
-		mul *= (int32_t)(arr[i]);
+		mul *= arr[i];
 	}
 
 	return mul;
