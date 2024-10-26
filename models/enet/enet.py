@@ -56,7 +56,7 @@ class EDNSE(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         imgs, labels = batch
-        preds = self(imgs)
+        preds = self(imgs).to(imgs.dtype)
 
         # opt_net, opt_disc = self.optimizers()
         #
@@ -90,7 +90,7 @@ class EDNSE(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         imgs, labels = batch
-        preds = self(imgs)
+        preds = self(imgs).to(imgs.dtype)
 
         net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.get_last_layer(),
                                            split='val')

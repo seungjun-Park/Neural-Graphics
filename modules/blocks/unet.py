@@ -6,13 +6,14 @@ from typing import Union, List, Tuple
 from timm.models.layers import DropPath
 from omegaconf import ListConfig
 
-from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act, deform_conv_nd
+from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.attn_block import AttentionBlock
 from modules.blocks.res_block import ResidualBlock, DeformableResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
+from modules.blocks.deform_conv import deform_conv_nd
 
 
 class UnetBlock(nn.Module):
@@ -271,7 +272,7 @@ class DeformableUNet(nn.Module):
 
         self.encoder.append(
             nn.Sequential(
-                conv_nd(
+                deform_conv_nd(
                     dim,
                     in_channels,
                     embed_dim,
@@ -366,7 +367,7 @@ class DeformableUNet(nn.Module):
                 )
 
         self.out = nn.Sequential(
-            conv_nd(
+            deform_conv_nd(
                 dim,
                 in_ch + skip_dims.pop(),
                 out_channels,

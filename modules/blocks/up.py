@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, List, Tuple
 
-from utils import conv_nd, group_norm, conv_transpose_nd, deform_conv_nd
+from utils import conv_nd, group_norm, conv_transpose_nd
 from utils.checkpoints import checkpoint
+from modules.blocks.deform_conv import deform_conv_nd
 
 
 class UpBlock(nn.Module):

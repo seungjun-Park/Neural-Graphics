@@ -4,7 +4,7 @@ module:
     lr: 2e-5
     weight_decay: 0.0
     lr_decay_epoch: 100
-    use_fp16: False
+    use_fp16: True
     log_interval: 10
     net_config:
       target: modules.blocks.DeformableUNet
@@ -61,7 +61,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
@@ -69,8 +69,8 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 512
-        scale: [ 0.95, 1.0 ]
+        size: 1024
+        scale: [ 0.75, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
@@ -80,8 +80,8 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: False
-        size: 512
-        scale: [ 0.95, 1.0 ]
+        size: 1024
+        scale: [ 0.75, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
 
@@ -115,4 +115,5 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   max_epochs: 300
-  accumulate_grad_batches: 5
+  accumulate_grad_batches: 1
+  precision: 'bf16'

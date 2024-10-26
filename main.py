@@ -16,7 +16,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.trainer import Trainer
 import matplotlib.pyplot as plt
 
-from utils import instantiate_from_config
+from utils.util import instantiate_from_config
 from models.classification.transformer import SwinTransformer
 
 

@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, Tuple, List
 
-from utils import conv_nd, pool_nd, group_norm, deform_conv_nd
+from utils import conv_nd, pool_nd, group_norm
 from utils.checkpoints import checkpoint
+from modules.blocks.deform_conv import deform_conv_nd
 
 
 class DownBlock(nn.Module):

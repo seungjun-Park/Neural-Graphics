@@ -5,7 +5,8 @@ from utils.checkpoints import checkpoint
 from timm.models.layers import DropPath
 
 from typing import Union, List, Tuple
-from utils import get_act, conv_nd, group_norm, to_2tuple, deform_conv_nd
+from utils import get_act, conv_nd, group_norm, to_2tuple
+from modules.blocks.deform_conv import deform_conv_nd
 
 
 class ResidualBlock(nn.Module):
@@ -110,9 +111,6 @@ class DeformableResidualBlock(nn.Module):
                 offset_field_channels_per_groups=offset_field_channels_per_groups,
                 bias=True,
                 modulation_type=modulation_type,
-                kernel_size_off=3,
-                padding_off=2,
-                dilation_off=2
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
@@ -132,9 +130,6 @@ class DeformableResidualBlock(nn.Module):
                 offset_field_channels_per_groups=offset_field_channels_per_groups,
                 bias=True,
                 modulation_type=modulation_type,
-                kernel_size_off=3,
-                padding_off=2,
-                dilation_off=2
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
