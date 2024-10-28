@@ -11,7 +11,7 @@
 
 template<typename T, int8_t dim>
 __global__
-typename std::enable_if <(dim > 0), void>::type
+typename std::enable_if <(dim > IMPLEMENTED_DIM), void>::type
 im2col_nd_cuda(
     const T* data_im,
     const T* data_offset_field,
@@ -25,56 +25,247 @@ im2col_nd_cuda(
     const IntArray<dim> padding,
     const IntArray<dim> dilation,
     const int32_t groups,
-    const int32_t offset_field_channels_per_groups,
+    const int32_t deformable_groups,
     T* data_col) {
+
+    int32_t ch_mul = (channels + blockDim.x - 1) / blockDim.x;
+
+    if (threadIdx.x + (blockDim.x * (blockIdx.x % ch_mul)) >= channels)
+    {
+        return;
+    }
 
     int32_t input_sizes = multiply_integers<dim>(input_size);
     int32_t output_sizes = multiply_integers<dim>(output_size);
     int32_t kernel_sizes = multiply_integers<dim>(kernel_size);
 
-    int64_t num_col = groups * channels * kernel_sizes * sub_batch * output_sizes;
-    int64_t idx = threadIdx.x + blockDim.x * blockIdx.x;
+    int32_t ch = threadIdx.x + (blockDim.x * (blockIdx.x % ch_mul));
+    int32_t col = blockIdx.x / (ch_mul) % output_sizes;
+    int32_t b = blockIdx.x / (output_sizes * ch_mul) % sub_batch;
+    int32_t g = blockIdx.x / (sub_batch * output_sizes * ch_mul) % groups;
+    int32_t deformable_channels = channels / deformable_groups;
 
-    if (idx >= num_col)
+    data_im += ((b * groups + g) * channels + ch) * input_sizes;
+    data_col += (((g * sub_batch + b) * output_sizes + col) * channels + ch) * kernel_sizes;
+    data_offset_field += (((b * output_sizes + col) * groups + g) * deformable_channels + ch / deformable_groups)  * kernel_sizes * dim;
+    data_attn_mask += (((b * output_sizes + col) * groups + g) * deformable_channels + ch / deformable_groups) * kernel_sizes;
+
+    int32_t current_output_size[dim];
+    int32_t out_div = 1;
+
+    for (int8_t i = dim - 1; i >= 0; i--)
+    {
+        current_output_size[i] = col / out_div % output_size[i];
+        out_div *= output_size[i];
+    }
+    
+    int32_t current_kernel_size[dim];
+    Array<T, dim> coord;
+
+    for (int32_t k = 0; k < kernel_sizes; k++)
+    {
+        int32_t k_div = 1;
+
+        // compute current kernel size, output size and coord.
+        for (int8_t i = dim - 1; i >= 0; i--)
+        {
+            current_kernel_size[i] = k / k_div % kernel_size[i];
+            k_div *= kernel_size[i];
+
+            coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + *(data_offset_field + i);
+        }
+
+        T val = linear_interp_nd<T, dim>(data_im, coord, input_size);
+
+        *data_col = val * (*data_attn_mask);
+
+        data_col++;
+        data_offset_field += dim;
+        data_attn_mask++;
+    }
+}
+
+template<typename T, int8_t dim>
+__global__
+typename std::enable_if <(dim == 1), void>::type
+im2col_nd_cuda(
+    const T* data_im,
+    const T* data_offset_field,
+    const T* data_attn_mask,
+    const int32_t sub_batch,
+    const int32_t channels,
+    const IntArray<1> input_size,
+    const IntArray<1> output_size,
+    const IntArray<1> kernel_size,
+    const IntArray<1> stride,
+    const IntArray<1> padding,
+    const IntArray<1> dilation,
+    const int32_t groups,
+    const int32_t deformable_groups,
+    T* data_col) {
+
+    int32_t ch_mul = (channels + blockDim.x - 1) / blockDim.x;
+
+    if (threadIdx.x + (blockDim.x * (blockIdx.x % ch_mul)) >= channels)
     {
         return;
     }
 
-    int32_t col = idx % output_sizes;
-    int32_t k = idx / output_sizes % kernel_sizes;
-    int32_t ch = idx / (kernel_sizes * output_sizes) % channels;
-    int32_t g = idx / (channels * kernel_sizes * output_sizes) % groups;
-    int32_t batch_idx = idx / (groups * channels * kernel_sizes * output_sizes) % sub_batch;
+    int32_t input_sizes = multiply_integers<1>(input_size);
+    int32_t output_sizes = multiply_integers<1>(output_size);
+    int32_t kernel_sizes = multiply_integers<1>(kernel_size);
 
-    int32_t current_kernel_size[dim];
-    int32_t current_output_size[dim];
+    int32_t ch = threadIdx.x + (blockDim.x * (blockIdx.x % ch_mul));
+    int32_t col = blockIdx.x / (ch_mul) % output_sizes;
+    int32_t b = blockIdx.x / (output_sizes * ch_mul) % sub_batch;
+    int32_t g = blockIdx.x / (sub_batch * output_sizes * ch_mul) % groups;
+    int32_t deformable_channels = channels / deformable_groups;
 
-    int32_t k_div = 1;
-    int32_t out_div = 1;
+    data_im += ((b * groups + g) * channels + ch) * input_sizes;
+    data_col += (((g * sub_batch + b) * output_sizes + col) * channels + ch) * kernel_sizes;
+    data_offset_field += (((b * output_sizes + col) * groups + g) * deformable_channels + ch / deformable_groups) * kernel_sizes;
+    data_attn_mask += (((b * output_sizes + col) * groups + g) * deformable_channels + ch / deformable_groups) * kernel_sizes;
 
-    Array<T, dim> coord;
+    Array<T, 1> coord;
 
-    int64_t col_idx = (((g * channels + ch) * kernel_sizes + k) * sub_batch + batch_idx) * output_sizes + col;
-    int64_t im_idx = ((batch_idx * groups + g) * channels + ch) * input_sizes;
-    int64_t offset_field_idx = (((batch_idx * dim * groups + g) * offset_field_channels_per_groups + (ch * offset_field_channels_per_groups / channels)) * kernel_sizes + k) * output_sizes + col;
-    int64_t base_offset_field_idx = groups * offset_field_channels_per_groups * kernel_sizes * output_sizes;
-    int64_t attn_mask_idx = (((batch_idx * groups + g) * offset_field_channels_per_groups + (ch * offset_field_channels_per_groups / channels)) * kernel_sizes + k) * output_sizes + col;
-
-    data_im += im_idx;
-    data_col += col_idx;
-
-    // compute current kernel size, output size and coord.
-    for (int8_t i = dim - 1; i >= 0; i--)
+    for (int32_t k = 0; k < kernel_size[0]; k++)
     {
-        current_kernel_size[i] = k / k_div % kernel_size[i];
-        current_output_size[i] = col / out_div % output_size[i];
-        k_div *= kernel_size[i];
-        out_div *= output_size[i];
+        coord[0] = output_size[0] * stride[0] - padding[0] + k * dilation[0] + (*data_offset_field);
 
-        coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + (data_offset_field + base_offset_field_idx * i)[offset_field_idx];
+        T val = linear_interp_nd<T, 1>(data_im, coord, input_size);
+
+        *data_col = val * (*data_attn_mask);
+
+        data_col++;
+        data_offset_field++;
+        data_attn_mask++;
+    }
+}
+
+
+template<typename T, int8_t dim>
+__global__
+typename std::enable_if <(dim == 2), void>::type
+im2col_nd_cuda(
+    const T* data_im,
+    const T* data_offset_field,
+    const T* data_attn_mask,
+    const int32_t sub_batch,
+    const int32_t channels,
+    const IntArray<2> input_size,
+    const IntArray<2> output_size,
+    const IntArray<2> kernel_size,
+    const IntArray<2> stride,
+    const IntArray<2> padding,
+    const IntArray<2> dilation,
+    const int32_t groups,
+    const int32_t deformable_groups,
+    T* data_col) {
+
+    int32_t ch_mul = (channels + blockDim.x - 1) / blockDim.x;
+
+    if (threadIdx.x + (blockDim.x * (blockIdx.x % ch_mul)) >= channels)
+    {
+        return;
     }
 
-    T val = linear_interp_nd<T, dim>(data_im, coord, input_size);
+    int32_t input_sizes = multiply_integers<2>(input_size);
+    int32_t output_sizes = multiply_integers<2>(output_size);
+    int32_t kernel_sizes = multiply_integers<2>(kernel_size);
 
-    *data_col = val * data_attn_mask[attn_mask_idx];
+    int32_t ch = threadIdx.x + (blockDim.x * (blockIdx.x % ch_mul));
+    int32_t col = blockIdx.x / (ch_mul) % output_sizes;
+    int32_t b = blockIdx.x / (output_sizes * ch_mul) % sub_batch;
+    int32_t g = blockIdx.x / (sub_batch * output_sizes * ch_mul) % groups;
+    int32_t deformable_channels = channels / deformable_groups;
+
+    data_im += ((b * groups + g) * channels + ch) * input_sizes;
+    data_col += (((g * sub_batch + b) * output_sizes + col) * channels + ch) * kernel_sizes;
+    data_offset_field += (((b * output_sizes + col) * groups + g) * deformable_channels + ch / deformable_groups) * kernel_sizes * 2;
+    data_attn_mask += (((b * output_sizes + col) * groups + g) * deformable_channels + ch / deformable_groups) * kernel_sizes;
+
+    Array<T, 2> coord;
+
+    for (int32_t k_h = 0; k_h < kernel_size[0]; k_h++)
+    {
+        for (int32_t k_w = 0; k_w < kernel_size[1]; k_w++)
+        {
+            coord[0] = output_size[0] * stride[0] - padding[0] + k_h * dilation[0] + *(data_offset_field);
+            coord[1] = output_size[1] * stride[1] - padding[1] + k_w * dilation[1] + *(data_offset_field + 1);
+
+            T val = linear_interp_nd<T, 2>(data_im, coord, input_size);
+
+            *data_col = val * (*data_attn_mask);
+
+            data_col++;
+            data_offset_field += 2;
+            data_attn_mask++;
+        }
+    }
+}
+
+
+template<typename T, int8_t dim>
+__global__
+typename std::enable_if <(dim == 3), void>::type
+im2col_nd_cuda(
+    const T* data_im,
+    const T* data_offset_field,
+    const T* data_attn_mask,
+    const int32_t sub_batch,
+    const int32_t channels,
+    const IntArray<3> input_size,
+    const IntArray<3> output_size,
+    const IntArray<3> kernel_size,
+    const IntArray<3> stride,
+    const IntArray<3> padding,
+    const IntArray<3> dilation,
+    const int32_t groups,
+    const int32_t deformable_groups,
+    T* data_col) {
+
+    int32_t ch_mul = (channels + blockDim.x - 1) / blockDim.x;
+
+    if (threadIdx.x + (blockDim.x * (blockIdx.x % ch_mul)) >= channels)
+    {
+        return;
+    }
+
+    int32_t input_sizes = multiply_integers<3>(input_size);
+    int32_t output_sizes = multiply_integers<3>(output_size);
+    int32_t kernel_sizes = multiply_integers<3>(kernel_size);
+
+    int32_t ch = threadIdx.x + (blockDim.x * (blockIdx.x % ch_mul));
+    int32_t col = blockIdx.x / (ch_mul) % output_sizes;
+    int32_t b = blockIdx.x / (output_sizes * ch_mul) % sub_batch;
+    int32_t g = blockIdx.x / (sub_batch * output_sizes * ch_mul) % groups;
+    int32_t deformable_channels = channels / deformable_groups;
+
+    data_im += ((b * groups + g) * channels + ch) * input_sizes;
+    data_col += (((g * sub_batch + b) * output_sizes + col) * channels + ch) * kernel_sizes;
+    data_offset_field += (((b * output_sizes + col) * groups + g) * deformable_channels + ch / deformable_groups) * kernel_sizes * 3;
+    data_attn_mask += (((b * output_sizes + col) * groups + g) * deformable_channels + ch / deformable_groups) * kernel_sizes;
+
+    Array<T, 3> coord;
+
+    for (int32_t k_d = 0; k_d < kernel_size[0]; k_d++)
+    {
+        for (int32_t k_h = 0; k_h < kernel_size[1]; k_h++)
+        {
+            for (int32_t k_w = 0; k_w < kernel_size[2]; k_w++)
+            {
+                coord[0] = output_size[0] * stride[0] - padding[0] + k_d * dilation[0] + *(data_offset_field);
+                coord[1] = output_size[1] * stride[1] - padding[1] + k_h * dilation[1] + *(data_offset_field + 1);
+                coord[2] = output_size[2] * stride[2] - padding[2] + k_w * dilation[2] + *(data_offset_field + 2);
+
+                T val = linear_interp_nd<T, 3>(data_im, coord, input_size);
+
+                *data_col = val * (*data_attn_mask);
+
+                data_col++;
+                data_offset_field += 3;
+                data_attn_mask++;
+            }
+        }
+    }
 }

@@ -13,6 +13,7 @@ class DownBlock(nn.Module):
                  in_channels: int,
                  out_channels: int = None,
                  num_groups: int = 1,
+                 conv_groups: int = 1,
                  scale_factor: Union[int, float] = 2.0,
                  dim: int = 2,
                  pool_type: str = 'conv',
@@ -30,6 +31,7 @@ class DownBlock(nn.Module):
                                    out_channels,
                                    kernel_size=scale_factor,
                                    stride=scale_factor,
+                                   groups=conv_groups,
                                    )
 
         else:

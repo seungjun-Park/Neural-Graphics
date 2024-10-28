@@ -252,9 +252,9 @@ class DeformableUNet(nn.Module):
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
                  dropout: float = 0.0,
                  drop_path: float = 0.0,
-                 num_groups: int = 8,
-                 offset_field_channels_per_groups: Union[int, List[int], Tuple[int]] = 1,
-                 offset_field_channels: int = None,
+                 num_groups: int = 1,
+                 conv_groups: int = 1,
+                 deformable_groups: int = 1,
                  act: str = 'relu',
                  modulation_type: str = 'none',
                  use_conv: bool = True,
@@ -279,18 +279,14 @@ class DeformableUNet(nn.Module):
                     kernel_size=3,
                     stride=1,
                     padding=1,
+                    deformable_groups=1,
                 ),
-                group_norm(embed_dim, num_groups=num_groups),
+                group_norm(embed_dim, num_groups=1),
             )
         )
 
         in_ch = embed_dim
         skip_dims = [embed_dim]
-
-        if offset_field_channels is not None:
-            self.use_offset_field_channels = True
-        else:
-            self.use_offset_field_channels = False
 
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
@@ -303,11 +299,8 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
-                        if self.use_offset_field_channels else
-                        (offset_field_channels_per_groups[i]
-                         if isinstance(offset_field_channels_per_groups, abc.Iterable) else
-                         offset_field_channels_per_groups),
+                        conv_groups=conv_groups,
+                        deformable_groups=deformable_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -326,6 +319,7 @@ class DeformableUNet(nn.Module):
                         pool_type=pool_type,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
+                        conv_groups=conv_groups
                     )
                 )
 
@@ -342,11 +336,8 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        offset_field_channels_per_groups=(in_ch // (num_groups * offset_field_channels))
-                        if self.use_offset_field_channels else
-                        (offset_field_channels_per_groups[i]
-                         if isinstance(offset_field_channels_per_groups, abc.Iterable) else
-                         offset_field_channels_per_groups),
+                        conv_groups=conv_groups,
+                        deformable_groups=deformable_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -363,6 +354,7 @@ class DeformableUNet(nn.Module):
                         mode=mode,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
+                        conv_groups=conv_groups,
                     )
                 )
 
@@ -371,8 +363,10 @@ class DeformableUNet(nn.Module):
                 dim,
                 in_ch + skip_dims.pop(),
                 out_channels,
-                kernel_size=1,
+                kernel_size=3,
                 stride=1,
+                padding=1,
+                deformable_groups=1,
             )
         )
 

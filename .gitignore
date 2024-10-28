@@ -161,7 +161,7 @@ cython_debug/
 
 ./datasets/
 logs/
-src/
+
 .vscode/
 *.sh
 slurm/

@@ -18,7 +18,6 @@ class EDNSE(pl.LightningModule):
                  lr_decay_epoch: int = 100,
                  log_interval: int = 100,
                  ckpt_path: str = None,
-                 use_fp16: bool = False,
                  ignore_keys: Union[List[str], Tuple[str]] = (),
                  ):
         super().__init__()
@@ -27,8 +26,6 @@ class EDNSE(pl.LightningModule):
         self.weight_decay = weight_decay
         self.lr_decay_epoch = lr_decay_epoch
         self.log_interval = log_interval
-
-        self._dtype = torch.float16 if use_fp16 else torch.float32
 
         self.net = instantiate_from_config(net_config)
 
@@ -56,7 +53,7 @@ class EDNSE(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         imgs, labels = batch
-        preds = self(imgs).to(imgs.dtype)
+        preds = self(imgs)
 
         # opt_net, opt_disc = self.optimizers()
         #
@@ -90,7 +87,7 @@ class EDNSE(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         imgs, labels = batch
-        preds = self(imgs).to(imgs.dtype)
+        preds = self(imgs)
 
         net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.get_last_layer(),
                                            split='val')
@@ -102,7 +99,7 @@ class EDNSE(pl.LightningModule):
             self.log_img(imgs, 'img')
 
         # self.log_dict(d_loss_log)
-        self.log_dict(net_loss_log)
+        self.log_dict(net_loss_log,  prog_bar=True)
 
     def get_last_layer(self):
         return self.net.out[-1].weight
@@ -111,7 +108,7 @@ class EDNSE(pl.LightningModule):
     def log_img(self, x: torch.Tensor, split='img'):
         prefix = 'train' if self.training else 'val'
         tb = self.logger.experiment
-        tb.add_image(f'{prefix}/{split}', x[0], self.global_step, dataformats='CHW')
+        tb.add_image(f'{prefix}/{split}', x[0].float(), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
         opt_net = torch.optim.AdamW(list(self.net.parameters()),

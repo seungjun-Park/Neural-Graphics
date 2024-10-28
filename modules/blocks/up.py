@@ -13,6 +13,7 @@ class UpBlock(nn.Module):
                  in_channels: int,
                  out_channels: int = None,
                  num_groups: int = 1,
+                 conv_groups: int = 1,
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
                  offset_field_channels_per_groups: int = 1,
@@ -51,6 +52,7 @@ class UpBlock(nn.Module):
                 kernel_size=3,
                 stride=1,
                 padding=1,
+                groups=conv_groups,
             )
         )
 
