@@ -18,15 +18,15 @@ def multiply_integers(x: abc.Iterable):
     return mul
 
 
-def modulate(x: torch.Tensor, modulation_type: str = 'none', groups: int = None) -> torch.Tensor:
+def modulate(x: torch.Tensor, modulation_type: str = 'none', deformable_groups: int = None) -> torch.Tensor:
     modulation_type = modulation_type.lower()
     assert modulation_type in ['none', 'softmax', 'sigmoid', 'tanh']
     if modulation_type == 'none':
         return x
     elif modulation_type == 'softmax':
-        assert groups is not None
-        b, dim, c, *spatial = x.shape
-        return F.softmax(x.reshape(b, dim, groups, -1, *spatial), dim=2).reshape(b, dim, c, *spatial)
+        assert deformable_groups is not None
+        b, c, *spatial = x.shape
+        return F.softmax(x.reshape(b, deformable_groups, -1, *spatial), dim=1).reshape(b, c, *spatial)
     elif modulation_type == 'sigmoid':
         return F.sigmoid(x)
     elif modulation_type == 'tanh':
@@ -118,9 +118,7 @@ class DeformConv1d(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x)
         attn_mask = self.attn_mask(x)
-        b, c, *spatial = offset_field.shape
-        offset_field = offset_field.permute(0, 2, 1)
-        attn_mask = modulate(attn_mask.reshape(b, 1, -1, *spatial), self.modulation_type, self.groups)
+        attn_mask = modulate(attn_mask, self.modulation_type, self.deformable_groups)
 
         return torch.ops.custom_op.deform_conv1d(
             x,
@@ -219,8 +217,7 @@ class DeformConv2d(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x)
         attn_mask = self.attn_mask(x)
-        offset_field = offset_field.permute(0, 2, 3, 1)
-        attn_mask = modulate(attn_mask.permute(0, 2, 3, 1), self.modulation_type, self.groups)
+        attn_mask = modulate(attn_mask, self.modulation_type, self.deformable_groups)
 
         return torch.ops.custom_op.deform_conv2d(
             x,
@@ -320,8 +317,7 @@ class DeformConv3d(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x)
         attn_mask = self.attn_mask(x)
-        offset_field = offset_field.permute(0, 2, 3, 4, 1)
-        attn_mask = modulate(attn_mask.permute(0, 2, 3, 4, 1), self.modulation_type, self.groups)
+        attn_mask = modulate(attn_mask, self.modulation_type, self.deformable_groups)
 
         return torch.ops.custom_op.deform_conv3d(
             x,

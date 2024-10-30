@@ -9,158 +9,159 @@
 
 
 // implementation of n-dimensional im2col.
-template<typename T, int8_t dim>
+template<typename T, uint8_t dim>
 typename std::enable_if<(dim > IMPLEMENTED_DIM), void>::type
 im2col_nd_cpu(
     const T* data_im,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int32_t channels,
-    const IntArray<dim>& input_size,
-    const IntArray<dim>& output_size,
-    const IntArray<dim>& kernel_size,
-    const IntArray<dim>& stride,
-    const IntArray<dim>& padding,
-    const IntArray<dim>& dilation,
-    const int32_t groups,
-    const int32_t deformable_groups,
+    const uint16_t channels,
+    const UInt16Array<dim>& input_size,
+    const UInt16Array<dim>& output_size,
+    const UInt8Array<dim>& kernel_size,
+    const UInt8Array<dim>& stride,
+    const UInt8Array<dim>& padding,
+    const UInt8Array<dim>& dilation,
+    const uint16_t groups,
+    const uint16_t deformable_groups,
     T* data_col)
 {
+    const uint16_t kernel_sizes = multiply_integers(kernel_size);
+    const uint32_t output_sizes = multiply_integers(output_size);
+    const uint32_t input_sizes = multiply_integers(input_size);
 
-    const int32_t kernel_sizes = multiply_integers(kernel_size);
-    const int32_t output_sizes = multiply_integers(output_size);
-    const int32_t input_sizes = multiply_integers(input_size);
+    uint16_t current_output_size[dim];
+    uint8_t current_kernel_size[dim];
 
-    IntArray<dim> current_output_size;
-    IntArray<dim> current_kernel_size;
+    uint16_t deformable_channels = channels / deformable_groups;
 
-    int32_t deformable_channels = channels / deformable_groups;
-
-    for (int32_t g = 0; g < groups; g++)
+    for (uint16_t g = 0; g < groups; g++)
     {
-        for (int32_t col = 0; col < output_sizes; col++)
+        for (uint16_t ch = 0; ch < channels; ch++)
         {
-            for (int32_t ch = 0; ch < channels; ch++)
+            for (uint16_t k = 0; k < kernel_sizes; k++)
             {
-                for (int32_t k = 0; k < kernel_sizes; k++)
+                for (uint32_t col = 0; col < output_sizes; col++)
                 {
-                    int64_t attn_mask_idx = ((col * groups + g) * deformable_channels + ch / deformable_groups) * kernel_sizes + k;
-                    int64_t offset_field_idx = attn_mask_idx * dim;
+                    uint64_t col_idx = ((g * channels + ch) * kernel_sizes + k) * output_sizes + col;
+                    uint64_t offset_field_idx = ((g * deformable_channels + ch / deformable_groups) * kernel_sizes + k) * dim * output_sizes + col;
+                    uint64_t attn_mask_idx = ((g * deformable_channels + ch / deformable_groups) * kernel_sizes + k) * output_sizes + col;
 
                     Array<T, dim> coord;
 
                     // compute n-dimensional current kernel/output size
-                    int32_t out_div = 1;
-                    int32_t k_div = 1;
+                    uint32_t out_div = 1;
+                    uint16_t k_div = 1;
                     for (int8_t i = dim - 1; i >= 0; i--)
                     {
                         current_output_size[i] = col / out_div % output_size[i];
                         current_kernel_size[i] = k / k_div % kernel_size[i];
                         out_div *= output_size[i];
                         k_div *= kernel_size[i];
-                        coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + *(data_offset_field + offset_field_idx + i);
+                        coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + data_offset_field[offset_field_idx + i * output_sizes];
                     }
 
                     T val = linear_interp_nd<T, dim>(data_im + ch * input_sizes, coord, input_size);
 
-                    *data_col = val * *(data_attn_mask + attn_mask_idx);
-                    data_col++;
+                    data_col[col_idx] = val * data_attn_mask[attn_mask_idx];
                 }
             }
         }
+
         data_im += channels * input_sizes;
     }
 }
 
-template<typename T, int8_t dim>
+template<typename T, uint8_t dim>
 typename std::enable_if<(dim == 1), void>::type
 im2col_nd_cpu(
     const T* data_im,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int32_t channels,
-    const IntArray<1>& input_size,
-    const IntArray<1>& output_size,
-    const IntArray<1>& kernel_size,
-    const IntArray<1>& stride,
-    const IntArray<1>& padding,
-    const IntArray<1>& dilation,
-    const int32_t groups,
-    const int32_t deformable_groups,
+    const uint16_t channels,
+    const UInt16Array<1>& input_size,
+    const UInt16Array<1>& output_size,
+    const UInt8Array<1>& kernel_size,
+    const UInt8Array<1>& stride,
+    const UInt8Array<1>& padding,
+    const UInt8Array<1>& dilation,
+    const uint16_t groups,
+    const uint16_t deformable_groups,
     T* data_col) {
 
-    const int32_t input_sizes = multiply_integers(input_size);
+    uint16_t deformable_channels = channels / deformable_groups;
 
-    int32_t deformable_channels = channels / deformable_groups;
-
-    for (int32_t g = 0; g < groups; g++)
+    for (uint16_t g = 0; g < groups; g++)
     {
-        for (int32_t col = 0; col < output_size[0]; col++)
+        for (uint16_t ch = 0; ch < channels; ch++)
         {
-            for (int32_t ch = 0; ch < channels; ch++)
+            for (uint8_t k = 0; k < kernel_size[0]; k++)
             {
-                for (int32_t k = 0; k < kernel_size[0]; k++)
+                for (uint16_t col = 0; col < output_size[0]; col++)
                 {
-                    int64_t attn_mask_idx = ((col * groups + g) * deformable_channels + ch / deformable_groups) * kernel_size[0] + k;
-                    int64_t offset_field_idx = attn_mask_idx;
+                    uint64_t col_idx = ((g * channels + ch) * kernel_size[0] + k) * output_size[0] + col;
+                    uint64_t offset_field_idx = ((g * deformable_channels + ch / deformable_groups) * kernel_size[0] + k) * output_size[0] + col;
+                    uint64_t attn_mask_idx = ((g * deformable_channels + ch / deformable_groups) * kernel_size[0] + k) * output_size[0] + col;
 
                     Array<T, 1> coord;
-                    coord[0] = col * stride[0] - padding[0] + k * dilation[0] + *(data_offset_field + offset_field_idx + k);
-                    T val = linear_interp_nd<T, dim>(data_im + ch * input_sizes, coord, input_size);
+                    coord[0] = col * stride[0] - padding[0] + k * dilation[0] + data_offset_field[offset_field_idx];
 
-                    *data_col = val * *(data_attn_mask + attn_mask_idx + k);
-                    data_col++;
+                    T val = linear_interp_nd<T, 1>(data_im + ch * input_size[0], coord, input_size);
+
+                    data_col[col_idx] = val * data_attn_mask[attn_mask_idx];
                 }
             }
         }
-        data_im += channels * input_sizes;
+        data_im += channels * input_size[0];
     }
 }
 
-template<typename T, int8_t dim>
+template<typename T, uint8_t dim>
 typename std::enable_if<(dim == 2), void>::type
 im2col_nd_cpu(
     const T* data_im,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int32_t channels,
-    const IntArray<2>& input_size,
-    const IntArray<2>& output_size,
-    const IntArray<2>& kernel_size,
-    const IntArray<2>& stride,
-    const IntArray<2>& padding,
-    const IntArray<2>& dilation,
-    const int32_t groups,
-    const int32_t deformable_groups,
+    const uint16_t channels,
+    const UInt16Array<2>& input_size,
+    const UInt16Array<2>& output_size,
+    const UInt8Array<2>& kernel_size,
+    const UInt8Array<2>& stride,
+    const UInt8Array<2>& padding,
+    const UInt8Array<2>& dilation,
+    const uint16_t groups,
+    const uint16_t deformable_groups,
     T* data_col) {
 
-    const int32_t input_sizes = multiply_integers(input_size);
+    uint32_t input_sizes = multiply_integers<2>(input_size);
+    uint32_t output_sizes = multiply_integers<2>(output_size);
+    uint16_t kernel_sizes = multiply_integers<2>(kernel_size);
 
-    int32_t deformable_channels = channels / deformable_groups;
+    uint16_t deformable_channels = channels / deformable_groups;
 
-    for (int32_t g = 0; g < groups; g++)
+    for (uint16_t g = 0; g < groups; g++)
     {
-        for (int32_t h_col = 0; h_col < output_size[0]; h_col++)
+        for (uint16_t ch = 0; ch < channels; ch++)
         {
-            for (int32_t w_col = 0; w_col < output_size[1]; w_col++)
+            for (uint8_t h_k = 0; h_k < kernel_size[0]; h_k++)
             {
-                for (int32_t ch = 0; ch < channels; ch++)
+                for (uint8_t w_k = 0; w_k < kernel_size[1]; w_k++)
                 {
-                    for (int32_t h_k = 0; h_k < kernel_size[0]; h_k++)
+                    for (uint16_t h_col = 0; h_col < output_size[0]; h_col++)
                     {
-                        for (int32_t w_k = 0; w_k < kernel_size[1]; w_k++)
+                        for (uint16_t w_col = 0; w_col < output_size[1]; w_col++)
                         {
-                            int64_t attn_mask_idx = ((((h_col * output_size[1] + w_col) * groups + g) * deformable_channels + 
-                                ch / deformable_groups) * kernel_size[0] + h_k) * kernel_size[1] + w_k;
-                            int64_t offset_field_idx = attn_mask_idx * 2;
+                            uint64_t col_idx = ((((g * channels + ch) * kernel_size[0] + h_k) * kernel_size[1] + w_k) * output_size[0] + h_col) * output_size[1] + w_col;
+                            uint64_t offset_field_idx = ((((g * deformable_channels + ch / deformable_groups) * kernel_size[0] + h_k) * kernel_size[1] + w_k) * 2 * output_size[0] + h_col) * output_size[1] + w_col;
+                            uint64_t attn_mask_idx = ((((g * deformable_channels + ch / deformable_groups) * kernel_size[0] + h_k) * kernel_size[1] + w_k) * output_size[0] + h_col) * output_size[1] + w_col;
 
                             Array<T, 2> coord;
-                            coord[0] = h_col * stride[0] - padding[0] + h_k * dilation[0] + *(data_offset_field + offset_field_idx);
-                            coord[1] = w_col * stride[1] - padding[1] + w_k * dilation[1] + *(data_offset_field + offset_field_idx + 1);
+                            coord[0] = h_col * stride[0] - padding[0] + h_k * dilation[0] + data_offset_field[offset_field_idx];
+                            coord[1] = w_col * stride[1] - padding[1] + w_k * dilation[1] + data_offset_field[offset_field_idx + output_sizes];
+
                             T val = linear_interp_nd<T, 2>(data_im + ch * input_sizes, coord, input_size);
 
-                            *data_col = val * *(data_attn_mask + attn_mask_idx);
-                            data_col++;
+                            data_col[col_idx] = val * data_attn_mask[attn_mask_idx];
                         }
                     }
                 }
@@ -170,56 +171,62 @@ im2col_nd_cpu(
     }
 }
 
-template<typename T, int8_t dim>
+template<typename T, uint8_t dim>
 typename std::enable_if<(dim == 3), void>::type
 im2col_nd_cpu(
     const T* data_im,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int32_t channels,
-    const IntArray<3>& input_size,
-    const IntArray<3>& output_size,
-    const IntArray<3>& kernel_size,
-    const IntArray<3>& stride,
-    const IntArray<3>& padding,
-    const IntArray<3>& dilation,
-    const int32_t groups,
-    const int32_t deformable_groups,
+    const uint16_t channels,
+    const UInt16Array<3>& input_size,
+    const UInt16Array<3>& output_size,
+    const UInt8Array<3>& kernel_size,
+    const UInt8Array<3>& stride,
+    const UInt8Array<3>& padding,
+    const UInt8Array<3>& dilation,
+    const uint16_t groups,
+    const uint16_t deformable_groups,
     T* data_col) {
 
-    const int32_t input_sizes = multiply_integers(input_size);  
+    uint32_t input_sizes = multiply_integers<3>(input_size);
+    uint32_t output_sizes = multiply_integers<3>(output_size);
+    uint16_t kernel_sizes = multiply_integers<3>(kernel_size);
 
-    int32_t deformable_channels = channels / deformable_groups;
+    uint16_t deformable_channels = channels / deformable_groups;
 
-    for (int32_t g = 0; g < groups; g++)
+    for (uint16_t g = 0; g < groups; g++)
     {
-        for (int32_t d_col = 0; d_col < output_size[0]; d_col++)
+        for (uint16_t ch = 0; ch < channels; ch++)
         {
-            for (int32_t h_col = 0; h_col < output_size[1]; h_col++)
+            for (uint8_t d_k = 0; d_k < kernel_size[0]; d_k++)
             {
-                for (int32_t w_col = 0; w_col < output_size[2]; w_col++)
+                for (uint8_t h_k = 0; h_k < kernel_size[1]; h_k++)
                 {
-                    for (int32_t ch = 0; ch < channels; ch++)
+                    for (uint8_t w_k = 0; w_k < kernel_size[2]; w_k++)
                     {
-                        for (int32_t d_k = 0; d_k < kernel_size[0]; d_k++)
+                        for (uint16_t d_col = 0; d_col < output_size[0]; d_col++)
                         {
-                            for (int32_t h_k = 0; h_k < kernel_size[1]; h_k++)
+                            for (uint16_t h_col = 0; h_col < output_size[1]; h_col++)
                             {
-                                for (int32_t w_k = 0; w_k < kernel_size[0]; w_k++)
+                                for (uint16_t w_col = 0; w_col < output_size[2]; w_col++)
                                 {
-                                    int64_t attn_mask_idx = ((((((d_col * output_size[1] + h_col) * output_size[2] + w_col) * groups + g) * 
-                                        deformable_channels + ch / deformable_groups) * kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k;
-                                    int64_t offset_field_idx = attn_mask_idx * 3;
+                                    uint64_t col_idx = ((((((g * channels + ch) * kernel_size[0] + d_k) * kernel_size[1] + h_k) * 
+                                        kernel_size[2] + w_k) * output_size[0] + d_col) * output_size[1] + h_col) * output_size[2] + w_col;
+                                    uint64_t offset_field_idx = ((((((g * deformable_channels + ch / deformable_groups) * kernel_size[0] + d_k) * 
+                                        kernel_size[1] + h_k) * kernel_size[2] + w_k) * 3 * output_size[0] + d_col) * output_size[1] + h_col) * 
+                                        output_size[2] + w_col;
+                                    uint64_t attn_mask_idx = ((((((g * deformable_channels + ch / deformable_groups) * kernel_size[0] + d_k) * 
+                                        kernel_size[1] + h_k) * kernel_size[2] + w_k) * output_size[0] + d_col) * output_size[1] + h_col) * 
+                                        output_size[2] + w_col;
 
                                     Array<T, 3> coord;
-                                    coord[0] = d_col * stride[0] - padding[0] + d_k * dilation[0] + *(data_offset_field + offset_field_idx);
-                                    coord[1] = h_col * stride[1] - padding[1] + h_k * dilation[1] + *(data_offset_field + offset_field_idx + 1);
-                                    coord[2] = w_col * stride[2] - padding[2] + w_k * dilation[2] + *(data_offset_field + offset_field_idx + 2);
+                                    coord[0] = d_col * stride[0] - padding[0] + d_k * dilation[0] + data_offset_field[offset_field_idx];
+                                    coord[1] = h_col * stride[1] - padding[1] + h_k * dilation[1] + data_offset_field[offset_field_idx + output_sizes];
+                                    coord[2] = w_col * stride[2] - padding[2] + w_k * dilation[2] + data_offset_field[offset_field_idx + 2 * output_sizes];
+
                                     T val = linear_interp_nd<T, 3>(data_im + ch * input_sizes, coord, input_size);
 
-                                    *data_col = val * *(data_attn_mask + attn_mask_idx);
-                                    
-                                    data_col++;
+                                    data_col[col_idx] = val * data_attn_mask[attn_mask_idx];
                                 }
                             }
                         }
@@ -227,6 +234,7 @@ im2col_nd_cpu(
                 }
             }
         }
+
         data_im += channels * input_sizes;
     }
 }

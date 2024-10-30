@@ -1,6 +1,7 @@
 #include <torch/extension.h>
 #include <deform_conv_utils.h>
 #include <array_utils.h>
+#include <type_utils.h>
 
 #include <ATen/native/utils/ParamUtils.h>
 #include <ATen/autocast_mode.h>
@@ -301,7 +302,7 @@ at::Tensor deform_conv_nd_autocast_cuda(
 {
 	c10::impl::ExcludeDispatchKeyGuard no_autocast(c10::DispatchKey::Autocast);
 	c10::DeviceType device = input.device().type();
-	c10::ScalarType dtype = dtype = at::autocast::get_autocast_gpu_dtype();
+	c10::ScalarType dtype = at::autocast::get_autocast_gpu_dtype();
 	return deform_conv_nd_autograd<dim>(
 		at::autocast::cached_cast(dtype, input, device),
 		at::autocast::cached_cast(dtype, weight, device),

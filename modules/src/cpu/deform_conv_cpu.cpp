@@ -53,7 +53,7 @@ at::Tensor deform_conv_nd_forward_cpu(
 	int32_t kernel_sizes = c10::multiply_integers(kernel_size);
 	int32_t output_sizes = c10::multiply_integers(output_size.slice(2));
 
-	at::Tensor columns = at::zeros({ groups, output_sizes, kernel_sizes * grouped_in_channels }, input.options().memory_format(at::MemoryFormat::Contiguous));
+	at::Tensor columns = at::zeros({ groups, grouped_in_channels * kernel_sizes, output_sizes }, input.options().memory_format(at::MemoryFormat::Contiguous));
 
 	AT_DISPATCH_FLOATING_TYPES_AND(at::kBFloat16, input.scalar_type(), "deform_conv_nd_forward<>", [&]() {
 
@@ -64,27 +64,25 @@ at::Tensor deform_conv_nd_forward_cpu(
 			at::Tensor input_n = input.select(0, b);
 			at::Tensor offset_field_n = offset_field.select(0, b);
 			at::Tensor attn_mask_n = attn_mask.select(0, b);
-
 			im2col_nd_cpu<scalar_t, dim>(
 				input_n.const_data_ptr<scalar_t>(),
 				offset_field_n.const_data_ptr<scalar_t>(),
 				attn_mask_n.const_data_ptr<scalar_t>(),
 				grouped_in_channels,
-				IntArrayRef2IntArray<dim>(input_size.slice(2)),
-				IntArrayRef2IntArray<dim>(output_size.slice(2)),
-				IntArrayRef2IntArray<dim>(kernel_size),
-				IntArrayRef2IntArray<dim>(stride),
-				IntArrayRef2IntArray<dim>(padding),
-				IntArrayRef2IntArray<dim>(dilation),
+				IntArrayRef2UInt16Array<dim>(input_size.slice(2)),
+				IntArrayRef2UInt16Array<dim>(output_size.slice(2)),
+				IntArrayRef2UInt8Array<dim>(kernel_size),
+				IntArrayRef2UInt8Array<dim>(stride),
+				IntArrayRef2UInt8Array<dim>(padding),
+				IntArrayRef2UInt8Array<dim>(dilation),
 				groups,
 				deformable_groups,
 				columns.mutable_data_ptr<scalar_t>()
 			);
 
-			// torch::bmm was not implemented for fp16 in cpu, so we convert fp16 to fp32
 			output.select(0, b) = torch::bmm(
 				weight.reshape({ groups, grouped_out_channels, -1 }),
-				columns.transpose(1, 2)
+				columns
 			).reshape(output_size.slice(1));
 		}
 
@@ -167,7 +165,7 @@ torch::autograd::tensor_list deform_conv_nd_backward_cpu(
 			at::Tensor columns = torch::bmm(
 				weight.reshape({ groups, grouped_out_channels, -1 }).transpose(1, 2),
 				grad_output_n.reshape({ groups, grouped_out_channels, -1 })
-			).transpose(1, 2);
+			);
 
 			// compute gradient of inputs, offset_field, attn_mask
 			col2im_nd_cpu<scalar_t, dim>(
@@ -176,12 +174,12 @@ torch::autograd::tensor_list deform_conv_nd_backward_cpu(
 				offset_field_n.const_data_ptr<scalar_t>(),
 				attn_mask_n.const_data_ptr<scalar_t>(),
 				grouped_in_channels,
-				IntArrayRef2IntArray<dim>(input_size.slice(2)),
-				IntArrayRef2IntArray<dim>(output_size.slice(2)),
-				IntArrayRef2IntArray<dim>(kernel_size),
-				IntArrayRef2IntArray<dim>(stride),
-				IntArrayRef2IntArray<dim>(padding),
-				IntArrayRef2IntArray<dim>(dilation),
+				IntArrayRef2UInt16Array<dim>(input_size.slice(2)),
+				IntArrayRef2UInt16Array<dim>(output_size.slice(2)),
+				IntArrayRef2UInt8Array<dim>(kernel_size),
+				IntArrayRef2UInt8Array<dim>(stride),
+				IntArrayRef2UInt8Array<dim>(padding),
+				IntArrayRef2UInt8Array<dim>(dilation),
 				groups,
 				deformable_groups,
 				(mapped_type<scalar_t>*)grad_input_n.mutable_data_ptr<scalar_t>(),
@@ -196,22 +194,21 @@ torch::autograd::tensor_list deform_conv_nd_backward_cpu(
 				offset_field_n.const_data_ptr<scalar_t>(),
 				attn_mask_n.const_data_ptr<scalar_t>(),
 				grouped_in_channels,
-				IntArrayRef2IntArray<dim>(input_size.slice(2)),
-				IntArrayRef2IntArray<dim>(output_size.slice(2)),
-				IntArrayRef2IntArray<dim>(kernel_size),
-				IntArrayRef2IntArray<dim>(stride),
-				IntArrayRef2IntArray<dim>(padding),
-				IntArrayRef2IntArray<dim>(dilation),
+				IntArrayRef2UInt16Array<dim>(input_size.slice(2)),
+				IntArrayRef2UInt16Array<dim>(output_size.slice(2)),
+				IntArrayRef2UInt8Array<dim>(kernel_size),
+				IntArrayRef2UInt8Array<dim>(stride),
+				IntArrayRef2UInt8Array<dim>(padding),
+				IntArrayRef2UInt8Array<dim>(dilation),
 				groups,
 				deformable_groups,
 				columns.mutable_data_ptr<scalar_t>()
 			);
 
 			// compute grad_out grad_output * col^T
-			// torch::bmm was not implemented for fp16 in cpu, so we convert fp16 to fp32
 			grad_weight += torch::bmm(
 				grad_output_n.reshape({ groups, grouped_out_channels, -1 }),
-				columns
+				columns.transpose(1, 2)
 			).reshape(grad_weight.sizes());
 		}
 

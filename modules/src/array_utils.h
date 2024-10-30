@@ -13,16 +13,16 @@
 #define IMPLEMENTED_DIM 3
 #endif // !IMPLEMENTED_DIM
 
-template<typename T, uint32_t size>
+template<typename T, uint8_t size>
 struct Array
 {
-	__host__ __device__ T operator[](uint32_t index) const
+	__host__ __device__ T operator[](uint8_t index) const
 	{
 		assert(index < size);
 		return elements[index];
 	}
 
-	__host__ __device__ T& operator[](uint32_t index)
+	__host__ __device__ T& operator[](uint8_t index)
 	{
 		assert(index < size);
 		return elements[index];
@@ -31,21 +31,42 @@ struct Array
 	T elements[size];
 };
 
-template<uint32_t size>
-using IntArray = Array<int32_t, size>;
+template<uint8_t size>
+using UInt8Array = Array<uint8_t, size>;
 
-template<uint32_t size>
-using LongIntArray = Array<int64_t, size>;
+template<uint8_t size>
+using Int8Array = Array<int8_t, size>;
 
-template<uint32_t size>
+template<uint8_t size>
+using UInt16Array = Array<uint16_t, size>;
+
+template<uint8_t size>
+using Int16Array = Array<int16_t, size>;
+
+template<uint8_t size>
+using Int32Array = Array<int32_t, size>;
+
+template<uint8_t size>
+using UInt32Array = Array<uint32_t, size>;
+
+template<uint8_t size>
+using Int64Array = Array<int64_t, size>;
+
+template<uint8_t size>
+using UInt64Array = Array<uint64_t, size>;
+
+template<uint8_t size>
 using FloatArray = Array<float_t, size>;
 
-template<typename T, uint32_t size>
+template<uint8_t size>
+using DoubleArray = Array<double_t, size>;
+
+template<typename T, uint8_t size>
 Array<T, size> ArrayRef2Array(at::ArrayRef<T> arr)
 {
 	assert(arr.size() == size);
 	Array<T, size> target;
-	for (size_t i = 0; i < size; i++)
+	for (uint8_t i = 0; i < size; i++)
 	{
 		target[i] = arr[i];
 	}
@@ -53,25 +74,38 @@ Array<T, size> ArrayRef2Array(at::ArrayRef<T> arr)
 	return target;
 }
 
-template<uint32_t size>
-IntArray<size> IntArrayRef2IntArray(at::IntArrayRef arr)
+template<uint8_t size>
+UInt16Array<size> IntArrayRef2UInt16Array(at::IntArrayRef arr)
 {
 	assert(arr.size() == size);
-	IntArray<size> target;
-	for (size_t i = 0; i < size; i++)
+	UInt16Array<size> target;
+	for (uint8_t i = 0; i < size; i++)
 	{
-		target[i] = (int32_t)(arr[i]);
+		target[i] = static_cast<uint16_t>(arr[i]);
 	}
 
 	return target;
 }
 
-template<typename T, uint32_t size>
+template<uint8_t size>
+UInt8Array<size> IntArrayRef2UInt8Array(at::IntArrayRef arr)
+{
+	assert(arr.size() == size);
+	UInt8Array<size> target;
+	for (uint8_t i = 0; i < size; i++)
+	{
+		target[i] = static_cast<uint8_t>(arr[i]);
+	}
+
+	return target;
+}
+
+template<typename T, uint8_t size>
 Array<T, size> vector2Array(std::vector<T>& vec)
 {
 	assert(vec.size() == size);
 	Array<T, size> target;
-	for (size_t i = 0; i < size; i++)
+	for (uint8_t i = 0; i < size; i++)
 	{
 		target[i] = vec[i];
 	}
@@ -79,12 +113,12 @@ Array<T, size> vector2Array(std::vector<T>& vec)
 	return target;
 }
 
-template<typename T, uint32_t size>
+template<typename T, uint8_t size>
 __host__ __device__ T multiply_elements(const Array<T, size>& arr)
 {
 	T mul = 1;
 
-	for (size_t i = 0; i < size; i++)
+	for (uint8_t i = 0; i < size; i++)
 	{
 		mul *= arr[i];
 	}
@@ -92,15 +126,29 @@ __host__ __device__ T multiply_elements(const Array<T, size>& arr)
 	return (T)mul;
 }
 
-template<uint32_t size>
-__host__ __device__ int32_t multiply_integers(const IntArray<size>& arr)
-{
-	int32_t mul = 1;
 
-	for (int32_t i = 0; i < size; i++)
+template<uint8_t size>
+__host__ __device__ uint32_t multiply_integers(const UInt16Array<size>& arr)
+{
+	uint32_t mul = 1;
+
+	for (uint8_t i = 0; i < size; i++)
 	{
 		mul *= arr[i];
 	}
 
-	return mul;
+	return (uint32_t)mul;
+}
+
+template<uint8_t size>
+__host__ __device__ uint16_t multiply_integers(const UInt8Array<size>& arr)
+{
+	uint16_t mul = 1;
+
+	for (uint8_t i = 0; i < size; i++)
+	{
+		mul *= arr[i];
+	}
+
+	return (uint16_t)mul;
 }
