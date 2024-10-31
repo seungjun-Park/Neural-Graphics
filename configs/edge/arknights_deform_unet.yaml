@@ -11,14 +11,14 @@ module:
         in_channels: 3
         out_channels: 1
         embed_dim: 16
-        hidden_dims: [32, 64, 128, 128 ]
+        hidden_dims: [16, 32, 32, 96, 128 ]
         num_blocks: 1
         dropout: 0.0
         drop_path: 0.1
         num_groups: 8
-        conv_groups: 2
+        conv_groups: 4
         deformable_groups: 4
-        deformable_group_channels: 2
+        deformable_group_channels: 4
         act: 'gelu'
         use_conv: True
         modulation_type: 'none'
@@ -117,4 +117,4 @@ trainer:
   accelerator: 'gpu'
   max_epochs: 300
   accumulate_grad_batches: 10
-  precision: 'bf16-mixed'
+  # precision: 'bf16-mixed'
