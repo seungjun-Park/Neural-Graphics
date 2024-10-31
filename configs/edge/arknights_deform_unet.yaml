@@ -70,7 +70,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 2000
+        size: 2048
         color_space: 'rgb'
 
     validation:
@@ -79,7 +79,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: False
-        size: 2000
+        size: 2048
         color_space: 'rgb'
 
 logger:
