@@ -16,7 +16,7 @@ module:
         dropout: 0.0
         drop_path: 0.1
         num_groups: 4
-        conv_groups: 1
+        conv_groups: 2
         deformable_groups: 4
         deformable_group_channels: 4
         act: 'gelu'
@@ -70,7 +70,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 2048
+        size: 2000
         color_space: 'rgb'
 
     validation:
@@ -79,7 +79,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: False
-        size: 2048
+        size: 2000
         color_space: 'rgb'
 
 logger:
