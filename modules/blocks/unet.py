@@ -306,7 +306,7 @@ class DeformableUNet(nn.Module):
                         dim=dim,
                         num_groups=num_groups,
                         conv_groups=conv_groups,
-                        deformable_groups=in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
+                        deformable_groups=in_ch // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -326,7 +326,7 @@ class DeformableUNet(nn.Module):
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
                         conv_groups=conv_groups,
-                        deformable_groups=in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
+                        deformable_groups=in_ch // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
                         modulation_type=modulation_type,
                     )
                 )
@@ -346,7 +346,7 @@ class DeformableUNet(nn.Module):
                         dim=dim,
                         num_groups=num_groups,
                         conv_groups=conv_groups,
-                        deformable_groups=in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
+                        deformable_groups=in_ch // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -358,14 +358,14 @@ class DeformableUNet(nn.Module):
                 skip_dim = skip_dims.pop()
                 self.decoder.append(
                     UpBlock(
-                        in_channels=in_ch + skip_dims,
+                        in_channels=in_ch + skip_dim,
                         out_channels=in_ch,
                         scale_factor=2,
                         mode=mode,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
                         conv_groups=conv_groups,
-                        deformable_groups=(in_ch + skip_dim) // deformable_group_channels if use_deformable_group_channels else deformable_groups,
+                        deformable_groups=(in_ch + skip_dim) // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
                         modulation_type=modulation_type,
                     )
                 )
