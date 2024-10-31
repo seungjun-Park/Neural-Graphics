@@ -14,6 +14,8 @@ class DownBlock(nn.Module):
                  out_channels: int = None,
                  num_groups: int = 1,
                  conv_groups: int = 1,
+                 deformable_groups: int = 1,
+                 modulation_type: str = 'none',
                  scale_factor: Union[int, float] = 2.0,
                  dim: int = 2,
                  pool_type: str = 'conv',
@@ -33,6 +35,18 @@ class DownBlock(nn.Module):
                                    stride=scale_factor,
                                    groups=conv_groups,
                                    )
+
+        elif pool_type == 'deform_conv':
+            self.pooling = deform_conv_nd(
+                dim,
+                in_channels,
+                out_channels,
+                kernel_size=scale_factor,
+                stride=scale_factor,
+                groups=conv_groups,
+                deformable_groups=deformable_groups,
+                modulation_type=modulation_type
+            )
 
         else:
             self.pooling = pool_nd(pool_type, dim=dim, kernel_size=scale_factor, stride=scale_factor)

@@ -254,7 +254,8 @@ class DeformableUNet(nn.Module):
                  drop_path: float = 0.0,
                  num_groups: int = 1,
                  conv_groups: int = 1,
-                 deformable_groups: Union[int, List[int], Tuple[int]] = 1,
+                 deformable_groups: int = 1,
+                 deformable_group_channels: int = None,
                  act: str = 'relu',
                  modulation_type: str = 'none',
                  use_conv: bool = True,
@@ -279,7 +280,7 @@ class DeformableUNet(nn.Module):
                     kernel_size=3,
                     stride=1,
                     padding=1,
-                    deformable_groups=1,
+                    deformable_groups=in_channels,
                 ),
                 group_norm(embed_dim, num_groups=1),
             )
@@ -287,6 +288,11 @@ class DeformableUNet(nn.Module):
 
         in_ch = embed_dim
         skip_dims = [embed_dim]
+
+        if deformable_group_channels is not None:
+            use_deformable_group_channels = True
+        else:
+            use_deformable_group_channels = False
 
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
@@ -300,7 +306,7 @@ class DeformableUNet(nn.Module):
                         dim=dim,
                         num_groups=num_groups,
                         conv_groups=conv_groups,
-                        deformable_groups=deformable_groups[i] if isinstance(num_groups, abc.Iterable) else deformable_groups,
+                        deformable_groups=in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -319,7 +325,9 @@ class DeformableUNet(nn.Module):
                         pool_type=pool_type,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
-                        conv_groups=conv_groups
+                        conv_groups=conv_groups,
+                        deformable_groups=in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
+                        modulation_type=modulation_type,
                     )
                 )
 
@@ -327,9 +335,10 @@ class DeformableUNet(nn.Module):
 
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
+                in_ch = in_ch + skip_dims.pop()
                 self.decoder.append(
                     DeformableResidualBlock(
-                        in_channels=in_ch + skip_dims.pop(),
+                        in_channels=in_ch,
                         out_channels=out_ch,
                         dropout=dropout,
                         drop_path=drop_path,
@@ -337,7 +346,7 @@ class DeformableUNet(nn.Module):
                         dim=dim,
                         num_groups=num_groups,
                         conv_groups=conv_groups,
-                        deformable_groups=deformable_groups[i] if isinstance(num_groups, abc.Iterable) else deformable_groups,
+                        deformable_groups=in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                         modulation_type=modulation_type,
@@ -346,27 +355,33 @@ class DeformableUNet(nn.Module):
                 in_ch = out_ch
 
             if i != 0:
+                skip_dim = skip_dims.pop()
                 self.decoder.append(
                     UpBlock(
-                        in_channels=in_ch + skip_dims.pop(),
+                        in_channels=in_ch + skip_dims,
                         out_channels=in_ch,
                         scale_factor=2,
                         mode=mode,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
                         conv_groups=conv_groups,
+                        deformable_groups=(in_ch + skip_dim) // deformable_group_channels if use_deformable_group_channels else deformable_groups,
+                        modulation_type=modulation_type,
                     )
                 )
+
+        in_ch = in_ch + skip_dims.pop()
 
         self.out = nn.Sequential(
             deform_conv_nd(
                 dim,
-                in_ch + skip_dims.pop(),
+                in_ch,
                 out_channels,
                 kernel_size=3,
                 stride=1,
                 padding=1,
-                deformable_groups=1,
+                groups=1,
+                deformable_groups=in_ch,
             )
         )
 

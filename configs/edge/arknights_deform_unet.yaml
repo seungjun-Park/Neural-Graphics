@@ -17,7 +17,8 @@ module:
         drop_path: 0.1
         num_groups: 8
         conv_groups: 2
-        deformable_groups: 8
+        deformable_groups: 4
+        deformable_group_channels: 2
         act: 'gelu'
         use_conv: True
         modulation_type: 'none'
@@ -61,7 +62,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 2
+    batch_size: 1
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
@@ -69,7 +70,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 512
+        size: 1024
         scale: [ 0.75, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -80,7 +81,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: False
-        size: 512
+        size: 1024
         scale: [ 0.75, 1.0 ]
         ratio: [ 1.0, 1.0 ]
         color_space: 'rgb'
@@ -115,5 +116,5 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   max_epochs: 300
-  accumulate_grad_batches: 5
-  precision: 'bf16'
+  accumulate_grad_batches: 10
+  precision: 'bf16-mixed'

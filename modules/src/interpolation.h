@@ -15,36 +15,36 @@ typename std::enable_if<(dim > IMPLEMENTED_DIM), T>::type
 linear_interp_nd(
     const T* data,
     const Array<T, dim>& coord,
-    const UInt16Array<dim>& data_size)
+    const IntArray<dim>& data_size)
 {
     // if idx < dim means coord_low, else coord_high.
-    Int32Array<dim * 2> coords;
+    IntArray<dim * 2> coords;
     Array<T, dim> ratios;
 
-    for (uint8_t i = 0; i < dim; i++)
+    for (int8_t i = 0; i < dim; i++)
     {
         coords[i] = floor(coord[i]);
         coords[i + dim] = coords[i] + 1;
         ratios[i] = coord[i] - coords[i];
     }
 
-    constexpr int32_t num_points = 1 << dim;
-    int32_t indice[dim] = { 0, };
+    constexpr int64_t num_points = 1 << dim;
+    int64_t indice[dim] = { 0, };
     // 0 means low, 1 means high coord.
-    int32_t elements[2] = { 0, 1 };
+    int64_t elements[2] = { 0, 1 };
 
     T val = 0;
 
     // compute points with repeated permutation.
-    for (int32_t idx = 0; idx < num_points; idx++)
+    for (int64_t idx = 0; idx < num_points; idx++)
     {
-        int32_t div = 1;
-        int32_t data_idx = 0;
+        int64_t div = 1;
+        int64_t data_idx = 0;
         T weight = 1;
         bool is_valid_data = true;
         for (int8_t i = dim - 1; i >= 0; i--)
         {
-            int32_t current_coord = coords[elements[indice[i]] * dim + i];
+            int64_t current_coord = coords[elements[indice[i]] * dim + i];
             if (current_coord < 0 || current_coord >= data_size[i])
             {
                 is_valid_data = false;
@@ -87,13 +87,14 @@ typename std::enable_if<(dim == 1), T>::type
 linear_interp_nd(
     const T* data,
     const Array<T, 1>& coord,
-    const UInt16Array<1>& data_size) {
+    const IntArray<1>& data_size) {
 
     /// data: [ element_length ] (1d).
     /// coord: 1d floating-point coordinate.
     /// data_size: size of data to each dimension. 
 
-    int32_t low = floor(coord[0]);
+    int64_t low = floor(coord[0]);
+    int64_t high = low + 1;
     
     // ratio
     T ratio = coord[0] - low;
@@ -103,8 +104,8 @@ linear_interp_nd(
     if (low >= 0 && low < data_size[0])
         v1 = data[low];
 
-    if ((low + 1) >= 0 && (low + 1) < data_size[0])
-        v2 = data[(low + 1)];
+    if (high >= 0 && high < data_size[0])
+        v2 = data[high];
 
     // weight for each values
     T val = (1.f - ratio) * v1 + ratio * v2;
@@ -119,16 +120,17 @@ typename std::enable_if<(dim == 2), T>::type
 linear_interp_nd(
     const T* data,
     const Array<T, 2>& coord,
-    const UInt16Array<2>& data_size) {
+    const IntArray<2>& data_size) {
 
     /// data: [ height, width ] (2d).
     /// coord: 2d floating-point coordinate.
     /// data_size: size of data to each dimension. 
 
-    int32_t h_low = floor(coord[0]);
-    
-    int32_t w_low = floor(coord[1]);
-    
+    int64_t h_low = floor(coord[0]);
+    int64_t h_high = h_low + 1;
+    int64_t w_low = floor(coord[1]);
+    int64_t w_high = w_low + 1;
+
     // ratio
     T ratio_h = coord[0] - h_low;
     T ratio_w = coord[1] - w_low;
@@ -138,14 +140,14 @@ linear_interp_nd(
     if (h_low >= 0 && h_low < data_size[0] && w_low >= 0 && w_low < data_size[1])
         v11 = data[h_low * data_size[1] + w_low];
 
-    if (h_low >= 0 && h_low < data_size[0] && (w_low + 1) >= 0 && (w_low + 1) < data_size[1])
-        v12 = data[h_low * data_size[1] + (w_low + 1)];
+    if (h_low >= 0 && h_low < data_size[0] && w_high >= 0 && w_high < data_size[1])
+        v12 = data[h_low * data_size[1] + w_high];
 
-    if ((h_low + 1) >= 0 && (h_low + 1) < data_size[0] && w_low >= 0 && w_low < data_size[1])
-        v21 = data[(h_low + 1) * data_size[1] + w_low];
+    if (h_high >= 0 && h_high < data_size[0] && w_low >= 0 && w_low < data_size[1])
+        v21 = data[h_high * data_size[1] + w_low];
 
-    if ((h_low + 1) >= 0 && (h_low + 1) < data_size[0] && (w_low + 1) >= 0 && (w_low + 1) < data_size[1])
-        v22 = data[(h_low + 1) * data_size[1] + (w_low + 1)];
+    if (h_high >= 0 && h_high < data_size[0] && w_high >= 0 && w_high < data_size[1])
+        v22 = data[h_high * data_size[1] + w_high];
 
     // weight
     T w11 = (1.f - ratio_h) * (1.f - ratio_w); 
@@ -165,19 +167,20 @@ typename std::enable_if<(dim == 3), T>::type
 linear_interp_nd(
     const T* data,
     const Array<T, 3>& coord,
-    const UInt16Array<3>& data_size) {
+    const IntArray<3>& data_size) {
 
     /// data: [ depth, height, width ] (3d).
     /// coord: 3d floating-point coordinate.
     /// data_size: size of data to each dimension. 
 
     // depth
-    int32_t d_low = floor(coord[0]);
-    
-    int32_t h_low = floor(coord[1]);
-    
-    int32_t w_low = floor(coord[2]);
-    
+    int64_t d_low = floor(coord[0]);
+    int64_t d_high = d_low + 1;
+    int64_t h_low = floor(coord[1]);
+    int64_t h_high = h_low + 1;
+    int64_t w_low = floor(coord[2]);
+    int64_t w_high = w_low + 1;
+
     // ratio
     T ratio_d = coord[0] - d_low;
     T ratio_h = coord[1] - h_low;
@@ -189,26 +192,26 @@ linear_interp_nd(
     if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
         v111 = data[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + w_low];
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        v211 = data[(d_low + 1) * data_size[1] * data_size[2] + h_low * data_size[2] + w_low];
+    if (d_high >= 0 && d_high < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        v211 = data[d_high * data_size[1] * data_size[2] + h_low * data_size[2] + w_low];
 
-    if (d_low >= 0 && d_low < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        v121 = data[d_low * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + w_low];
+    if (d_low >= 0 && d_low < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        v121 = data[d_low * data_size[1] * data_size[2] + h_high * data_size[2] + w_low];
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        v221 = data[(d_low + 1) * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + w_low];
+    if (d_high >= 0 && d_high < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        v221 = data[d_high * data_size[1] * data_size[2] + h_high * data_size[2] + w_low];
 
-    if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        v112 = data[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + (w_low + 1)];
+    if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        v112 = data[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + w_high];
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && h_low >= 0 && h_low < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        v212 = data[(d_low + 1) * data_size[1] * data_size[2] + h_low * data_size[2] + (w_low + 1)];
+    if (d_high >= 0 && d_high < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        v212 = data[d_high * data_size[1] * data_size[2] + h_low * data_size[2] + w_high];
 
-    if (d_low >= 0 && d_low < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        v122 = data[d_low * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + (w_low + 1)];
+    if (d_low >= 0 && d_low < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        v122 = data[d_low * data_size[1] * data_size[2] + h_high * data_size[2] + w_high];
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        v222 = data[(d_low + 1) * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + (w_low + 1)];
+    if (d_high >= 0 && d_high < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        v222 = data[d_high * data_size[1] * data_size[2] + h_high * data_size[2] + w_high];
 
     // weight
     T w111 = (1.f - ratio_d) * (1.f - ratio_h) * (1.f - ratio_w);
@@ -232,12 +235,12 @@ typename std::enable_if<(dim > IMPLEMENTED_DIM), Array<T, dim>>::type
 linear_interp_nd_grad(
     const T* data,
     const Array<T, dim>& coord,
-    const UInt16Array<dim>& data_size)
+    const IntArray<dim>& data_size)
 {
     Array<T, dim> grads;
 
     // if idx < dim means coord_low, else coord_high.
-    Int32Array<dim * 2> coords;
+    IntArray<dim * 2> coords;
     Array<T, dim> ratios;
 
     for (int8_t i = 0; i < dim; i++)
@@ -247,10 +250,10 @@ linear_interp_nd_grad(
         ratios[i] = coord[i] - coords[i];
     }
 
-    constexpr int32_t num_points = (1 << dim);
-    int32_t indice[dim] = { 0, };
+    constexpr int64_t num_points = (1 << dim);
+    int64_t indice[dim] = { 0, };
     // 0 means low, 1 means high coord.
-    int32_t elements[2] = { 0, 1 };
+    int64_t elements[2] = { 0, 1 };
 
     T points[num_points] = { 0, };
     T weights[num_points] = { 0, };
@@ -258,17 +261,17 @@ linear_interp_nd_grad(
     T val = 0;
 
     // compute points with repeated permutation.
-    for (int32_t idx = 0; idx < num_points; idx++)
+    for (int64_t idx = 0; idx < num_points; idx++)
     {
-        int32_t div = 1;
-        int32_t point_div = 1;
-        int32_t data_idx = 0;
-        int32_t point_idx = 0;
+        int64_t div = 1;
+        int64_t point_div = 1;
+        int64_t data_idx = 0;
+        int64_t point_idx = 0;
         T weight = 1;
         bool is_valid_data = true;
         for (int8_t i = dim - 1; i >= 0; i--)
         {
-            int32_t current_coord = coords[elements[indice[i]] * dim + i];
+            int64_t current_coord = coords[elements[indice[i]] * dim + i];
             if (current_coord < 0 || current_coord >= data_size[i])
             {
                 is_valid_data = false;
@@ -304,13 +307,13 @@ linear_interp_nd_grad(
         }
     }
 
-    for (int32_t i = 0; i < dim; i++)
+    for (int64_t i = 0; i < dim; i++)
     {
         T grad = 0;
-        for (int32_t point_idx = 0; point_idx < num_points; point_idx++)
+        for (int64_t point_idx = 0; point_idx < num_points; point_idx++)
         {
-            int32_t current_point_shape[dim];
-            int32_t point_div = 1;
+            int64_t current_point_shape[dim];
+            int64_t point_div = 1;
             for (int8_t j = dim - 1; j >= 0; j--)
             {
                 current_point_shape[j] = point_idx / point_div % 2;
@@ -331,13 +334,14 @@ typename std::enable_if<(dim == 1), Array<T, 1>>::type
 linear_interp_nd_grad(
     const T* data,
     const Array<T, 1>& coord,
-    const UInt16Array<1>& data_size) {
+    const IntArray<1>& data_size) {
 
     /// data: [ element_length ] (1d).
     /// coord: 1d floating-point coordinate.
     /// data_size: size of data to each dimension. 
 
-    int32_t low = floor(coord[0]);
+    int64_t low = floor(coord[0]);
+    int64_t high = low + 1;
 
     // ratio
     T ratio = coord[0] - low;
@@ -347,8 +351,8 @@ linear_interp_nd_grad(
     if (low >= 0 && low < data_size[0])
         v1 = data[low];
 
-    if ((low + 1) >= 0 && (low + 1) < data_size[0])
-        v2 = data[(low + 1)];
+    if (high >= 0 && high < data_size[0])
+        v2 = data[high];
 
     // weight for each values
     T grad = v2 - v1;
@@ -366,16 +370,17 @@ typename std::enable_if<(dim == 2), Array<T, 2>>::type
 linear_interp_nd_grad(
     const T* data,
     const Array<T, 2>& coord,
-    const UInt16Array<2>& data_size) {
+    const IntArray<2>& data_size) {
 
     /// data: [ height, width ] (2d).
     /// coord: 2d floating-point coordinate.
     /// data_size: size of data to each dimension. 
 
-    int32_t h_low = floor(coord[0]);
-    
-    int32_t w_low = floor(coord[1]);
-    
+    int64_t h_low = floor(coord[0]);
+    int64_t h_high = h_low + 1;
+    int64_t w_low = floor(coord[1]);
+    int64_t w_high = w_low + 1;
+
     // ratio
     T ratio_h = coord[0] - h_low;
     T ratio_w = coord[1] - w_low;
@@ -385,14 +390,14 @@ linear_interp_nd_grad(
     if (h_low >= 0 && h_low < data_size[0] && w_low >= 0 && w_low < data_size[1])
         v11 = data[h_low * data_size[1] + w_low];
 
-    if (h_low >= 0 && h_low < data_size[0] && (w_low + 1) >= 0 && (w_low + 1) < data_size[1])
-        v12 = data[h_low * data_size[1] + (w_low + 1)];
+    if (h_low >= 0 && h_low < data_size[0] && w_high >= 0 && w_high < data_size[1])
+        v12 = data[h_low * data_size[1] + w_high];
 
-    if ((h_low + 1) >= 0 && (h_low + 1) < data_size[0] && w_low >= 0 && w_low < data_size[1])
-        v21 = data[(h_low + 1) * data_size[1] + w_low];
+    if (h_high >= 0 && h_high < data_size[0] && w_low >= 0 && w_low < data_size[1])
+        v21 = data[h_high * data_size[1] + w_low];
 
-    if ((h_low + 1) >= 0 && (h_low + 1) < data_size[0] && (w_low + 1) >= 0 && (w_low + 1) < data_size[1])
-        v22 = data[(h_low + 1) * data_size[1] + (w_low + 1)];
+    if (h_high >= 0 && h_high < data_size[0] && w_high >= 0 && w_high < data_size[1])
+        v22 = data[h_high * data_size[1] + w_high];
 
     // gradient of height and width
     T grad_h = (v21 - v11) * (1 - ratio_w) + (v22 - v12) * ratio_w;
@@ -412,18 +417,19 @@ typename std::enable_if<(dim == 3), Array<T, 3>>::type
 linear_interp_nd_grad(
     const T* data,
     const Array<T, 3>& coord,
-    const UInt16Array<3>& data_size) {
+    const IntArray<3>& data_size) {
 
     /// data: [ depth, height, width ] (3d).
     /// coord: 3d floating-point coordinate.
     /// data_size: size of data to each dimension. 
 
     // depth
-    int32_t d_low = floor(coord[0]);
-    
-    int32_t h_low = floor(coord[1]);
-    
-    int32_t w_low = floor(coord[2]);
+    int64_t d_low = floor(coord[0]);
+    int64_t d_high = d_low + 1;
+    int64_t h_low = floor(coord[1]);
+    int64_t h_high = h_low + 1;
+    int64_t w_low = floor(coord[2]);
+    int64_t w_high = w_low + 1;
     
     // ratio
     T ratio_d = coord[0] - d_low;
@@ -436,26 +442,26 @@ linear_interp_nd_grad(
     if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
         v111 = data[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + w_low];
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        v211 = data[(d_low + 1) * data_size[1] * data_size[2] + h_low * data_size[2] + w_low];
+    if (d_high >= 0 && d_high < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        v211 = data[d_high * data_size[1] * data_size[2] + h_low * data_size[2] + w_low];
 
-    if (d_low >= 0 && d_low < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        v121 = data[d_low * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + w_low];
+    if (d_low >= 0 && d_low < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        v121 = data[d_low * data_size[1] * data_size[2] + h_high * data_size[2] + w_low];
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        v221 = data[(d_low + 1) * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + w_low];
+    if (d_high >= 0 && d_high < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        v221 = data[d_high * data_size[1] * data_size[2] + h_high * data_size[2] + w_low];
 
-    if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        v112 = data[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + (w_low + 1)];
+    if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        v112 = data[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + w_high];
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && h_low >= 0 && h_low < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        v212 = data[(d_low + 1) * data_size[1] * data_size[2] + h_low * data_size[2] + (w_low + 1)];
+    if (d_high >= 0 && d_high < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        v212 = data[d_high * data_size[1] * data_size[2] + h_low * data_size[2] + w_high];
 
-    if (d_low >= 0 && d_low < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        v122 = data[d_low * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + (w_low + 1)];
+    if (d_low >= 0 && d_low < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        v122 = data[d_low * data_size[1] * data_size[2] + h_high * data_size[2] + w_high];
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        v222 = data[(d_low + 1) * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + (w_low + 1)];
+    if (d_high >= 0 && d_high < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        v222 = data[d_high * data_size[1] * data_size[2] + h_high * data_size[2] + w_high];
 
     T grad_d = (1 - ratio_h) * (1 - ratio_w) * (v211 - v111) + ratio_h * (1 - ratio_w) * (v221 - v121) + (1 - ratio_h) * ratio_w * (v212 - v112) + ratio_h * ratio_w * (v222 - v122);
     T grad_h = (1 - ratio_d) * (1 - ratio_w) * (v121 - v111) + ratio_d * (1 - ratio_w) * (v221 - v211) + (1 - ratio_d) * ratio_w * (v122 - v112) + ratio_d * ratio_w * (v222 - v212);
@@ -478,11 +484,11 @@ linear_interp_nd_weight(
     const T col,
     const T attn_mask,
     const Array<T, dim>& coord,
-    const UInt16Array<dim>& data_size,
+    const IntArray<dim>& data_size,
     mapped_type<T>* data_grad)
 {
     // if idx < dim means coord_low, else coord_high.
-    Int32Array<dim * 2> coords;
+    IntArray<dim * 2> coords;
     Array<T, dim> ratios;
 
     for (int8_t i = 0; i < dim; i++)
@@ -492,21 +498,21 @@ linear_interp_nd_weight(
         ratios[i] = coord[i] - coords[i];
     }
 
-    constexpr int32_t num_points = 1 << dim;
-    int32_t indice[dim] = { 0, };
+    constexpr int64_t num_points = 1 << dim;
+    int64_t indice[dim] = { 0, };
     // 0 means low, 1 means high coord.
-    int32_t elements[2] = { 0, 1 };
+    int64_t elements[2] = { 0, 1 };
 
     // compute points with repeated permutation.
-    for (int32_t idx = 0; idx < num_points; idx++)
+    for (int64_t idx = 0; idx < num_points; idx++)
     {
-        int32_t div = 1;
-        int32_t data_idx = 0;
+        int64_t div = 1;
+        int64_t data_idx = 0;
         T weight = 1;
         bool is_valid_data = true;
         for (int8_t i = dim - 1; i >= 0; i--)
         {
-            int32_t current_coord = coords[elements[indice[i]] * dim + i];
+            int64_t current_coord = coords[elements[indice[i]] * dim + i];
             if (current_coord < 0 || current_coord >= data_size[i])
             {
                 is_valid_data = false;
@@ -551,7 +557,7 @@ linear_interp_nd_weight(
     const T col,
     const T attn_mask,
     const Array<T, 1>& coord,
-    const UInt16Array<1>& data_size,
+    const IntArray<1>& data_size,
     mapped_type<T>* data_grad)
 {
     /// col: specific value of columns which grad_output @ weight^T.
@@ -560,8 +566,9 @@ linear_interp_nd_weight(
     /// data_size: size of data to each dimension. 
     /// data_grad: [ elements ] (1d)
 
-    int32_t low = floor(coord[0]);
-    
+    int64_t low = floor(coord[0]);
+    int64_t high = low + 1;
+
     // ratio
     T ratio = coord[0] - low;
 
@@ -571,14 +578,14 @@ linear_interp_nd_weight(
     if (low >= 0 && low < data_size[0])
         atomicAdd(&data_grad[low], (mapped_type<T>)(w1 * attn_mask * col));
 
-    if ((low + 1) >= 0 && (low + 1) < data_size[0])
-        atomicAdd(&data_grad[(low + 1)], (mapped_type<T>)(w2 * attn_mask * col));
+    if (high >= 0 && high < data_size[0])
+        atomicAdd(&data_grad[high], (mapped_type<T>)(w2 * attn_mask * col));
 #else
     if (low >= 0 && low < data_size[0])
         ((T*)data_grad)[low] += w1 * attn_mask * col;
 
-    if ((low + 1) >= 0 && (low + 1) < data_size[0])
-        ((T*)data_grad)[(low + 1)] += w2 * attn_mask * col;
+    if (high >= 0 && high < data_size[0])
+        ((T*)data_grad)[high] += w2 * attn_mask * col;
 #endif // __CUDA_ARCH__
 }
 
@@ -589,7 +596,7 @@ linear_interp_nd_weight(
     const T col,
     const T attn_mask,
     const Array<T, 2>& coord,
-    const UInt16Array<2>& data_size,
+    const IntArray<2>& data_size,
     mapped_type<T>* data_grad)
 {
     /// col: specific value of columns which grad_output @ weight^T.
@@ -598,10 +605,11 @@ linear_interp_nd_weight(
     /// data_size: size of data to each dimension. 
     /// data_grad: [ hegith, width ] (2d)
 
-    int32_t h_low = floor(coord[0]);
-    
-    int32_t w_low = floor(coord[1]);
-    
+    int64_t h_low = floor(coord[0]);
+    int64_t h_high = h_low + 1;
+    int64_t w_low = floor(coord[1]);
+    int64_t w_high = w_low + 1;
+
     // ratio
     T ratio_h = coord[0] - h_low;
     T ratio_w = coord[1] - w_low;
@@ -618,19 +626,19 @@ linear_interp_nd_weight(
         atomicAdd(&data_grad[h_low * data_size[1] + w_low], (mapped_type<T>)(attn_mask * col * w11));
     }
 
-    if ((h_low + 1) >= 0 && (h_low + 1) < data_size[0] && w_low >= 0 && w_low < data_size[1])
+    if (h_high >= 0 && h_high < data_size[0] && w_low >= 0 && w_low < data_size[1])
     {
-        atomicAdd(&data_grad[(h_low + 1) * data_size[1] + w_low], (mapped_type<T>)(attn_mask * col * w21));
+        atomicAdd(&data_grad[h_high * data_size[1] + w_low], (mapped_type<T>)(attn_mask * col * w21));
     }
 
-    if (h_low >= 0 && h_low < data_size[0] && (w_low + 1) >= 0 && (w_low + 1) < data_size[1])
+    if (h_low >= 0 && h_low < data_size[0] && w_high >= 0 && w_high < data_size[1])
     {
-        atomicAdd(&data_grad[h_low * data_size[1] + (w_low + 1)], (mapped_type<T>)(attn_mask * col * w12));
+        atomicAdd(&data_grad[h_low * data_size[1] + w_high], (mapped_type<T>)(attn_mask * col * w12));
     }
 
-    if ((h_low + 1) >= 0 && (h_low + 1) < data_size[0] && (w_low + 1) >= 0 && (w_low + 1) < data_size[1])
+    if (h_high >= 0 && h_high < data_size[0] && w_high >= 0 && w_high < data_size[1])
     {
-        atomicAdd(&data_grad[(h_low + 1) * data_size[1] + (w_low + 1)], (mapped_type<T>)(attn_mask * col * w22));
+        atomicAdd(&data_grad[h_high * data_size[1] + w_high], (mapped_type<T>)(attn_mask * col * w22));
     }
 #else
     if (h_low >= 0 && h_low < data_size[0] && w_low >= 0 && w_low < data_size[1])
@@ -638,19 +646,19 @@ linear_interp_nd_weight(
         ((T*)data_grad)[h_low * data_size[1] + w_low] += attn_mask * col * w11;
     }
 
-    if ((h_low + 1) >= 0 && (h_low + 1) < data_size[0] && w_low >= 0 && w_low < data_size[1])
+    if (h_high >= 0 && h_high < data_size[0] && w_low >= 0 && w_low < data_size[1])
     {
-        ((T*)data_grad)[(h_low + 1) * data_size[1] + w_low] += attn_mask * col * w21;
+        ((T*)data_grad)[h_high * data_size[1] + w_low] += attn_mask * col * w21;
     }
 
-    if (h_low >= 0 && h_low < data_size[0] && (w_low + 1) >= 0 && (w_low + 1) < data_size[1])
+    if (h_low >= 0 && h_low < data_size[0] && w_high >= 0 && w_high < data_size[1])
     {
-        ((T*)data_grad)[h_low * data_size[1] + (w_low + 1)] += attn_mask * col * w12;
+        ((T*)data_grad)[h_low * data_size[1] + w_high] += attn_mask * col * w12;
     }
 
-    if ((h_low + 1) >= 0 && (h_low + 1) < data_size[0] && (w_low + 1) >= 0 && (w_low + 1) < data_size[1])
+    if (h_high >= 0 && h_high < data_size[0] && w_high >= 0 && w_high < data_size[1])
     {
-        ((T*)data_grad)[(h_low + 1) * data_size[1] + (w_low + 1)] += attn_mask * col * w22;
+        ((T*)data_grad)[h_high * data_size[1] + w_high] += attn_mask * col * w22;
     }
 #endif // __CUDA_ARCH__
 }
@@ -662,7 +670,7 @@ linear_interp_nd_weight(
     const T col,
     const T attn_mask,
     const Array<T, 3>& coord,
-    const UInt16Array<3>& data_size,
+    const IntArray<3>& data_size,
     mapped_type<T>* data_grad)
 {
     /// col: specific value of columns which grad_output @ weight^T.
@@ -672,12 +680,13 @@ linear_interp_nd_weight(
     /// data_grad: [ depth, hegith, width ] (3d)
 
     // depth
-    int32_t d_low = floor(coord[0]);
-    
-    int32_t h_low = floor(coord[1]);
+    int64_t d_low = floor(coord[0]);
+    int64_t d_high = (d_low + 1);
+    int64_t h_low = floor(coord[1]);
+    int64_t h_high = (h_low + 1);
+    int64_t w_low = floor(coord[2]);
+    int64_t w_high = (w_low + 1);
 
-    int32_t w_low = floor(coord[2]);
-    
     // ratio
     T ratio_d = coord[0] - d_low;
     T ratio_h = coord[1] - h_low;
@@ -697,49 +706,49 @@ linear_interp_nd_weight(
     if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
         atomicAdd(&data_grad[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + w_low], (mapped_type<T>)(w111 * attn_mask * col));
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        atomicAdd(&data_grad[(d_low + 1) * data_size[1] * data_size[2] + h_low * data_size[2] + w_low], (mapped_type<T>)(w211 * attn_mask * col));
+    if (d_high >= 0 && d_high < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        atomicAdd(&data_grad[d_high * data_size[1] * data_size[2] + h_low * data_size[2] + w_low], (mapped_type<T>)(w211 * attn_mask * col));
 
-    if (d_low >= 0 && d_low < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        atomicAdd(&data_grad[d_low * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + w_low], (mapped_type<T>)(w121 * attn_mask * col));
+    if (d_low >= 0 && d_low < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        atomicAdd(&data_grad[d_low * data_size[1] * data_size[2] + h_high * data_size[2] + w_low], (mapped_type<T>)(w121 * attn_mask * col));
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        atomicAdd(&data_grad[(d_low + 1) * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + w_low], (mapped_type<T>)(w221 * attn_mask * col));
+    if (d_high >= 0 && d_high < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        atomicAdd(&data_grad[d_high * data_size[1] * data_size[2] + h_high * data_size[2] + w_low], (mapped_type<T>)(w221 * attn_mask * col));
 
-    if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        atomicAdd(&data_grad[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + (w_low + 1)], (mapped_type<T>)(w112 * attn_mask * col));
+    if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        atomicAdd(&data_grad[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + w_high], (mapped_type<T>)(w112 * attn_mask * col));
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && h_low >= 0 && h_low < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        atomicAdd(&data_grad[(d_low + 1) * data_size[1] * data_size[2] + h_low * data_size[2] + (w_low + 1)], (mapped_type<T>)(w212 * attn_mask * col));
+    if (d_high >= 0 && d_high < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        atomicAdd(&data_grad[d_high * data_size[1] * data_size[2] + h_low * data_size[2] + w_high], (mapped_type<T>)(w212 * attn_mask * col));
 
-    if (d_low >= 0 && d_low < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        atomicAdd(&data_grad[d_low * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + (w_low + 1)], (mapped_type<T>)(w122 * attn_mask * col));
+    if (d_low >= 0 && d_low < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        atomicAdd(&data_grad[d_low * data_size[1] * data_size[2] + h_high * data_size[2] + w_high], (mapped_type<T>)(w122 * attn_mask * col));
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        atomicAdd(&data_grad[(d_low + 1) * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + (w_low + 1)], (mapped_type<T>)(w222 * attn_mask * col));
+    if (d_high >= 0 && d_high < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        atomicAdd(&data_grad[d_high * data_size[1] * data_size[2] + h_high * data_size[2] + w_high], (mapped_type<T>)(w222 * attn_mask * col));
 #else
     if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
         ((T*)data_grad)[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + w_low] += w111 * attn_mask * col;
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        ((T*)data_grad)[(d_low + 1) * data_size[1] * data_size[2] + h_low * data_size[2] + w_low] += w211 * attn_mask * col;
+    if (d_high >= 0 && d_high < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        ((T*)data_grad)[d_high * data_size[1] * data_size[2] + h_low * data_size[2] + w_low] += w211 * attn_mask * col;
 
-    if (d_low >= 0 && d_low < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        ((T*)data_grad)[d_low * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + w_low] += w121 * attn_mask * col;
+    if (d_low >= 0 && d_low < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        ((T*)data_grad)[d_low * data_size[1] * data_size[2] + h_high * data_size[2] + w_low] += w121 * attn_mask * col;
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && w_low >= 0 && w_low < data_size[2])
-        ((T*)data_grad)[(d_low + 1) * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + w_low] += w221 * attn_mask * col;
+    if (d_high >= 0 && d_high < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_low >= 0 && w_low < data_size[2])
+        ((T*)data_grad)[d_high * data_size[1] * data_size[2] + h_high * data_size[2] + w_low] += w221 * attn_mask * col;
 
-    if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        ((T*)data_grad)[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + (w_low + 1)] += w112 * attn_mask * col;
+    if (d_low >= 0 && d_low < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        ((T*)data_grad)[d_low * data_size[1] * data_size[2] + h_low * data_size[2] + w_high] += w112 * attn_mask * col;
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && h_low >= 0 && h_low < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        ((T*)data_grad)[(d_low + 1) * data_size[1] * data_size[2] + h_low * data_size[2] + (w_low + 1)] += w212 * attn_mask * col;
+    if (d_high >= 0 && d_high < data_size[0] && h_low >= 0 && h_low < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        ((T*)data_grad)[d_high * data_size[1] * data_size[2] + h_low * data_size[2] + w_high] += w212 * attn_mask * col;
 
-    if (d_low >= 0 && d_low < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        ((T*)data_grad)[d_low * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + (w_low + 1)] += w122 * attn_mask * col;
+    if (d_low >= 0 && d_low < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        ((T*)data_grad)[d_low * data_size[1] * data_size[2] + h_high * data_size[2] + w_high] += w122 * attn_mask * col;
 
-    if ((d_low + 1) >= 0 && (d_low + 1) < data_size[0] && (h_low + 1) >= 0 && (h_low + 1) < data_size[1] && (w_low + 1) >= 0 && (w_low + 1) < data_size[2])
-        ((T*)data_grad)[(d_low + 1) * data_size[1] * data_size[2] + (h_low + 1) * data_size[2] + (w_low + 1)] += w222 * attn_mask * col;
+    if (d_high >= 0 && d_high < data_size[0] && h_high >= 0 && h_high < data_size[1] && w_high >= 0 && w_high < data_size[2])
+        ((T*)data_grad)[d_high * data_size[1] * data_size[2] + h_high * data_size[2] + w_high] += w222 * attn_mask * col;
 #endif // __CUDA_ARCH__
 }

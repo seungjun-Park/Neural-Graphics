@@ -22,7 +22,7 @@ at::Tensor deform_conv_nd_forward_cpu(
 	const at::Tensor& bias) 
 {
 	auto k = weight.dim();
-	int8_t tensor_dim = k - 2;
+	int64_t tensor_dim = k - 2;
 
 	TORCH_CHECK(dim == tensor_dim);
 
@@ -44,14 +44,14 @@ at::Tensor deform_conv_nd_forward_cpu(
 	auto input_size = input.sizes();
 	auto output_size = output.sizes();
 
-	int32_t batch_size = input.size(0);
-	int32_t in_channels = input.size(1);
-	int32_t out_channels = weight.size(0);
-	int32_t grouped_in_channels = in_channels / groups;
-	int32_t grouped_out_channels = out_channels / groups;
+	int64_t batch_size = input.size(0);
+	int64_t in_channels = input.size(1);
+	int64_t out_channels = weight.size(0);
+	int64_t grouped_in_channels = in_channels / groups;
+	int64_t grouped_out_channels = out_channels / groups;
 
-	int32_t kernel_sizes = c10::multiply_integers(kernel_size);
-	int32_t output_sizes = c10::multiply_integers(output_size.slice(2));
+	int64_t kernel_sizes = c10::multiply_integers(kernel_size);
+	int64_t output_sizes = c10::multiply_integers(output_size.slice(2));
 
 	at::Tensor columns = at::zeros({ groups, grouped_in_channels * kernel_sizes, output_sizes }, input.options().memory_format(at::MemoryFormat::Contiguous));
 
@@ -69,12 +69,12 @@ at::Tensor deform_conv_nd_forward_cpu(
 				offset_field_n.const_data_ptr<scalar_t>(),
 				attn_mask_n.const_data_ptr<scalar_t>(),
 				grouped_in_channels,
-				IntArrayRef2UInt16Array<dim>(input_size.slice(2)),
-				IntArrayRef2UInt16Array<dim>(output_size.slice(2)),
-				IntArrayRef2UInt8Array<dim>(kernel_size),
-				IntArrayRef2UInt8Array<dim>(stride),
-				IntArrayRef2UInt8Array<dim>(padding),
-				IntArrayRef2UInt8Array<dim>(dilation),
+				IntArrayRef2IntArray<dim>(input_size.slice(2)),
+				IntArrayRef2IntArray<dim>(output_size.slice(2)),
+				IntArrayRef2IntArray<dim>(kernel_size),
+				IntArrayRef2IntArray<dim>(stride),
+				IntArrayRef2IntArray<dim>(padding),
+				IntArrayRef2IntArray<dim>(dilation),
 				groups,
 				deformable_groups,
 				columns.mutable_data_ptr<scalar_t>()
@@ -112,7 +112,7 @@ torch::autograd::tensor_list deform_conv_nd_backward_cpu(
 	const at::Tensor& bias) {
 
 	auto k = weight.dim();
-	int8_t tensor_dim = k - 2;
+	int64_t tensor_dim = k - 2;
 
 	TORCH_CHECK(dim == tensor_dim);
 
@@ -137,14 +137,14 @@ torch::autograd::tensor_list deform_conv_nd_backward_cpu(
 	auto input_size = input.sizes();
 	auto output_size = output.sizes();
 
-	int32_t batch_size = input.size(0);
-	int32_t in_channels = input.size(1);
-	int32_t out_channels = weight.size(0);
-	int32_t grouped_in_channels = in_channels / groups;
-	int32_t grouped_out_channels = out_channels / groups;
+	int64_t batch_size = input.size(0);
+	int64_t in_channels = input.size(1);
+	int64_t out_channels = weight.size(0);
+	int64_t grouped_in_channels = in_channels / groups;
+	int64_t grouped_out_channels = out_channels / groups;
 
-	int32_t kernel_sizes = c10::multiply_integers(kernel_size);
-	int32_t output_sizes = c10::multiply_integers(output_size.slice(2));
+	int64_t kernel_sizes = c10::multiply_integers(kernel_size);
+	int64_t output_sizes = c10::multiply_integers(output_size.slice(2));
 
 	AT_DISPATCH_FLOATING_TYPES_AND(at::kBFloat16, input.scalar_type(), "deform_conv_nd_backward<>", [&]() {
 
@@ -174,12 +174,12 @@ torch::autograd::tensor_list deform_conv_nd_backward_cpu(
 				offset_field_n.const_data_ptr<scalar_t>(),
 				attn_mask_n.const_data_ptr<scalar_t>(),
 				grouped_in_channels,
-				IntArrayRef2UInt16Array<dim>(input_size.slice(2)),
-				IntArrayRef2UInt16Array<dim>(output_size.slice(2)),
-				IntArrayRef2UInt8Array<dim>(kernel_size),
-				IntArrayRef2UInt8Array<dim>(stride),
-				IntArrayRef2UInt8Array<dim>(padding),
-				IntArrayRef2UInt8Array<dim>(dilation),
+				IntArrayRef2IntArray<dim>(input_size.slice(2)),
+				IntArrayRef2IntArray<dim>(output_size.slice(2)),
+				IntArrayRef2IntArray<dim>(kernel_size),
+				IntArrayRef2IntArray<dim>(stride),
+				IntArrayRef2IntArray<dim>(padding),
+				IntArrayRef2IntArray<dim>(dilation),
 				groups,
 				deformable_groups,
 				(mapped_type<scalar_t>*)grad_input_n.mutable_data_ptr<scalar_t>(),
@@ -194,12 +194,12 @@ torch::autograd::tensor_list deform_conv_nd_backward_cpu(
 				offset_field_n.const_data_ptr<scalar_t>(),
 				attn_mask_n.const_data_ptr<scalar_t>(),
 				grouped_in_channels,
-				IntArrayRef2UInt16Array<dim>(input_size.slice(2)),
-				IntArrayRef2UInt16Array<dim>(output_size.slice(2)),
-				IntArrayRef2UInt8Array<dim>(kernel_size),
-				IntArrayRef2UInt8Array<dim>(stride),
-				IntArrayRef2UInt8Array<dim>(padding),
-				IntArrayRef2UInt8Array<dim>(dilation),
+				IntArrayRef2IntArray<dim>(input_size.slice(2)),
+				IntArrayRef2IntArray<dim>(output_size.slice(2)),
+				IntArrayRef2IntArray<dim>(kernel_size),
+				IntArrayRef2IntArray<dim>(stride),
+				IntArrayRef2IntArray<dim>(padding),
+				IntArrayRef2IntArray<dim>(dilation),
 				groups,
 				deformable_groups,
 				columns.mutable_data_ptr<scalar_t>()

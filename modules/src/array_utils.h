@@ -32,34 +32,7 @@ struct Array
 };
 
 template<uint8_t size>
-using UInt8Array = Array<uint8_t, size>;
-
-template<uint8_t size>
-using Int8Array = Array<int8_t, size>;
-
-template<uint8_t size>
-using UInt16Array = Array<uint16_t, size>;
-
-template<uint8_t size>
-using Int16Array = Array<int16_t, size>;
-
-template<uint8_t size>
-using Int32Array = Array<int32_t, size>;
-
-template<uint8_t size>
-using UInt32Array = Array<uint32_t, size>;
-
-template<uint8_t size>
-using Int64Array = Array<int64_t, size>;
-
-template<uint8_t size>
-using UInt64Array = Array<uint64_t, size>;
-
-template<uint8_t size>
-using FloatArray = Array<float_t, size>;
-
-template<uint8_t size>
-using DoubleArray = Array<double_t, size>;
+using IntArray = Array<int64_t, size>;
 
 template<typename T, uint8_t size>
 Array<T, size> ArrayRef2Array(at::ArrayRef<T> arr)
@@ -75,26 +48,13 @@ Array<T, size> ArrayRef2Array(at::ArrayRef<T> arr)
 }
 
 template<uint8_t size>
-UInt16Array<size> IntArrayRef2UInt16Array(at::IntArrayRef arr)
+IntArray<size> IntArrayRef2IntArray(at::IntArrayRef arr)
 {
 	assert(arr.size() == size);
-	UInt16Array<size> target;
+	IntArray<size> target;
 	for (uint8_t i = 0; i < size; i++)
 	{
-		target[i] = static_cast<uint16_t>(arr[i]);
-	}
-
-	return target;
-}
-
-template<uint8_t size>
-UInt8Array<size> IntArrayRef2UInt8Array(at::IntArrayRef arr)
-{
-	assert(arr.size() == size);
-	UInt8Array<size> target;
-	for (uint8_t i = 0; i < size; i++)
-	{
-		target[i] = static_cast<uint8_t>(arr[i]);
+		target[i] = arr[i];
 	}
 
 	return target;
@@ -128,27 +88,14 @@ __host__ __device__ T multiply_elements(const Array<T, size>& arr)
 
 
 template<uint8_t size>
-__host__ __device__ uint32_t multiply_integers(const UInt16Array<size>& arr)
+__host__ __device__ int64_t multiply_integers(const IntArray<size>& arr)
 {
-	uint32_t mul = 1;
+	int64_t mul = 1;
 
 	for (uint8_t i = 0; i < size; i++)
 	{
 		mul *= arr[i];
 	}
 
-	return (uint32_t)mul;
-}
-
-template<uint8_t size>
-__host__ __device__ uint16_t multiply_integers(const UInt8Array<size>& arr)
-{
-	uint16_t mul = 1;
-
-	for (uint8_t i = 0; i < size; i++)
-	{
-		mul *= arr[i];
-	}
-
-	return (uint16_t)mul;
+	return (int64_t)mul;
 }
