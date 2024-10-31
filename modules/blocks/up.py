@@ -45,7 +45,7 @@ class UpBlock(nn.Module):
             )
 
         self.up.append(
-            deform_conv_nd(
+            conv_nd(
                 dim,
                 in_channels,
                 out_channels,
@@ -53,22 +53,8 @@ class UpBlock(nn.Module):
                 stride=1,
                 padding=1,
                 groups=conv_groups,
-                deformable_groups=deformable_groups,
-                modulation_type=modulation_type
             )
         )
-
-        # self.up.append(
-        #     conv_nd(
-        #         dim,
-        #         in_channels,
-        #         out_channels,
-        #         kernel_size=3,
-        #         stride=1,
-        #         padding=1,
-        #         groups=conv_groups,
-        #     )
-        # )
 
         self.up = nn.Sequential(*self.up)
 
