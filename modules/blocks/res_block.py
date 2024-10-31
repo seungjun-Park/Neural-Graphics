@@ -86,6 +86,7 @@ class DeformableResidualBlock(nn.Module):
                  num_groups: int = 1,
                  conv_groups: int = 1,
                  deformable_groups: int = 1,
+                 deformable_group_channels: int = None,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
                  modulation_type: str = 'none',
@@ -99,6 +100,11 @@ class DeformableResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
+        if deformable_group_channels is None:
+            use_deformable_group_channels = False
+        else:
+            use_deformable_group_channels = True
+
         self.block = nn.Sequential(
             deform_conv_nd(
                 dim=dim,
@@ -109,7 +115,7 @@ class DeformableResidualBlock(nn.Module):
                 stride=1,
                 dilation=1,
                 groups=conv_groups,
-                deformable_groups=deformable_groups,
+                deformable_groups=in_channels // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
                 bias=True,
                 modulation_type=modulation_type,
             ),
@@ -128,7 +134,7 @@ class DeformableResidualBlock(nn.Module):
                 stride=1,
                 dilation=1,
                 groups=conv_groups,
-                deformable_groups=deformable_groups,
+                deformable_groups=out_channels // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
                 bias=True,
                 modulation_type=modulation_type,
             ),
