@@ -247,6 +247,7 @@ class EfficientDeformableUnetBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int = None,
+                 mlp_ratio: float = 4.0,
                  num_groups: int = 16,
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
@@ -254,7 +255,6 @@ class EfficientDeformableUnetBlock(nn.Module):
                  qkv_bias: bool = True,
                  proj_bias: bool = True,
                  act: str = 'relu',
-                 use_conv: bool = True,
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  ):
@@ -274,22 +274,30 @@ class EfficientDeformableUnetBlock(nn.Module):
             use_checkpoint=use_checkpoint
         )
 
-        self.res_block = EfficientDeformableResidualBlock(
+        self.mlp = ConvMLP(
             in_channels=in_channels,
+            embed_dim=int(in_channels * mlp_ratio),
             out_channels=out_channels,
             dropout=dropout,
-            drop_path=drop_path,
             act=act,
             dim=dim,
-            num_groups=num_groups,
-            use_checkpoint=use_checkpoint,
-            use_conv=use_conv
+            use_checkpoint=use_checkpoint
         )
+
+        self.norm = group_norm(in_channels, num_groups=1)
+        self.norm2 = group_norm(out_channels, num_groups=1)
+        self.act = get_act(act)
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+        if in_channels == out_channels:
+            self.shortcut = nn.Identity()
+        else:
+            self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = self.attn(x)
-        h = self.norm(x + self.drop_path(h))
-        h = self.res_block(h)
+        h = self.act(self.norm(x + self.drop_path(h)))
+        h = self.act(self.norm2(self.shortcut(h) + self.drop_path(self.mlp(h))))
 
         return h
 
@@ -301,6 +309,7 @@ class DeformableUNet(nn.Module):
                  embed_dim: int = 16,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
+                 mlp_ratio: float = 4.0,
                  dropout: float = 0.0,
                  attn_dropout: float = 0.0,
                  drop_path: float = 0.0,
@@ -342,13 +351,13 @@ class DeformableUNet(nn.Module):
                     EfficientDeformableUnetBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
+                        mlp_ratio=mlp_ratio,
                         num_groups=num_groups,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
                         act=act,
                         use_checkpoint=use_checkpoint,
-                        use_conv=use_conv,
                         dim=dim
                     )
                 )
@@ -377,13 +386,13 @@ class DeformableUNet(nn.Module):
                     EfficientDeformableUnetBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
+                        mlp_ratio=mlp_ratio,
                         num_groups=num_groups,
                         dropout=dropout,
                         attn_dropout=attn_dropout,
                         drop_path=drop_path,
                         act=act,
                         use_checkpoint=use_checkpoint,
-                        use_conv=use_conv,
                         dim=dim
                     )
                 )
