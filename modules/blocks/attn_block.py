@@ -872,6 +872,8 @@ class EfficientDeformableAttention(nn.Module):
 
     def _forward(self, x: torch.Tensor, context: torch.Tensor = None) -> torch.Tensor:
         q = self.q(x)
+        if context is None:
+            context = x
         k, v = self.kv(context).chunk(2, dim=1)
         attn = self.attn_block(torch.cat([q, k], dim=1))
 
