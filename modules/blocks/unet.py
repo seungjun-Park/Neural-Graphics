@@ -367,6 +367,8 @@ class DeformableUNet(nn.Module):
                 kernel_size=3,
                 stride=1,
                 padding=1,
+                kernel_size_off=7,
+                padding_off=3,
             )
         )
 
@@ -393,8 +395,8 @@ class DeformableUNet(nn.Module):
             h = block(h)
 
         h = torch.cat([h, hs.pop()], dim=1)
+        
         out_attn = self.out_attn(h)
-        b, c, *spatial = out_attn.shape
-        out = self.out(h) * F.softmax(out_attn.reshape(b, 1, -1, *spatial), dim=1).reshape(b, c, *spatial)
+        out = self.out(h) * out_attn.tanh()
 
         return out
