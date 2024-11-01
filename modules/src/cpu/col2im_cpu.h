@@ -49,6 +49,7 @@ col2im_nd_cpu(
                     // compute n-dimensional current kernel/output size
                     int64_t out_div = 1;
                     int64_t k_div = 1;
+                    int64_t in_div = 1;
                     for (int8_t i = dim - 1; i >= 0; i--)
                     {
                         current_output_size[i] = col / out_div % output_size[i];
