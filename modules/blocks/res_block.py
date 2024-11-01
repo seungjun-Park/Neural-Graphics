@@ -84,7 +84,6 @@ class EfficientDeformableResidualBlock(nn.Module):
                  act: str = 'relu',
                  dim: int = 2,
                  num_groups: int = 1,
-                 num_heads: int = 1,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
                  **ignored_kwargs,
@@ -97,38 +96,8 @@ class EfficientDeformableResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
-        assert out_channels % num_heads == 0
-        self.num_heads = num_heads
-
-        self.attn_block = nn.Sequential(
-            efficient_deform_conv_nd(
-                dim=dim,
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=3,
-                padding=1,
-                stride=1,
-                bias=True,
-            ),
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act),
-            nn.Dropout(dropout),
-            efficient_deform_conv_nd(
-                dim=dim,
-                in_channels=out_channels,
-                out_channels=out_channels,
-                kernel_size=3,
-                padding=1,
-                stride=1,
-                bias=True,
-            ),
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act),
-            nn.Dropout(dropout)
-        )
-
         self.block = nn.Sequential(
-            conv_nd(
+            efficient_deform_conv_nd(
                 dim=dim,
                 in_channels=in_channels,
                 out_channels=out_channels,
@@ -140,7 +109,7 @@ class EfficientDeformableResidualBlock(nn.Module):
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
             nn.Dropout(dropout),
-            conv_nd(
+            efficient_deform_conv_nd(
                 dim=dim,
                 in_channels=out_channels,
                 out_channels=out_channels,
@@ -178,7 +147,6 @@ class EfficientDeformableResidualBlock(nn.Module):
         return checkpoint(self._forward, (x, ), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        attn = self.attn_block(x)
-        h = self.block(x) * attn.tanh()
+        h = self.block(x)
 
         return self.norm(self.drop_path(h) + self.shortcut(x))
