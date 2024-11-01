@@ -55,7 +55,6 @@ setup(
     name="custom_op",
     version='1.0.0',
     author="seungjun-Park",
-    url="https://github.com/seungjun-Park/Pytorch-Implmentation-of-Deformable-Convolution-Nd",
     description="pytorch implementation for n-dimensional deformable convolution",
     ext_modules=get_extension(),
     cmdclass={"build_ext": torch.utils.cpp_extension.BuildExtension},

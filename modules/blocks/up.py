@@ -5,7 +5,6 @@ from typing import Union, List, Tuple
 
 from utils import conv_nd, group_norm, conv_transpose_nd
 from utils.checkpoints import checkpoint
-from modules.blocks.deform_conv import deform_conv_nd
 
 
 class UpBlock(nn.Module):
@@ -16,15 +15,13 @@ class UpBlock(nn.Module):
                  conv_groups: int = 1,
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
-                 deformable_groups: int = 1,
                  mode: str = 'nearest',
-                 modulation_type: str = 'none',
                  use_checkpoint: bool = True
                  ):
         super().__init__()
         mode = mode.lower()
         self.use_checkpoint = use_checkpoint
-        assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct', 'conv', 'deform_conv']
+        assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct', 'conv']
         self.mode = mode.lower()
         self.scale_factor = int(scale_factor)
 

@@ -10,18 +10,15 @@ module:
       params:
         in_channels: 3
         out_channels: 1
-        embed_dim: 8
-        hidden_dims: [ 16, 16, 32, 64, 96, 128 ]
+        embed_dim: 16
+        hidden_dims: [ 32, 64, 128, 256 ]
         num_blocks: 1
         dropout: 0.0
         drop_path: 0.1
-        num_groups: 4
-        conv_groups: 2
-        deformable_groups: 4
-        deformable_group_channels: 4
+        num_groups: 8
+        num_head_channels: 32
         act: 'gelu'
         use_conv: True
-        modulation_type: 'none'
         pool_type: 'conv'
         mode: 'bilinear'
         dim: 2

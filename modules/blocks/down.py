@@ -5,7 +5,6 @@ from typing import Union, Tuple, List
 
 from utils import conv_nd, pool_nd, group_norm
 from utils.checkpoints import checkpoint
-from modules.blocks.deform_conv import deform_conv_nd
 
 
 class DownBlock(nn.Module):
@@ -14,8 +13,6 @@ class DownBlock(nn.Module):
                  out_channels: int = None,
                  num_groups: int = 1,
                  conv_groups: int = 1,
-                 deformable_groups: int = 1,
-                 modulation_type: str = 'none',
                  scale_factor: Union[int, float] = 2.0,
                  dim: int = 2,
                  pool_type: str = 'conv',

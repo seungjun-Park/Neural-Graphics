@@ -6,22 +6,20 @@
 #include <c10/cuda/CUDAStream.h>
 
 #include <GPUInfo.h>
-#include <deform_conv_utils.h>
+#include <efficient_deform_conv_utils.h>
 #include <array_utils.h>
 #include <type_utils.h>
 
 template<int8_t dim>
-at::Tensor deform_conv_nd_forward_cuda(
+at::Tensor efficient_deform_conv_nd_forward_cuda(
 	const at::Tensor& input,
 	const at::Tensor& weight,
 	const at::Tensor& offset_field,
-	const at::Tensor& attn_mask,
 	at::IntArrayRef kernel_size,
 	at::IntArrayRef stride,
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	const int64_t groups,
-	const int64_t deformable_groups,
 	const at::Tensor& bias) {
 
 	auto k = weight.dim();
@@ -31,11 +29,10 @@ at::Tensor deform_conv_nd_forward_cuda(
 
 	at::Tensor undefined;
 
-	check_deform_conv_backend(
+	check_efficient_deform_conv_backend(
 		input,
 		weight,
 		offset_field,
-		attn_mask,
 		bias,
 		undefined,
 		at::Backend::CUDA
@@ -99,12 +96,10 @@ at::Tensor deform_conv_nd_forward_cuda(
 			int64_t batch_start = sub_batch_size * n;
 			at::Tensor input_n = input.slice(0, batch_start, batch_start + sub_batch_size);
 			at::Tensor offset_field_n = offset_field.slice(0, batch_start, batch_start + sub_batch_size);
-			at::Tensor attn_mask_n = attn_mask.slice(0, batch_start, batch_start + sub_batch_size);
 
 			im2col_nd_cuda<scalar_t, dim><<<num_blocks, block_size, 0, cudaStream>>>(
 				input_n.const_data_ptr<scalar_t>(),
 				offset_field_n.const_data_ptr<scalar_t>(),
-				attn_mask_n.const_data_ptr<scalar_t>(),
 				sub_batch_size,
 				grouped_in_channels,
 				IntArrayRef2IntArray<dim>(input_size.slice(2)),
@@ -114,7 +109,6 @@ at::Tensor deform_conv_nd_forward_cuda(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
-				deformable_groups,
 				columns.mutable_data_ptr<scalar_t>()
 			);
 
@@ -134,18 +128,16 @@ at::Tensor deform_conv_nd_forward_cuda(
 }
 
 template<int8_t dim>
-torch::autograd::tensor_list deform_conv_nd_backward_cuda(
+torch::autograd::tensor_list efficient_deform_conv_nd_backward_cuda(
 	const at::Tensor& input,
 	const at::Tensor& weight,
 	const at::Tensor& offset_field,
-	const at::Tensor& attn_mask,
 	const at::Tensor& grad_output,
 	at::IntArrayRef kernel_size,
 	at::IntArrayRef stride,
 	at::IntArrayRef padding,
 	at::IntArrayRef dilation,
 	const int64_t groups,
-	const int64_t deformable_groups,
 	const at::Tensor& bias) {
 
 	auto k = weight.dim();
@@ -153,11 +145,10 @@ torch::autograd::tensor_list deform_conv_nd_backward_cuda(
 
 	TORCH_CHECK(dim == tensor_dim);
 
-	check_deform_conv_backend(
+	check_efficient_deform_conv_backend(
 		input,
 		weight,
 		offset_field,
-		attn_mask,
 		bias,
 		grad_output,
 		at::Backend::CUDA
@@ -168,7 +159,6 @@ torch::autograd::tensor_list deform_conv_nd_backward_cuda(
 	at::Tensor grad_input = at::zeros_like(input);
 	at::Tensor grad_weight = at::zeros_like(weight);
 	at::Tensor grad_offset_field = at::zeros_like(offset_field);
-	at::Tensor grad_attn_mask = at::zeros_like(attn_mask);
 	at::Tensor grad_bias = bias.defined() ? at::zeros_like(bias) : at::Tensor();
 
 	// slice tensor sizes (b, c, *) to (*) 
@@ -228,11 +218,9 @@ torch::autograd::tensor_list deform_conv_nd_backward_cuda(
 
 			at::Tensor input_n = input.slice(0, batch_start, batch_start + sub_batch_size);
 			at::Tensor offset_field_n = offset_field.slice(0, batch_start, batch_start + sub_batch_size);
-			at::Tensor attn_mask_n = attn_mask.slice(0, batch_start, batch_start + sub_batch_size);
 
 			at::Tensor grad_input_n = grad_input.slice(0, batch_start, batch_start + sub_batch_size);
 			at::Tensor grad_offset_field_n = grad_offset_field.slice(0, batch_start, batch_start + sub_batch_size);
-			at::Tensor grad_attn_mask_n = grad_attn_mask.slice(0, batch_start, batch_start + sub_batch_size);
 			at::Tensor grad_output_n = grad_output.slice(0, batch_start, batch_start + sub_batch_size);
 
 			at::Tensor columns = torch::bmm(
@@ -245,7 +233,6 @@ torch::autograd::tensor_list deform_conv_nd_backward_cuda(
 				input_n.const_data_ptr<scalar_t>(),
 				columns.const_data_ptr<scalar_t>(),
 				offset_field_n.const_data_ptr<scalar_t>(),
-				attn_mask_n.const_data_ptr<scalar_t>(),
 				sub_batch_size,
 				grouped_in_channels,
 				IntArrayRef2IntArray<dim>(input_size.slice(2)),
@@ -255,17 +242,16 @@ torch::autograd::tensor_list deform_conv_nd_backward_cuda(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
-				deformable_groups,
 				(mapped_type<scalar_t>*)grad_input_n.mutable_data_ptr<scalar_t>(),
-				(mapped_type<scalar_t>*)grad_offset_field_n.mutable_data_ptr<scalar_t>(),
-				(mapped_type<scalar_t>*)grad_attn_mask_n.mutable_data_ptr<scalar_t>()
+				(mapped_type<scalar_t>*)grad_offset_field_n.mutable_data_ptr<scalar_t>()
 				);
+
+			columns.zero_();
 
 			// compute grad_weight = grad_output * col^T
 			im2col_nd_cuda<scalar_t, dim><<<num_blocks, block_size, 0, cudaStream>>>(
 				input_n.const_data_ptr<scalar_t>(),
 				offset_field_n.const_data_ptr<scalar_t>(),
-				attn_mask_n.const_data_ptr<scalar_t>(),
 				sub_batch_size,
 				grouped_in_channels,
 				IntArrayRef2IntArray<dim>(input_size.slice(2)),
@@ -275,7 +261,6 @@ torch::autograd::tensor_list deform_conv_nd_backward_cuda(
 				IntArrayRef2IntArray<dim>(padding),
 				IntArrayRef2IntArray<dim>(dilation),
 				groups,
-				deformable_groups,
 				columns.mutable_data_ptr<scalar_t>()
 			);
 
@@ -297,19 +282,19 @@ torch::autograd::tensor_list deform_conv_nd_backward_cuda(
 	at::Tensor undefined;
 
 	return {
-		grad_input, grad_weight, grad_offset_field, grad_attn_mask,
-		undefined, undefined, undefined, undefined, undefined, undefined,
+		grad_input, grad_weight, grad_offset_field,
+		undefined, undefined, undefined, undefined, undefined,
 		grad_bias
 	};
 }
 
 TORCH_LIBRARY_IMPL(custom_op, CUDA, m)
 {
-	m.impl("deform_conv1d_forward", &deform_conv_nd_forward_cuda<1>);
-	m.impl("deform_conv2d_forward", &deform_conv_nd_forward_cuda<2>);
-	m.impl("deform_conv3d_forward", &deform_conv_nd_forward_cuda<3>);
+	m.impl("efficient_deform_conv1d_forward", &efficient_deform_conv_nd_forward_cuda<1>);
+	m.impl("efficient_deform_conv2d_forward", &efficient_deform_conv_nd_forward_cuda<2>);
+	m.impl("efficient_deform_conv3d_forward", &efficient_deform_conv_nd_forward_cuda<3>);
 
-	m.impl("deform_conv1d_backward", &deform_conv_nd_backward_cuda<1>);
-	m.impl("deform_conv2d_backward", &deform_conv_nd_backward_cuda<2>);
-	m.impl("deform_conv3d_backward", &deform_conv_nd_backward_cuda<3>);
+	m.impl("efficient_deform_conv1d_backward", &efficient_deform_conv_nd_backward_cuda<1>);
+	m.impl("efficient_deform_conv2d_backward", &efficient_deform_conv_nd_backward_cuda<2>);
+	m.impl("efficient_deform_conv3d_backward", &efficient_deform_conv_nd_backward_cuda<3>);
 }

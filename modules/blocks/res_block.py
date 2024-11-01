@@ -6,7 +6,7 @@ from timm.models.layers import DropPath
 
 from typing import Union, List, Tuple
 from utils import get_act, conv_nd, group_norm, to_2tuple
-from modules.blocks.deform_conv import deform_conv_nd
+from modules.blocks.efficient_deform_conv import efficient_deform_conv_nd
 
 
 class ResidualBlock(nn.Module):
@@ -75,7 +75,7 @@ class ResidualBlock(nn.Module):
         return self.norm3(self.drop_path(h) + self.shortcut(x))
 
 
-class DeformableResidualBlock(nn.Module):
+class EfficientDeformableResidualBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int = None,
@@ -84,12 +84,9 @@ class DeformableResidualBlock(nn.Module):
                  act: str = 'relu',
                  dim: int = 2,
                  num_groups: int = 1,
-                 conv_groups: int = 1,
-                 deformable_groups: int = 1,
-                 deformable_group_channels: int = None,
+                 num_heads: int = 1,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
-                 modulation_type: str = 'none',
                  **ignored_kwargs,
                  ):
         super().__init__()
@@ -100,47 +97,61 @@ class DeformableResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
-        if deformable_group_channels is None:
-            use_deformable_group_channels = False
-        else:
-            use_deformable_group_channels = True
+        assert out_channels % num_heads == 0
+        self.num_heads = num_heads
 
-        self.block = nn.Sequential(
-            deform_conv_nd(
+        self.attn_block = nn.Sequential(
+            efficient_deform_conv_nd(
                 dim=dim,
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=3,
                 padding=1,
                 stride=1,
-                dilation=1,
-                groups=conv_groups,
-                deformable_groups=in_channels // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
                 bias=True,
-                modulation_type=modulation_type,
-                padding_off=2,
-                dilation_off=2,
+                kernel_size_off=7,
+                padding_off=3,
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
-            nn.Dropout(dropout)
-        )
-
-        self.block2 = nn.Sequential(
-            deform_conv_nd(
+            nn.Dropout(dropout),
+            efficient_deform_conv_nd(
                 dim=dim,
                 in_channels=out_channels,
                 out_channels=out_channels,
                 kernel_size=3,
                 padding=1,
                 stride=1,
-                dilation=1,
-                groups=conv_groups,
-                deformable_groups=out_channels // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
                 bias=True,
-                modulation_type=modulation_type,
-                padding_off=2,
-                dilation_off=2,
+                kernel_size_off=7,
+                padding_off=3,
+            ),
+            group_norm(out_channels, num_groups=num_groups),
+            get_act(act),
+            nn.Dropout(dropout)
+        )
+
+        self.block = nn.Sequential(
+            conv_nd(
+                dim=dim,
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=1,
+                stride=1,
+                bias=True,
+            ),
+            group_norm(out_channels, num_groups=num_groups),
+            get_act(act),
+            nn.Dropout(dropout),
+            conv_nd(
+                dim=dim,
+                in_channels=out_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=1,
+                stride=1,
+                bias=True,
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
@@ -168,7 +179,10 @@ class DeformableResidualBlock(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = checkpoint(self.block, (x,), self.block.parameters(), flag=self.use_checkpoint)
-        h = checkpoint(self.block2, (h,), self.block2.parameters(), flag=self.use_checkpoint)
+        return checkpoint(self._forward, (x, ), self.parameters(), flag=self.use_checkpoint)
+
+    def _forward(self, x: torch.Tensor) -> torch.Tensor:
+        attn = self.attn_block(x)
+        h = self.block(x) * attn.tanh()
 
         return self.norm(self.drop_path(h) + self.shortcut(x))

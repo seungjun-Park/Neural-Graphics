@@ -10,10 +10,10 @@ from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_a
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.attn_block import AttentionBlock
-from modules.blocks.res_block import ResidualBlock, DeformableResidualBlock
+from modules.blocks.res_block import ResidualBlock, EfficientDeformableResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
-from modules.blocks.deform_conv import deform_conv_nd
+from modules.blocks.efficient_deform_conv import efficient_deform_conv_nd
 
 
 class UnetBlock(nn.Module):
@@ -253,11 +253,9 @@ class DeformableUNet(nn.Module):
                  dropout: float = 0.0,
                  drop_path: float = 0.0,
                  num_groups: int = 1,
-                 conv_groups: int = 1,
-                 deformable_groups: int = 1,
-                 deformable_group_channels: int = None,
+                 num_heads: int = 1,
+                 num_head_channels: int = None,
                  act: str = 'relu',
-                 modulation_type: str = 'none',
                  use_conv: bool = True,
                  pool_type: str = 'conv',
                  mode: str = 'nearest',
@@ -273,14 +271,13 @@ class DeformableUNet(nn.Module):
 
         self.encoder.append(
             nn.Sequential(
-                deform_conv_nd(
+                conv_nd(
                     dim,
                     in_channels,
                     embed_dim,
                     kernel_size=3,
                     stride=1,
                     padding=1,
-                    deformable_groups=in_channels,
                 ),
                 group_norm(embed_dim, num_groups=1),
             )
@@ -289,15 +286,15 @@ class DeformableUNet(nn.Module):
         in_ch = embed_dim
         skip_dims = [embed_dim]
 
-        if deformable_group_channels is not None:
-            use_deformable_group_channels = True
+        if num_head_channels is None:
+            use_num_head_channels = False
         else:
-            use_deformable_group_channels = False
+            use_num_head_channels = True
 
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
                 self.encoder.append(
-                    DeformableResidualBlock(
+                    EfficientDeformableResidualBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
                         dropout=dropout,
@@ -305,12 +302,9 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        conv_groups=conv_groups,
-                        deformable_groups=deformable_groups,
-                        deformable_group_channels=deformable_group_channels,
+                        num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
-                        modulation_type=modulation_type,
                     )
                 )
 
@@ -326,9 +320,6 @@ class DeformableUNet(nn.Module):
                         pool_type=pool_type,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
-                        conv_groups=conv_groups,
-                        deformable_groups=in_ch // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
-                        modulation_type=modulation_type,
                     )
                 )
 
@@ -338,7 +329,7 @@ class DeformableUNet(nn.Module):
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
                 in_ch = in_ch + skip_dims.pop()
                 self.decoder.append(
-                    DeformableResidualBlock(
+                    EfficientDeformableResidualBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
                         dropout=dropout,
@@ -346,12 +337,9 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        conv_groups=conv_groups,
-                        deformable_groups=deformable_groups,
-                        deformable_group_channels=deformable_group_channels,
+                        num_heads=out_ch // num_head_channels if use_num_head_channels else num_heads,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
-                        modulation_type=modulation_type,
                     )
                 )
                 in_ch = out_ch
@@ -366,24 +354,30 @@ class DeformableUNet(nn.Module):
                         mode=mode,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
-                        conv_groups=conv_groups,
-                        deformable_groups=(in_ch + skip_dim) // (conv_groups * deformable_group_channels) if use_deformable_group_channels else deformable_groups,
-                        modulation_type=modulation_type,
                     )
                 )
 
         in_ch = in_ch + skip_dims.pop()
 
-        self.out = nn.Sequential(
-            deform_conv_nd(
+        self.out_attn = nn.Sequential(
+            efficient_deform_conv_nd(
                 dim,
                 in_ch,
                 out_channels,
                 kernel_size=3,
                 stride=1,
                 padding=1,
-                groups=1,
-                deformable_groups=in_ch,
+            )
+        )
+
+        self.out = nn.Sequential(
+            conv_nd(
+                dim,
+                in_ch,
+                out_channels,
+                kernel_size=3,
+                stride=1,
+                padding=1,
             )
         )
 
@@ -399,4 +393,8 @@ class DeformableUNet(nn.Module):
             h = block(h)
 
         h = torch.cat([h, hs.pop()], dim=1)
-        return self.out(h)
+        out_attn = self.out_attn(h)
+        b, c, *spatial = out_attn.shape
+        out = self.out(h) * F.softmax(out_attn.reshape(b, 1, -1, *spatial), dim=1).reshape(b, c, *spatial)
+
+        return out
