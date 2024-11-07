@@ -76,7 +76,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: False
-        size: 512
+        size: 1024
         color_space: 'rgb'
 
 logger:
