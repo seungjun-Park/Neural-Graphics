@@ -10,14 +10,13 @@ module:
       params:
         in_channels: 3
         out_channels: 1
-        embed_dim: 16
-        hidden_dims: [ 32, 64, 128, 256 ]
-        mlp_ratio: 2.0
+        embed_dim: 32
+        hidden_dims: [ 64, 128, 256, 256 ]
         num_blocks: 1
         dropout: 0.0
-        attn_dropout: 0.0
         drop_path: 0.1
         num_groups: 16
+        deformable_group_channels: 16
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
@@ -68,7 +67,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 512
+        size: 1024
         color_space: 'rgb'
 
     validation:

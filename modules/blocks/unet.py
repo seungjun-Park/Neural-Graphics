@@ -9,11 +9,11 @@ from omegaconf import ListConfig
 from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
-from modules.blocks.attn_block import AttentionBlock, EfficientDeformableAttention
-from modules.blocks.res_block import ResidualBlock, EfficientDeformableResidualBlock
+from modules.blocks.attn_block import AttentionBlock
+from modules.blocks.res_block import ResidualBlock, DeformableResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
-from modules.blocks.efficient_deform_conv import efficient_deform_conv_nd
+from modules.blocks.deform_conv import deform_conv_nd
 
 
 class UnetBlock(nn.Module):
@@ -243,65 +243,6 @@ class UNet(nn.Module):
         return self.out(h)
 
 
-class EfficientDeformableUnetBlock(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 out_channels: int = None,
-                 mlp_ratio: float = 4.0,
-                 num_groups: int = 16,
-                 dropout: float = 0.0,
-                 attn_dropout: float = 0.0,
-                 drop_path: float = 0.0,
-                 qkv_bias: bool = True,
-                 proj_bias: bool = True,
-                 act: str = 'relu',
-                 dim: int = 2,
-                 use_checkpoint: bool = True,
-                 ):
-        super().__init__()
-
-        out_channels = in_channels if out_channels is None else out_channels
-
-        self.attn = EfficientDeformableAttention(
-            in_channels=in_channels,
-            attn_dropout=attn_dropout,
-            proj_dropout=dropout,
-            qkv_bias=qkv_bias,
-            proj_bias=proj_bias,
-            act=act,
-            dim=dim,
-            num_groups=num_groups,
-            use_checkpoint=use_checkpoint
-        )
-
-        self.mlp = ConvMLP(
-            in_channels=in_channels,
-            embed_dim=int(in_channels * mlp_ratio),
-            out_channels=out_channels,
-            dropout=dropout,
-            act=act,
-            dim=dim,
-            use_checkpoint=use_checkpoint
-        )
-
-        self.norm = group_norm(in_channels, num_groups=1)
-        self.norm2 = group_norm(out_channels, num_groups=1)
-        self.act = get_act(act)
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-
-        if in_channels == out_channels:
-            self.shortcut = nn.Identity()
-        else:
-            self.shortcut = conv_nd(dim, in_channels, out_channels, kernel_size=1, stride=1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.attn(x)
-        h = self.act(self.norm(x + self.drop_path(h)))
-        h = self.act(self.norm2(self.shortcut(h) + self.drop_path(self.mlp(h))))
-
-        return h
-
-
 class DeformableUNet(nn.Module):
     def __init__(self,
                  in_channels: int,
@@ -309,11 +250,11 @@ class DeformableUNet(nn.Module):
                  embed_dim: int = 16,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
-                 mlp_ratio: float = 4.0,
                  dropout: float = 0.0,
-                 attn_dropout: float = 0.0,
                  drop_path: float = 0.0,
                  num_groups: int = 1,
+                 deformable_groups: int = 1,
+                 deformable_group_channels: int = None,
                  act: str = 'relu',
                  use_conv: bool = True,
                  pool_type: str = 'conv',
@@ -338,27 +279,32 @@ class DeformableUNet(nn.Module):
                     stride=1,
                     padding=1,
                 ),
-                group_norm(embed_dim, num_groups=1),
+                group_norm(embed_dim, num_groups=num_groups),
             )
         )
 
         in_ch = embed_dim
         skip_dims = [embed_dim]
 
+        if deformable_group_channels is None:
+            use_deformable_group_channels = False
+        else:
+            use_deformable_group_channels = True
+
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
                 self.encoder.append(
-                    EfficientDeformableUnetBlock(
+                    DeformableResidualBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
-                        mlp_ratio=mlp_ratio,
-                        num_groups=num_groups,
                         dropout=dropout,
-                        attn_dropout=attn_dropout,
                         drop_path=drop_path,
                         act=act,
+                        dim=dim,
+                        num_groups=num_groups,
+                        deformable_groups= in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
                         use_checkpoint=use_checkpoint,
-                        dim=dim
+                        use_conv=use_conv,
                     )
                 )
 
@@ -379,21 +325,24 @@ class DeformableUNet(nn.Module):
 
                 skip_dims.append(in_ch)
 
+        hidden_dims.pop()
+        hidden_dims.insert(0, embed_dim)
+
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
                 in_ch = in_ch + skip_dims.pop()
                 self.decoder.append(
-                    EfficientDeformableUnetBlock(
+                    DeformableResidualBlock(
                         in_channels=in_ch,
                         out_channels=out_ch,
-                        mlp_ratio=mlp_ratio,
-                        num_groups=num_groups,
                         dropout=dropout,
-                        attn_dropout=attn_dropout,
                         drop_path=drop_path,
                         act=act,
+                        dim=dim,
+                        num_groups=num_groups,
+                        deformable_groups=in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
                         use_checkpoint=use_checkpoint,
-                        dim=dim
+                        use_conv=use_conv,
                     )
                 )
                 in_ch = out_ch
@@ -414,7 +363,7 @@ class DeformableUNet(nn.Module):
         in_ch = in_ch + skip_dims.pop()
 
         self.out = nn.Sequential(
-            efficient_deform_conv_nd(
+            conv_nd(
                 dim,
                 in_ch,
                 out_channels,

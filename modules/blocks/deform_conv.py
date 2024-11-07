@@ -4,10 +4,10 @@ import torch.nn.functional as F
 from typing import Union, List, Tuple
 
 import custom_op
-from utils import to_1tuple, to_2tuple, to_3tuple
+from utils import to_1tuple, to_2tuple, to_3tuple, multiply_integers
 
 
-class EfficientDeformConv1d(nn.Module):
+class DeformConv1d(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
@@ -17,27 +17,10 @@ class EfficientDeformConv1d(nn.Module):
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: int = 1,
                  bias: bool = True,
-                 kernel_size_off: Union[int, List[int], Tuple[int]] = 3,
-                 stride_off: Union[int, List[int], Tuple[int]] = 1,
-                 padding_off: Union[int, List[int], Tuple[int]] = 1,
-                 dilation_off: Union[int, List[int], Tuple[int]] = 1,
-                 groups_off: int = 1,
-                 bias_off: bool = True,
                  ):
         super().__init__()
 
         assert in_channels % groups == 0 and out_channels % groups == 0
-
-        self.offset_field = nn.Conv2d(
-            in_channels,
-            in_channels * 1,
-            kernel_size=kernel_size_off,
-            stride=stride_off,
-            padding=padding_off,
-            dilation=dilation_off,
-            groups=groups_off,
-            bias=bias_off
-        )
 
         self.kernel_size = to_1tuple(kernel_size)
         self.stride = to_1tuple(stride)
@@ -45,6 +28,44 @@ class EfficientDeformConv1d(nn.Module):
         self.dilation = to_1tuple(dilation)
         self.groups = groups
 
+        kernel_sizes = multiply_integers(self.kernel_size)
+
+        self.offset_field = nn.Sequential(
+            nn.Conv1d(
+                in_channels,
+                in_channels,
+                kernel_size=7,
+                stride=1,
+                padding=3,
+                groups=in_channels,
+            ),
+            nn.Conv1d(
+                in_channels,
+                groups * kernel_sizes,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+        )
+
+        self.attn_mask = nn.Sequential(
+            nn.Conv1d(
+                in_channels,
+                in_channels,
+                kernel_size=7,
+                stride=1,
+                padding=3,
+                groups=in_channels,
+            ),
+            nn.Conv1d(
+                in_channels,
+                groups * kernel_sizes,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+        )
+
         self.weight = nn.Parameter(torch.empty(out_channels, in_channels // groups, *self.kernel_size), requires_grad=True)
         if bias:
             self.bias = nn.Parameter(torch.empty(out_channels), requires_grad=True)
@@ -60,11 +81,13 @@ class EfficientDeformConv1d(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x)
+        attn_mask = self.attn_mask(x)
 
-        return torch.ops.custom_op.efficient_deform_conv1d(
+        return torch.ops.custom_op.deform_conv1d(
             x,
             self.weight,
             offset_field,
+            attn_mask,
             self.kernel_size,
             self.stride,
             self.padding,
@@ -74,7 +97,7 @@ class EfficientDeformConv1d(nn.Module):
         )
 
 
-class EfficientDeformConv2d(nn.Module):
+class DeformConv2d(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
@@ -84,27 +107,10 @@ class EfficientDeformConv2d(nn.Module):
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: int = 1,
                  bias: bool = True,
-                 kernel_size_off: Union[int, List[int], Tuple[int]] = 3,
-                 stride_off: Union[int, List[int], Tuple[int]] = 1,
-                 padding_off: Union[int, List[int], Tuple[int]] = 1,
-                 dilation_off: Union[int, List[int], Tuple[int]] = 1,
-                 groups_off: int = 1,
-                 bias_off: bool = True,
                  ):
         super().__init__()
 
         assert in_channels % groups == 0 and out_channels % groups == 0
-
-        self.offset_field = nn.Conv2d(
-            in_channels,
-            in_channels * 2,
-            kernel_size=kernel_size_off,
-            stride=stride_off,
-            padding=padding_off,
-            dilation=dilation_off,
-            groups=groups_off,
-            bias=bias_off
-        )
 
         self.kernel_size = to_2tuple(kernel_size)
         self.stride = to_2tuple(stride)
@@ -112,6 +118,44 @@ class EfficientDeformConv2d(nn.Module):
         self.dilation = to_2tuple(dilation)
         self.groups = groups
 
+        kernel_sizes = multiply_integers(self.kernel_size)
+
+        self.offset_field = nn.Sequential(
+            nn.Conv2d(
+                in_channels,
+                in_channels,
+                kernel_size=7,
+                stride=1,
+                padding=3,
+                groups=in_channels,
+            ),
+            nn.Conv2d(
+                in_channels,
+                groups * kernel_sizes * 2,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+        )
+
+        self.attn_mask = nn.Sequential(
+            nn.Conv2d(
+                in_channels,
+                in_channels,
+                kernel_size=7,
+                stride=1,
+                padding=3,
+                groups=in_channels,
+            ),
+            nn.Conv2d(
+                in_channels,
+                groups * kernel_sizes,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+        )
+
         self.weight = nn.Parameter(torch.empty(out_channels, in_channels // groups, *self.kernel_size), requires_grad=True)
         if bias:
             self.bias = nn.Parameter(torch.empty(out_channels), requires_grad=True)
@@ -127,11 +171,13 @@ class EfficientDeformConv2d(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x)
+        attn_mask = self.attn_mask(x)
 
-        return torch.ops.custom_op.efficient_deform_conv2d(
+        return torch.ops.custom_op.deform_conv2d(
             x,
             self.weight,
             offset_field,
+            attn_mask,
             self.kernel_size,
             self.stride,
             self.padding,
@@ -141,7 +187,7 @@ class EfficientDeformConv2d(nn.Module):
         )
 
 
-class EfficientDeformConv3d(nn.Module):
+class DeformConv3d(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
@@ -151,33 +197,54 @@ class EfficientDeformConv3d(nn.Module):
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: int = 1,
                  bias: bool = True,
-                 kernel_size_off: Union[int, List[int], Tuple[int]] = 3,
-                 stride_off: Union[int, List[int], Tuple[int]] = 1,
-                 padding_off: Union[int, List[int], Tuple[int]] = 1,
-                 dilation_off: Union[int, List[int], Tuple[int]] = 1,
-                 groups_off: int = 1,
-                 bias_off: bool = True,
                  ):
         super().__init__()
 
         assert in_channels % groups == 0 and out_channels % groups == 0
-
-        self.offset_field = nn.Conv2d(
-            in_channels,
-            in_channels * 3,
-            kernel_size=kernel_size_off,
-            stride=stride_off,
-            padding=padding_off,
-            dilation=dilation_off,
-            groups=groups_off,
-            bias=bias_off
-        )
 
         self.kernel_size = to_3tuple(kernel_size)
         self.stride = to_3tuple(stride)
         self.padding = to_3tuple(padding)
         self.dilation = to_3tuple(dilation)
         self.groups = groups
+
+        kernel_sizes = multiply_integers(self.kernel_size)
+
+        self.offset_field = nn.Sequential(
+            nn.Conv3d(
+                in_channels,
+                in_channels,
+                kernel_size=7,
+                stride=1,
+                padding=3,
+                groups=in_channels,
+            ),
+            nn.Conv3d(
+                in_channels,
+                groups * kernel_sizes * 3,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+        )
+
+        self.attn_mask = nn.Sequential(
+            nn.Conv3d(
+                in_channels,
+                in_channels,
+                kernel_size=7,
+                stride=1,
+                padding=3,
+                groups=in_channels,
+            ),
+            nn.Conv3d(
+                in_channels,
+                groups * kernel_sizes,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+        )
 
         self.weight = nn.Parameter(torch.empty(out_channels, in_channels // groups, *self.kernel_size), requires_grad=True)
         if bias:
@@ -194,11 +261,13 @@ class EfficientDeformConv3d(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x)
+        attn_mask = self.attn_mask(x)
 
-        return torch.ops.custom_op.efficient_deform_conv3d(
+        return torch.ops.custom_op.deform_conv3d(
             x,
             self.weight,
             offset_field,
+            attn_mask,
             self.kernel_size,
             self.stride,
             self.padding,
@@ -208,12 +277,12 @@ class EfficientDeformConv3d(nn.Module):
         )
 
 
-def efficient_deform_conv_nd(dim: int = 2, *args, **kwargs):
+def deform_conv_nd(dim: int = 2, *args, **kwargs):
     if dim == 1:
-        return EfficientDeformConv1d(*args, **kwargs)
+        return DeformConv1d(*args, **kwargs)
     elif dim == 2:
-        return EfficientDeformConv2d(*args, **kwargs)
+        return DeformConv2d(*args, **kwargs)
     elif dim == 3:
-        return EfficientDeformConv3d(*args, **kwargs)
+        return DeformConv3d(*args, **kwargs)
     else:
         raise NotImplementedError(f'{dim} is not supported.')

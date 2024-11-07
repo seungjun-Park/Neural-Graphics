@@ -6,7 +6,7 @@ from timm.models.layers import DropPath
 
 from typing import Union, List, Tuple
 from utils import get_act, conv_nd, group_norm, to_2tuple
-from modules.blocks.efficient_deform_conv import efficient_deform_conv_nd
+from modules.blocks.deform_conv import deform_conv_nd
 
 
 class ResidualBlock(nn.Module):
@@ -75,7 +75,7 @@ class ResidualBlock(nn.Module):
         return self.norm3(self.drop_path(h) + self.shortcut(x))
 
 
-class EfficientDeformableResidualBlock(nn.Module):
+class DeformableResidualBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int = None,
@@ -84,6 +84,7 @@ class EfficientDeformableResidualBlock(nn.Module):
                  act: str = 'relu',
                  dim: int = 2,
                  num_groups: int = 1,
+                 deformable_groups: int = 1,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
                  **ignored_kwargs,
@@ -97,7 +98,7 @@ class EfficientDeformableResidualBlock(nn.Module):
         self.use_checkpoint = use_checkpoint
 
         self.block = nn.Sequential(
-            efficient_deform_conv_nd(
+            deform_conv_nd(
                 dim=dim,
                 in_channels=in_channels,
                 out_channels=out_channels,
@@ -105,11 +106,12 @@ class EfficientDeformableResidualBlock(nn.Module):
                 padding=1,
                 stride=1,
                 bias=True,
+                groups=deformable_groups,
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
             nn.Dropout(dropout),
-            efficient_deform_conv_nd(
+            deform_conv_nd(
                 dim=dim,
                 in_channels=out_channels,
                 out_channels=out_channels,
@@ -117,6 +119,7 @@ class EfficientDeformableResidualBlock(nn.Module):
                 padding=1,
                 stride=1,
                 bias=True,
+                groups=deformable_groups,
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
@@ -128,15 +131,6 @@ class EfficientDeformableResidualBlock(nn.Module):
 
         if self.in_channels == self.out_channels:
             self.shortcut = nn.Identity()
-
-        elif use_conv:
-            self.shortcut = nn.Sequential(
-                conv_nd(dim=dim,
-                        in_channels=in_channels,
-                        out_channels=out_channels,
-                        kernel_size=3,
-                        padding=1),
-            )
 
         else:
             self.shortcut = nn.Sequential(

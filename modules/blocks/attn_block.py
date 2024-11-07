@@ -11,7 +11,6 @@ from functools import partial
 from utils.checkpoints import checkpoint
 
 from modules.blocks.mlp import MLP, ConvMLP
-from modules.blocks.efficient_deform_conv import efficient_deform_conv_nd
 from modules.blocks.positional_encoding import PositionalEncoding
 from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, functional_conv_nd, get_act
 from timm.models.layers import DropPath
@@ -811,75 +810,3 @@ class AttentionBlock(nn.Module):
         return self.attn(x, context)
 
 
-class EfficientDeformableAttention(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 attn_dropout: float = 0.0,
-                 proj_dropout: float = 0.0,
-                 qkv_bias: bool = True,
-                 proj_bias: bool = True,
-                 act: str = 'relu',
-                 dim: int = 2,
-                 num_groups: int = 1,
-                 use_checkpoint: bool = False,
-                 **ignored_kwargs,
-                 ):
-        super().__init__()
-
-        self.in_channels = in_channels
-        self.dim = dim
-        self.use_checkpoint = use_checkpoint
-
-        self.attn_block = nn.Sequential(
-            efficient_deform_conv_nd(
-                dim=dim,
-                in_channels=in_channels * 2,
-                out_channels=in_channels,
-                kernel_size=3,
-                padding=1,
-                stride=1,
-                bias=True,
-            ),
-            group_norm(in_channels, num_groups=num_groups),
-            get_act(act),
-            nn.Dropout(attn_dropout),
-            efficient_deform_conv_nd(
-                dim=dim,
-                in_channels=in_channels,
-                out_channels=in_channels,
-                kernel_size=3,
-                padding=1,
-                stride=1,
-                bias=True,
-            ),
-            group_norm(in_channels, num_groups=num_groups),
-            get_act(act),
-            nn.Dropout(attn_dropout)
-        )
-
-        self.attn_dropout = nn.Dropout(attn_dropout)
-        self.proj_dropout = nn.Dropout(proj_dropout)
-
-        self.q = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=qkv_bias)
-        self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, stride=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
-
-    def forward(self, x: torch.Tensor, context: torch.Tensor = None) -> torch.Tensor:
-        inputs = [x]
-        if context:
-            inputs.append(context)
-        return checkpoint(self._forward, inputs, self.parameters(), flag=self.use_checkpoint)
-
-    def _forward(self, x: torch.Tensor, context: torch.Tensor = None) -> torch.Tensor:
-        q = self.q(x)
-        if context is None:
-            context = x
-        k, v = self.kv(context).chunk(2, dim=1)
-        attn = self.attn_block(torch.cat([q, k], dim=1))
-
-        b, c, *spatial = attn.shape
-        attn = F.softmax(attn.reshape(b, c, -1), dim=-1).reshape(b, c, *spatial)
-        attn = self.attn_dropout(attn)
-        v = self.proj_dropout(self.proj(v * attn))
-
-        return v

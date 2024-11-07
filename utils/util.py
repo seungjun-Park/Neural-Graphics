@@ -277,6 +277,16 @@ to_4tuple = _ntuple(4)
 to_ntuple = _ntuple
 
 
+def multiply_integers(x) -> int:
+    mul = 1
+    if not isinstance(x, abc.Iterable):
+        return x
+    for i in x:
+        mul *= i
+
+    return int(mul)
+
+
 def _trunc_normal_(tensor, mean, std, a, b):
     # Cut & paste from PyTorch official master until it's in a few official releases - RW
     # Method based on https://people.sc.fsu.edu/~jburkardt/presentations/truncated_normal.pdf
