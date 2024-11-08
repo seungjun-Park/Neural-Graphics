@@ -361,9 +361,9 @@ class DeformableUNet(nn.Module):
                 dim,
                 in_ch,
                 out_channels,
-                kernel_size=3,
+                kernel_size=1,
                 stride=1,
-                padding=1,
+                padding=0,
                 groups=1,
                 deformable_groups_per_groups=in_ch,
             )
