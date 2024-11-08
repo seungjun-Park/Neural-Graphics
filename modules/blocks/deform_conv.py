@@ -16,6 +16,7 @@ class DeformConv1d(nn.Module):
                  padding: Union[int, List[int], Tuple[int]] = 0,
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: int = 1,
+                 deformable_groups_per_groups: int = 1,
                  bias: bool = True,
                  ):
         super().__init__()
@@ -27,6 +28,7 @@ class DeformConv1d(nn.Module):
         self.padding = to_1tuple(padding)
         self.dilation = to_1tuple(dilation)
         self.groups = groups
+        self.deformable_groups_per_groups = deformable_groups_per_groups
 
         kernel_sizes = multiply_integers(self.kernel_size)
 
@@ -41,7 +43,7 @@ class DeformConv1d(nn.Module):
             ),
             nn.Conv1d(
                 in_channels,
-                groups * kernel_sizes,
+                groups * deformable_groups_per_groups * kernel_sizes,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -59,7 +61,7 @@ class DeformConv1d(nn.Module):
             ),
             nn.Conv1d(
                 in_channels,
-                groups * kernel_sizes,
+                groups * deformable_groups_per_groups * kernel_sizes,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -93,6 +95,7 @@ class DeformConv1d(nn.Module):
             self.padding,
             self.dilation,
             self.groups,
+            self.deformable_groups_per_groups,
             self.bias
         )
 
@@ -106,6 +109,7 @@ class DeformConv2d(nn.Module):
                  padding: Union[int, List[int], Tuple[int]] = 0,
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: int = 1,
+                 deformable_groups_per_groups: int = 1,
                  bias: bool = True,
                  ):
         super().__init__()
@@ -117,6 +121,7 @@ class DeformConv2d(nn.Module):
         self.padding = to_2tuple(padding)
         self.dilation = to_2tuple(dilation)
         self.groups = groups
+        self.deformable_groups_per_groups = deformable_groups_per_groups
 
         kernel_sizes = multiply_integers(self.kernel_size)
 
@@ -131,7 +136,7 @@ class DeformConv2d(nn.Module):
             ),
             nn.Conv2d(
                 in_channels,
-                groups * kernel_sizes * 2,
+                groups * deformable_groups_per_groups * kernel_sizes * 2,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -149,7 +154,7 @@ class DeformConv2d(nn.Module):
             ),
             nn.Conv2d(
                 in_channels,
-                groups * kernel_sizes,
+                groups * deformable_groups_per_groups * kernel_sizes,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -183,6 +188,7 @@ class DeformConv2d(nn.Module):
             self.padding,
             self.dilation,
             self.groups,
+            self.deformable_groups_per_groups,
             self.bias
         )
 
@@ -196,6 +202,7 @@ class DeformConv3d(nn.Module):
                  padding: Union[int, List[int], Tuple[int]] = 0,
                  dilation: Union[int, List[int], Tuple[int]] = 1,
                  groups: int = 1,
+                 deformable_groups_per_groups: int = 1,
                  bias: bool = True,
                  ):
         super().__init__()
@@ -207,6 +214,7 @@ class DeformConv3d(nn.Module):
         self.padding = to_3tuple(padding)
         self.dilation = to_3tuple(dilation)
         self.groups = groups
+        self.deformable_groups_per_groups = deformable_groups_per_groups
 
         kernel_sizes = multiply_integers(self.kernel_size)
 
@@ -221,7 +229,7 @@ class DeformConv3d(nn.Module):
             ),
             nn.Conv3d(
                 in_channels,
-                groups * kernel_sizes * 3,
+                groups * deformable_groups_per_groups * kernel_sizes * 3,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -239,7 +247,7 @@ class DeformConv3d(nn.Module):
             ),
             nn.Conv3d(
                 in_channels,
-                groups * kernel_sizes,
+                groups * deformable_groups_per_groups * kernel_sizes,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -273,6 +281,7 @@ class DeformConv3d(nn.Module):
             self.padding,
             self.dilation,
             self.groups,
+            self.deformable_groups_per_groups,
             self.bias
         )
 

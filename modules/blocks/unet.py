@@ -286,11 +286,6 @@ class DeformableUNet(nn.Module):
         in_ch = embed_dim
         skip_dims = [embed_dim]
 
-        if deformable_group_channels is None:
-            use_deformable_group_channels = False
-        else:
-            use_deformable_group_channels = True
-
         for i, out_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
                 self.encoder.append(
@@ -302,7 +297,8 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        deformable_groups= in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
+                        deformable_groups=deformable_groups,
+                        deformable_group_channels=deformable_group_channels,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                     )
@@ -325,9 +321,6 @@ class DeformableUNet(nn.Module):
 
                 skip_dims.append(in_ch)
 
-        hidden_dims.pop()
-        hidden_dims.insert(0, embed_dim)
-
         for i, out_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
                 in_ch = in_ch + skip_dims.pop()
@@ -340,7 +333,8 @@ class DeformableUNet(nn.Module):
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        deformable_groups=in_ch // deformable_group_channels if use_deformable_group_channels else deformable_groups,
+                        deformable_groups=deformable_groups,
+                        deformable_group_channels=deformable_group_channels,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                     )
@@ -363,13 +357,15 @@ class DeformableUNet(nn.Module):
         in_ch = in_ch + skip_dims.pop()
 
         self.out = nn.Sequential(
-            conv_nd(
+            deform_conv_nd(
                 dim,
                 in_ch,
                 out_channels,
                 kernel_size=3,
                 stride=1,
                 padding=1,
+                groups=1,
+                deformable_groups_per_groups=in_ch,
             )
         )
 

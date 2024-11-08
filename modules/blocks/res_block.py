@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from utils.checkpoints import checkpoint
 from timm.models.layers import DropPath
+import math
 
 from typing import Union, List, Tuple
 from utils import get_act, conv_nd, group_norm, to_2tuple
@@ -85,6 +86,7 @@ class DeformableResidualBlock(nn.Module):
                  dim: int = 2,
                  num_groups: int = 1,
                  deformable_groups: int = 1,
+                 deformable_group_channels: int = None,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
                  **ignored_kwargs,
@@ -97,6 +99,14 @@ class DeformableResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
+        deformable_groups_per_groups = 1
+        if deformable_group_channels is not None:
+            use_deformable_channels = True
+            deformable_groups = math.gcd(in_channels // deformable_group_channels, out_channels // deformable_group_channels)
+            deformable_groups_per_groups = (in_channels // deformable_group_channels) // deformable_groups
+        else:
+            use_deformable_channels = False
+
         self.block = nn.Sequential(
             deform_conv_nd(
                 dim=dim,
@@ -107,6 +117,7 @@ class DeformableResidualBlock(nn.Module):
                 stride=1,
                 bias=True,
                 groups=deformable_groups,
+                deformable_groups_per_groups=deformable_groups_per_groups if use_deformable_channels else 1,
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
@@ -119,7 +130,8 @@ class DeformableResidualBlock(nn.Module):
                 padding=1,
                 stride=1,
                 bias=True,
-                groups=deformable_groups,
+                groups=out_channels // deformable_group_channels if use_deformable_channels else deformable_groups,
+                deformable_groups_per_groups=1,
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),

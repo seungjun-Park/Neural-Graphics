@@ -5,7 +5,7 @@
 #include <interpolation.h>
 #include <array_utils.h>
 #include <type_traits>
-
+#include <type_utils.h>
 
 ///////////////////     Implementation      ///////////////////////
 
@@ -16,7 +16,7 @@ col2im_nd_cpu(
     const T* data_col,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int64_t channels,
+    const int64_t grouped_channels,
     const IntArray<dim>& input_size,
     const IntArray<dim>& output_size,
     const IntArray<dim>& kernel_size,
@@ -24,10 +24,11 @@ col2im_nd_cpu(
     const IntArray<dim>& padding,
     const IntArray<dim>& dilation,
     const int64_t groups,
+    const int64_t deformable_groups_per_groups,
     mapped_type<T>* data_grad_im,
     mapped_type<T>* data_grad_offset_field,
-    mapped_type<T>* data_grad_attn_mask
-) {
+    mapped_type<T>* data_grad_attn_mask)
+{
     const int64_t kernel_sizes = multiply_integers(kernel_size);
     const int64_t output_sizes = multiply_integers(output_size);
     const int64_t input_sizes = multiply_integers(input_size);
@@ -37,15 +38,17 @@ col2im_nd_cpu(
 
     for (int64_t g = 0; g < groups; g++)
     {
-        for (int64_t ch = 0; ch < channels; ch++)
+        for (int64_t ch = 0; ch < grouped_channels; ch++)
         {
             for (int64_t k = 0; k < kernel_sizes; k++)
             {
                 for (int64_t col = 0; col < output_sizes; col++)
                 {
-                    int64_t col_idx = ((g * channels + ch) * kernel_sizes + k) * output_sizes + col;
-                    int64_t offset_field_idx = (g * kernel_sizes + k) * dim * output_sizes + col;
-                    int64_t attn_mask_idx = (g * kernel_sizes + k) * output_sizes + col;
+                    int64_t d_g = ch * deformable_groups_per_groups / grouped_channels;
+
+                    int64_t col_idx = ((g * grouped_channels + ch) * kernel_sizes + k) * output_sizes + col;
+                    int64_t offset_field_idx = ((g * deformable_groups_per_groups + d_g) * kernel_sizes + k) * dim * output_sizes + col;
+                    int64_t attn_mask_idx = ((g * deformable_groups_per_groups + d_g) * kernel_sizes + k) * output_sizes + col;
 
                     Array<T, dim> coord;
 
@@ -60,23 +63,23 @@ col2im_nd_cpu(
                         k_div *= kernel_size[i];
                         coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + data_offset_field[offset_field_idx + i * output_sizes];
                     }
+                    T val = linear_interp_nd<T, dim, is_channels_last>(data_im + ch * input_sizes, coord, input_size, grouped_channels * groups);
+                    ((T*)data_grad_attn_mask)[attn_mask_idx] += data_col[col_idx] * val;
 
-                    T val = linear_interp_nd<T, dim, is_channels_last>(data_im + ch * input_sizes, coord, input_size);
-                    *((T*)(data_grad_attn_mask + attn_mask_idx)) += data_col[col_idx] * val;
-
-                    Array<T, dim> grad_coord = linear_interp_nd_grad<T, dim, is_channels_last>(data_im + ch * input_sizes, coord, input_size);
+                    Array<T, dim> grad_coord = linear_interp_nd_grad<T, dim, is_channels_last>(data_im + ch * input_sizes, coord, input_size, grouped_channels * groups);
 
                     for (int8_t i = dim - 1; i >= 0; i--)
                     {
-                        *((T*)(data_grad_offset_field + offset_field_idx + i * output_sizes)) += data_col[col_idx] * grad_coord[i] * data_attn_mask[attn_mask_idx];
+                        ((T*)data_grad_offset_field)[offset_field_idx + i * output_sizes] += data_col[col_idx] * grad_coord[i] * data_attn_mask[attn_mask_idx];
                     }
 
-                    linear_interp_nd_weight<T, dim, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, data_grad_im + ch * input_sizes);
+                    linear_interp_nd_weight<T, dim, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, grouped_channels * groups, data_grad_im + ch * input_sizes);
                 }
             }
         }
-        data_im += channels * input_sizes;
-        data_grad_im += channels * input_sizes;
+
+        data_im += grouped_channels * input_sizes;
+        data_grad_im += grouped_channels * input_sizes;
     }
 }
 
@@ -87,7 +90,7 @@ col2im_nd_cpu(
     const T* data_col,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int64_t channels,
+    const int64_t grouped_channels,
     const IntArray<1>& input_size,
     const IntArray<1>& output_size,
     const IntArray<1>& kernel_size,
@@ -95,38 +98,41 @@ col2im_nd_cpu(
     const IntArray<1>& padding,
     const IntArray<1>& dilation,
     const int64_t groups,
+    const int64_t deformable_groups_per_groups,
     mapped_type<T>* data_grad_im,
     mapped_type<T>* data_grad_offset_field,
     mapped_type<T>* data_grad_attn_mask) {
 
     for (int64_t g = 0; g < groups; g++)
     {
-        for (int64_t ch = 0; ch < channels; ch++)
+        for (int64_t ch = 0; ch < grouped_channels; ch++)
         {
             for (int64_t k = 0; k < kernel_size[0]; k++)
             {
                 for (int64_t col = 0; col < output_size[0]; col++)
                 {
-                    int64_t col_idx = ((g * channels + ch) * kernel_size[0] + k) * output_size[0] + col;
-                    int64_t offset_field_idx = (g * kernel_size[0] + k) * output_size[0] + col;
-                    int64_t attn_mask_idx = (g * kernel_size[0] + k) * output_size[0] + col;
+                    int64_t d_g = ch * deformable_groups_per_groups / grouped_channels;
+
+                    int64_t col_idx = ((g * grouped_channels + ch) * kernel_size[0] + k) * output_size[0] + col;
+                    int64_t offset_field_idx = ((g * deformable_groups_per_groups + d_g) * kernel_size[0] + k) * output_size[0] + col;
+                    int64_t attn_mask_idx = ((g * deformable_groups_per_groups + d_g) * kernel_size[0] + k) * output_size[0] + col;
 
                     Array<T, 1> coord;
                     coord[0] = col * stride[0] - padding[0] + k * dilation[0] + data_offset_field[offset_field_idx];
 
-                    T val = linear_interp_nd<T, 1, is_channels_last>(data_im + ch * input_size[0], coord, input_size, channels * groups);
+                    T val = linear_interp_nd<T, 1, is_channels_last>(data_im + ch * input_size[0], coord, input_size, grouped_channels * groups);
+                    ((T*)data_grad_attn_mask)[attn_mask_idx] += data_col[col_idx] * val;
 
-                    *((T*)(data_grad_attn_mask + attn_mask_idx)) += data_col[col_idx] * val;
+                    Array<T, 1> grad_coord = linear_interp_nd_grad<T, 1, is_channels_last>(data_im + ch * input_size[0], coord, input_size, grouped_channels * groups);
 
-                    Array<T, 1> grad_coord = linear_interp_nd_grad<T, 1, is_channels_last>(data_im + ch * input_size[0], coord, input_size, channels * groups);
-                    *((T*)(data_grad_offset_field + offset_field_idx)) += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
+                    ((T*)data_grad_offset_field)[offset_field_idx + output_size[0]] += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
 
-                    linear_interp_nd_weight<T, 1, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, channels * groups, data_grad_im + ch * input_size[0]);
+                    linear_interp_nd_weight<T, 1, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, grouped_channels * groups, data_grad_im + ch * input_size[0]);
                 }
             }
         }
-        data_im += channels * input_size[0];
-        data_grad_im += channels * input_size[0];
+        data_im += grouped_channels * input_size[0];
+        data_grad_im += grouped_channels * input_size[0];
     }
 }
 
@@ -137,7 +143,7 @@ col2im_nd_cpu(
     const T* data_col,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int64_t channels,
+    const int64_t grouped_channels,
     const IntArray<2>& input_size,
     const IntArray<2>& output_size,
     const IntArray<2>& kernel_size,
@@ -145,6 +151,7 @@ col2im_nd_cpu(
     const IntArray<2>& padding,
     const IntArray<2>& dilation,
     const int64_t groups,
+    const int64_t deformable_groups_per_groups,
     mapped_type<T>* data_grad_im,
     mapped_type<T>* data_grad_offset_field,
     mapped_type<T>* data_grad_attn_mask) {
@@ -155,7 +162,7 @@ col2im_nd_cpu(
 
     for (int64_t g = 0; g < groups; g++)
     {
-        for (int64_t ch = 0; ch < channels; ch++)
+        for (int64_t ch = 0; ch < grouped_channels; ch++)
         {
             for (int64_t h_k = 0; h_k < kernel_size[0]; h_k++)
             {
@@ -165,32 +172,34 @@ col2im_nd_cpu(
                     {
                         for (int64_t w_col = 0; w_col < output_size[1]; w_col++)
                         {
-                            int64_t col_idx = ((((g * channels + ch) * kernel_size[0] + h_k) * kernel_size[1] + w_k) * output_size[0] + h_col) * output_size[1] + w_col;
-                            int64_t offset_field_idx = (((g * kernel_size[0] + h_k) * kernel_size[1] + w_k) * 2 * output_size[0] + h_col) * output_size[1] + w_col;
-                            int64_t attn_mask_idx = (((g * kernel_size[0] + h_k) * kernel_size[1] + w_k) * output_size[0] + h_col) * output_size[1] + w_col;
+                            int64_t d_g = ch * deformable_groups_per_groups / grouped_channels;
+
+                            int64_t col_idx = ((((g * grouped_channels + ch) * kernel_size[0] + h_k) * kernel_size[1] + w_k) * output_size[0] + h_col) * output_size[1] + w_col;
+                            int64_t offset_field_idx = ((((g * deformable_groups_per_groups + d_g) * kernel_size[0] + h_k) * kernel_size[1] + w_k) *
+                                2 * output_size[0] + h_col) * output_size[1] + w_col;
+                            int64_t attn_mask_idx = ((((g * deformable_groups_per_groups + d_g) * kernel_size[0] + h_k) * kernel_size[1] + w_k) *
+                                output_size[0] + h_col) * output_size[1] + w_col;
 
                             Array<T, 2> coord;
-
                             coord[0] = h_col * stride[0] - padding[0] + h_k * dilation[0] + data_offset_field[offset_field_idx];
                             coord[1] = w_col * stride[1] - padding[1] + w_k * dilation[1] + data_offset_field[offset_field_idx + output_sizes];
 
-                            T val = linear_interp_nd<T, 2, is_channels_last>(data_im + ch * input_sizes, coord, input_size, channels * groups);
-                            data_grad_attn_mask[attn_mask_idx] += (mapped_type<T>)(data_col[col_idx] * val);
+                            T val = linear_interp_nd<T, 2, is_channels_last>(data_im + ch * input_sizes, coord, input_size, grouped_channels * groups);
+                            ((T*)data_grad_attn_mask)[attn_mask_idx] += data_col[col_idx] * val;
 
-                            Array<T, 2> grad_coord = linear_interp_nd_grad<T, 2, is_channels_last>(data_im + ch * input_sizes, coord, input_size, channels * groups);
+                            Array<T, 2> grad_coord = linear_interp_nd_grad<T, 2, is_channels_last>(data_im + ch * input_sizes, coord, input_size, grouped_channels * groups);
 
-                            data_grad_offset_field[offset_field_idx] += (mapped_type<T>)(data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx]);
-                            data_grad_offset_field[offset_field_idx + output_sizes] += (mapped_type<T>)(data_col[col_idx] * grad_coord[1] * data_attn_mask[attn_mask_idx]);
+                            ((T*)data_grad_offset_field)[offset_field_idx] += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
+                            ((T*)data_grad_offset_field)[offset_field_idx + output_sizes] += data_col[col_idx] * grad_coord[1] * data_attn_mask[attn_mask_idx];
 
-                            linear_interp_nd_weight<T, 2, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, channels * groups, data_grad_im + ch * input_sizes);
+                            linear_interp_nd_weight<T, 2, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, grouped_channels * groups, data_grad_im + ch * input_sizes);
                         }
                     }
                 }
             }
         }
-
-        data_im += channels * input_sizes;
-        data_grad_im += channels * input_sizes;
+        data_im += grouped_channels * input_sizes;
+        data_grad_im += grouped_channels * input_sizes;
     }
 }
 
@@ -201,7 +210,7 @@ col2im_nd_cpu(
     const T* data_col,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int64_t channels,
+    const int64_t grouped_channels,
     const IntArray<3>& input_size,
     const IntArray<3>& output_size,
     const IntArray<3>& kernel_size,
@@ -209,6 +218,7 @@ col2im_nd_cpu(
     const IntArray<3>& padding,
     const IntArray<3>& dilation,
     const int64_t groups,
+    const int64_t deformable_groups_per_groups,
     mapped_type<T>* data_grad_im,
     mapped_type<T>* data_grad_offset_field,
     mapped_type<T>* data_grad_attn_mask) {
@@ -219,7 +229,7 @@ col2im_nd_cpu(
 
     for (int64_t g = 0; g < groups; g++)
     {
-        for (int64_t ch = 0; ch < channels; ch++)
+        for (int64_t ch = 0; ch < grouped_channels; ch++)
         {
             for (int64_t d_k = 0; d_k < kernel_size[0]; d_k++)
             {
@@ -233,27 +243,30 @@ col2im_nd_cpu(
                             {
                                 for (int64_t w_col = 0; w_col < output_size[2]; w_col++)
                                 {
-                                    int64_t col_idx = ((((((g * channels + ch) * kernel_size[0] + d_k) * kernel_size[1] + h_k) *
+                                    int64_t d_g = ch * deformable_groups_per_groups / grouped_channels;
+
+                                    int64_t col_idx = ((((((g * grouped_channels + ch) * kernel_size[0] + d_k) * kernel_size[1] + h_k) *
                                         kernel_size[2] + w_k) * output_size[0] + d_col) * output_size[1] + h_col) * output_size[2] + w_col;
-                                    int64_t offset_field_idx = (((((g * kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k) * 3 * 
-                                        output_size[0] + d_col) * output_size[1] + h_col) * output_size[2] + w_col;
-                                    int64_t attn_mask_idx = (((((g * kernel_size[0] + d_k) *kernel_size[1] + h_k) * kernel_size[2] + w_k) * 
-                                        output_size[0] + d_col) * output_size[1] + h_col) * output_size[2] + w_col;
+                                    int64_t offset_field_idx = ((((((g * deformable_groups_per_groups + d_g) * kernel_size[0] + d_k) * kernel_size[1] + h_k) *
+                                        kernel_size[2] + w_k) * 3 * output_size[0] + d_col) * output_size[1] + h_col) * output_size[2] + w_col;
+                                    int64_t attn_mask_idx = ((((((g * deformable_groups_per_groups + d_g) * kernel_size[0] + d_k) * kernel_size[1] + h_k) *
+                                        kernel_size[2] + w_k) * output_size[0] + d_col) * output_size[1] + h_col) * output_size[2] + w_col;
 
                                     Array<T, 3> coord;
                                     coord[0] = d_col * stride[0] - padding[0] + d_k * dilation[0] + data_offset_field[offset_field_idx];
                                     coord[1] = h_col * stride[1] - padding[1] + h_k * dilation[1] + data_offset_field[offset_field_idx + output_sizes];
                                     coord[2] = w_col * stride[2] - padding[2] + w_k * dilation[2] + data_offset_field[offset_field_idx + 2 * output_sizes];
 
-                                    T val = linear_interp_nd<T, 3, is_channels_last>(data_im + ch * input_sizes, coord, input_size, channels * groups);
-                                    *((T*)(data_grad_attn_mask + attn_mask_idx)) += data_col[col_idx] * val;
+                                    T val = linear_interp_nd<T, 3, is_channels_last>(data_im + ch * input_sizes, coord, input_size, grouped_channels * groups);
+                                    ((T*)data_grad_attn_mask)[attn_mask_idx] += data_col[col_idx] * val;
 
-                                    Array<T, 3> grad_coord = linear_interp_nd_grad<T, 3, is_channels_last>(data_im + ch * input_sizes, coord, input_size, channels * groups);
-                                    *((T*)(data_grad_offset_field + offset_field_idx)) += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
-                                    *((T*)(data_grad_offset_field + offset_field_idx + output_sizes)) += data_col[col_idx] * grad_coord[1] * data_attn_mask[attn_mask_idx];
-                                    *((T*)(data_grad_offset_field + offset_field_idx + 2 * output_sizes)) += data_col[col_idx] * grad_coord[2] * data_attn_mask[attn_mask_idx];
+                                    Array<T, 3> grad_coord = linear_interp_nd_grad<T, 3, is_channels_last>(data_im + ch * input_sizes, coord, input_size, grouped_channels * groups);
 
-                                    linear_interp_nd_weight<T, 3, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, channels * groups, data_grad_im + ch * input_sizes);
+                                    ((T*)data_grad_offset_field)[offset_field_idx] += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
+                                    ((T*)data_grad_offset_field)[offset_field_idx + output_sizes] += data_col[col_idx] * grad_coord[1] * data_attn_mask[attn_mask_idx];
+                                    ((T*)data_grad_offset_field)[offset_field_idx + 2 * output_sizes] += data_col[col_idx] * grad_coord[2] * data_attn_mask[attn_mask_idx];
+
+                                    linear_interp_nd_weight<T, 3, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, grouped_channels * groups, data_grad_im + ch * input_sizes);
                                 }
                             }
                         }
@@ -261,8 +274,8 @@ col2im_nd_cpu(
                 }
             }
         }
-        data_im += channels * input_sizes;
-        data_grad_im += channels * input_sizes;
+        data_im += grouped_channels * input_sizes;
+        data_grad_im += grouped_channels * input_sizes;
     }
 }
 
@@ -273,7 +286,7 @@ col2im_nd_cpu(
     const T* data_col,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int64_t channels,
+    const int64_t grouped_channels,
     const IntArray<dim>& input_size,
     const IntArray<dim>& output_size,
     const IntArray<dim>& kernel_size,
@@ -281,10 +294,11 @@ col2im_nd_cpu(
     const IntArray<dim>& padding,
     const IntArray<dim>& dilation,
     const int64_t groups,
+    const int64_t deformable_groups_per_groups,
     mapped_type<T>* data_grad_im,
     mapped_type<T>* data_grad_offset_field,
-    mapped_type<T>* data_grad_attn_mask
-) {
+    mapped_type<T>* data_grad_attn_mask)
+{
     const int64_t kernel_sizes = multiply_integers(kernel_size);
     const int64_t output_sizes = multiply_integers(output_size);
     const int64_t input_sizes = multiply_integers(input_size);
@@ -292,17 +306,20 @@ col2im_nd_cpu(
     int64_t current_output_size[dim];
     int64_t current_kernel_size[dim];
 
-    for (int64_t g = 0; g < groups; g++)
+    for (int64_t col = 0; col < output_sizes; col++)
     {
-        for (int64_t col = 0; col < output_sizes; col++)
+        for (int64_t g = 0; g < groups; g++)
         {
-            for (int64_t ch = 0; ch < channels; ch++)
+            for (int64_t ch = 0; ch < grouped_channels; ch++)
             {
                 for (int64_t k = 0; k < kernel_sizes; k++)
                 {
-                    int64_t col_idx = ((g * output_sizes + col) * channels + ch) * kernel_sizes + k;
-                    int64_t offset_field_idx = ((col * groups + g) * kernel_sizes + k) * dim;
-                    int64_t attn_mask_idx = ((col * groups + g) * kernel_sizes + k);
+                    int64_t d_g = ch * deformable_groups_per_groups / grouped_channels;
+
+                    int64_t im_idx = g * grouped_channels + ch;
+                    int64_t col_idx = ((col * groups + g) * grouped_channels + ch) * kernel_sizes + k;
+                    int64_t offset_field_idx = (((col * groups + g) * deformable_groups_per_groups + d_g) * kernel_sizes + k) * dim;
+                    int64_t attn_mask_idx = ((col * groups + g) * deformable_groups_per_groups + d_g) * kernel_sizes + k;
 
                     Array<T, dim> coord;
 
@@ -318,23 +335,20 @@ col2im_nd_cpu(
                         coord[i] = current_output_size[i] * stride[i] - padding[i] + current_kernel_size[i] * dilation[i] + data_offset_field[offset_field_idx + i];
                     }
 
-                    T val = linear_interp_nd<T, dim, is_channels_last>(data_im + ch, coord, input_size, channels * groups);
-                    *((T*)(data_grad_attn_mask + attn_mask_idx)) += data_col[col_idx] * val;
+                    T val = linear_interp_nd<T, dim, is_channels_last>(&data_im[im_idx], coord, input_size, grouped_channels * groups);
+                    ((T*)data_grad_attn_mask)[attn_mask_idx] += data_col[col_idx] * val;
 
-                    Array<T, dim> grad_coord = linear_interp_nd_grad<T, dim, is_channels_last>(data_im + ch, coord, input_size, channels * groups);
+                    Array<T, dim> grad_coord = linear_interp_nd_grad<T, dim, is_channels_last>(&data_im[im_idx], coord, input_size, grouped_channels * groups);
 
                     for (int8_t i = dim - 1; i >= 0; i--)
                     {
-                        *((T*)(data_grad_offset_field + offset_field_idx + i)) += data_col[col_idx] * grad_coord[i] * data_attn_mask[attn_mask_idx];
+                        ((T*)data_grad_offset_field)[offset_field_idx + i] += data_col[col_idx] * grad_coord[i] * data_attn_mask[attn_mask_idx];
                     }
 
-                    linear_interp_nd_weight<T, dim, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, channels * groups, data_grad_im + ch);
+                    linear_interp_nd_weight<T, dim, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, grouped_channels * groups, &data_grad_im[im_idx]);
                 }
             }
         }
-
-        data_im += channels;
-        data_grad_im += channels;
     }
 }
 
@@ -345,7 +359,7 @@ col2im_nd_cpu(
     const T* data_col,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int64_t channels,
+    const int64_t grouped_channels,
     const IntArray<1>& input_size,
     const IntArray<1>& output_size,
     const IntArray<1>& kernel_size,
@@ -353,38 +367,40 @@ col2im_nd_cpu(
     const IntArray<1>& padding,
     const IntArray<1>& dilation,
     const int64_t groups,
+    const int64_t deformable_groups_per_groups,
     mapped_type<T>* data_grad_im,
     mapped_type<T>* data_grad_offset_field,
     mapped_type<T>* data_grad_attn_mask) {
 
-    for (int64_t g = 0; g < groups; g++)
+    for (int64_t col = 0; col < output_size[0]; col++)
     {
-        for (int64_t col = 0; col < output_size[0]; col++)
+        for (int64_t g = 0; g < groups; g++)
         {
-            for (int64_t ch = 0; ch < channels; ch++)
+            for (int64_t ch = 0; ch < grouped_channels; ch++)
             {
                 for (int64_t k = 0; k < kernel_size[0]; k++)
                 {
-                    int64_t col_idx = ((g * output_size[0] + col) * channels + ch) * kernel_size[0] + k;
-                    int64_t offset_field_idx = ((col * groups + g) * kernel_size[0] + k);
-                    int64_t attn_mask_idx = ((col * groups + g) * kernel_size[0] + k);
+                    int64_t d_g = ch * deformable_groups_per_groups / grouped_channels;
+
+                    int64_t im_idx = g * grouped_channels + ch;
+                    int64_t col_idx = ((col * groups + g) * grouped_channels + ch) * kernel_size[0] + k;
+                    int64_t offset_field_idx = ((col * groups + g) * deformable_groups_per_groups + d_g) * kernel_size[0] + k;
+                    int64_t attn_mask_idx = ((col * groups + g) * deformable_groups_per_groups + d_g) * kernel_size[0] + k;
 
                     Array<T, 1> coord;
                     coord[0] = col * stride[0] - padding[0] + k * dilation[0] + data_offset_field[offset_field_idx];
 
-                    T val = linear_interp_nd<T, 1, is_channels_last>(data_im + ch, coord, input_size, channels * groups);
+                    T val = linear_interp_nd<T, 1, is_channels_last>(&data_im[im_idx], coord, input_size, grouped_channels * groups);
+                    ((T*)data_grad_attn_mask)[attn_mask_idx] += data_col[col_idx] * val;
 
-                    *((T*)(data_grad_attn_mask + attn_mask_idx)) += data_col[col_idx] * val;
+                    Array<T, 1> grad_coord = linear_interp_nd_grad<T, 1, is_channels_last>(&data_im[im_idx], coord, input_size, grouped_channels * groups);
 
-                    Array<T, 1> grad_coord = linear_interp_nd_grad<T, 1, is_channels_last>(data_im + ch, coord, input_size, channels * groups);
-                    *((T*)(data_grad_offset_field + offset_field_idx)) += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
+                    ((T*)data_grad_offset_field)[offset_field_idx] += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
 
-                    linear_interp_nd_weight<T, 1, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, channels * groups, data_grad_im + ch);
+                    linear_interp_nd_weight<T, 1, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, grouped_channels * groups, &data_grad_im[im_idx]);
                 }
             }
         }
-        data_im += channels;
-        data_grad_im += channels;
     }
 }
 
@@ -395,7 +411,7 @@ col2im_nd_cpu(
     const T* data_col,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int64_t channels,
+    const int64_t grouped_channels,
     const IntArray<2>& input_size,
     const IntArray<2>& output_size,
     const IntArray<2>& kernel_size,
@@ -403,6 +419,7 @@ col2im_nd_cpu(
     const IntArray<2>& padding,
     const IntArray<2>& dilation,
     const int64_t groups,
+    const int64_t deformable_groups_per_groups,
     mapped_type<T>* data_grad_im,
     mapped_type<T>* data_grad_offset_field,
     mapped_type<T>* data_grad_attn_mask) {
@@ -411,45 +428,45 @@ col2im_nd_cpu(
     int64_t output_sizes = multiply_integers<2>(output_size);
     int64_t kernel_sizes = multiply_integers<2>(kernel_size);
 
-    for (int64_t g = 0; g < groups; g++)
+    for (int64_t h_col = 0; h_col < output_size[0]; h_col++)
     {
-        for (int64_t h_col = 0; h_col < output_size[0]; h_col++)
+        for (int64_t w_col = 0; w_col < output_size[1]; w_col++)
         {
-            for (int64_t w_col = 0; w_col < output_size[1]; w_col++)
+            for (int64_t g = 0; g < groups; g++)
             {
-                for (int64_t ch = 0; ch < channels; ch++)
+                for (int64_t ch = 0; ch < grouped_channels; ch++)
                 {
                     for (int64_t h_k = 0; h_k < kernel_size[0]; h_k++)
                     {
                         for (int64_t w_k = 0; w_k < kernel_size[1]; w_k++)
                         {
-                            int64_t col_idx = ((((g * output_size[0] + h_col) * output_size[1] + w_col) * channels + ch) * kernel_size[0] + h_k) * kernel_size[1] + w_k;
-                            int64_t offset_field_idx = ((((h_col * output_size[1] + w_col) * groups + g) * kernel_size[0] + h_k) * kernel_size[1] + w_k) * 2;
-                            int64_t attn_mask_idx = ((((h_col * output_size[1] + w_col) * groups + g) * kernel_size[0] + h_k) * kernel_size[1] + w_k);
+                            int64_t d_g = ch * deformable_groups_per_groups / grouped_channels;
+
+                            int64_t im_idx = g * grouped_channels + ch;
+                            int64_t col_idx = ((((h_col * output_size[1] + w_col) * groups + g) * grouped_channels + ch) * kernel_size[0] + h_k) * kernel_size[1] + w_k;
+                            int64_t offset_field_idx = (((((h_col * output_size[1] + w_col) * groups + g) * deformable_groups_per_groups + d_g) *
+                                kernel_size[0] + h_k) * kernel_size[1] + w_k) * 2;
+                            int64_t attn_mask_idx = ((((h_col * output_size[1] + w_col) * groups + g) * deformable_groups_per_groups + d_g) *
+                                kernel_size[0] + h_k) * kernel_size[1] + w_k;
 
                             Array<T, 2> coord;
-
                             coord[0] = h_col * stride[0] - padding[0] + h_k * dilation[0] + data_offset_field[offset_field_idx];
                             coord[1] = w_col * stride[1] - padding[1] + w_k * dilation[1] + data_offset_field[offset_field_idx + 1];
 
+                            T val = linear_interp_nd<T, 2, is_channels_last>(&data_im[im_idx], coord, input_size, grouped_channels * groups);
+                            ((T*)data_grad_attn_mask)[attn_mask_idx] += data_col[col_idx] * val;
 
-                            T val = linear_interp_nd<T, 2, is_channels_last>(data_im + ch, coord, input_size, channels * groups);
-                            *((T*)(data_grad_attn_mask + attn_mask_idx)) += data_col[col_idx] * val;
+                            Array<T, 2> grad_coord = linear_interp_nd_grad<T, 2, is_channels_last>(&data_im[im_idx], coord, input_size, grouped_channels * groups);
 
-                            Array<T, 2> grad_coord = linear_interp_nd_grad<T, 2, is_channels_last>(data_im + ch, coord, input_size, channels * groups);
+                            ((T*)data_grad_offset_field)[offset_field_idx] += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
+                            ((T*)data_grad_offset_field)[offset_field_idx + 1] += data_col[col_idx] * grad_coord[1] * data_attn_mask[attn_mask_idx];
 
-                            *((T*)(data_grad_offset_field + offset_field_idx)) += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
-                            *((T*)(data_grad_offset_field + offset_field_idx + 1)) += data_col[col_idx] * grad_coord[1] * data_attn_mask[attn_mask_idx];
-
-                            linear_interp_nd_weight<T, 2, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, channels * groups, data_grad_im + ch);
+                            linear_interp_nd_weight<T, 2, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, grouped_channels * groups, &data_grad_im[im_idx]);
                         }
                     }
                 }
             }
         }
-
-        data_im += channels;
-        data_grad_im += channels;
     }
 }
 
@@ -460,7 +477,7 @@ col2im_nd_cpu(
     const T* data_col,
     const T* data_offset_field,
     const T* data_attn_mask,
-    const int64_t channels,
+    const int64_t grouped_channels,
     const IntArray<3>& input_size,
     const IntArray<3>& output_size,
     const IntArray<3>& kernel_size,
@@ -468,6 +485,7 @@ col2im_nd_cpu(
     const IntArray<3>& padding,
     const IntArray<3>& dilation,
     const int64_t groups,
+    const int64_t deformable_groups_per_groups,
     mapped_type<T>* data_grad_im,
     mapped_type<T>* data_grad_offset_field,
     mapped_type<T>* data_grad_attn_mask) {
@@ -476,15 +494,15 @@ col2im_nd_cpu(
     int64_t output_sizes = multiply_integers<3>(output_size);
     int64_t kernel_sizes = multiply_integers<3>(kernel_size);
 
-    for (int64_t g = 0; g < groups; g++)
+    for (int64_t d_col = 0; d_col < output_size[0]; d_col++)
     {
-        for (int64_t d_col = 0; d_col < output_size[0]; d_col++)
+        for (int64_t h_col = 0; h_col < output_size[1]; h_col++)
         {
-            for (int64_t h_col = 0; h_col < output_size[1]; h_col++)
+            for (int64_t w_col = 0; w_col < output_size[2]; w_col++)
             {
-                for (int64_t w_col = 0; w_col < output_size[2]; w_col++)
+                for (int64_t g = 0; g < groups; g++)
                 {
-                    for (int64_t ch = 0; ch < channels; ch++)
+                    for (int64_t ch = 0; ch < grouped_channels; ch++)
                     {
                         for (int64_t d_k = 0; d_k < kernel_size[0]; d_k++)
                         {
@@ -492,27 +510,31 @@ col2im_nd_cpu(
                             {
                                 for (int64_t w_k = 0; w_k < kernel_size[2]; w_k++)
                                 {
-                                    int64_t col_idx = ((((((g * output_size[0] + d_col) * output_size[1] + h_col) * output_size[1] + w_col) *
-                                        channels + ch) * kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k;
-                                    int64_t offset_field_idx = ((((((d_col * output_size[1] + h_col) * output_size[2] + w_col) * groups + g) *
-                                        kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k) * 3;
-                                    int64_t attn_mask_idx = ((((((d_col * output_size[1] + h_col) * output_size[2] + w_col) * groups + g) *
-                                        kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k);
+                                    int64_t d_g = ch * deformable_groups_per_groups / grouped_channels;
+
+                                    int64_t im_idx = g * grouped_channels + ch;
+                                    int64_t col_idx = (((((((d_col * output_size[1] + h_col) * output_size[2] + w_col) * groups + g) *
+                                        grouped_channels + ch) * kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k);
+                                    int64_t offset_field_idx = (((((((d_col * output_size[1] + h_col) * output_size[2] + w_col) *
+                                        groups + g) * deformable_groups_per_groups + d_g) * kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k) * 3;
+                                    int64_t attn_mask_idx = (((((((d_col * output_size[1] + h_col) * output_size[2] + w_col) *
+                                        groups + g) * deformable_groups_per_groups + d_g) * kernel_size[0] + d_k) * kernel_size[1] + h_k) * kernel_size[2] + w_k);
 
                                     Array<T, 3> coord;
                                     coord[0] = d_col * stride[0] - padding[0] + d_k * dilation[0] + data_offset_field[offset_field_idx];
                                     coord[1] = h_col * stride[1] - padding[1] + h_k * dilation[1] + data_offset_field[offset_field_idx + 1];
                                     coord[2] = w_col * stride[2] - padding[2] + w_k * dilation[2] + data_offset_field[offset_field_idx + 2];
 
-                                    T val = linear_interp_nd<T, 3, is_channels_last>(data_im + ch, coord, input_size, channels * groups);
-                                    *((T*)(data_grad_attn_mask + attn_mask_idx)) += data_col[col_idx] * val;
+                                    T val = linear_interp_nd<T, 3, is_channels_last>(&data_im[im_idx], coord, input_size, grouped_channels * groups);
+                                    ((T*)data_grad_attn_mask)[attn_mask_idx] += data_col[col_idx] * val;
 
-                                    Array<T, 3> grad_coord = linear_interp_nd_grad<T, 3, is_channels_last>(data_im + ch, coord, input_size, channels * groups);
-                                    *((T*)(data_grad_offset_field + offset_field_idx)) += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
-                                    *((T*)(data_grad_offset_field + offset_field_idx + 1)) += data_col[col_idx] * grad_coord[1] * data_attn_mask[attn_mask_idx];
-                                    *((T*)(data_grad_offset_field + offset_field_idx + 2)) += data_col[col_idx] * grad_coord[2] * data_attn_mask[attn_mask_idx];
+                                    Array<T, 3> grad_coord = linear_interp_nd_grad<T, 3, is_channels_last>(&data_im[im_idx], coord, input_size, grouped_channels * groups);
 
-                                    linear_interp_nd_weight<T, 3, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, channels * groups, data_grad_im + ch);
+                                    ((T*)data_grad_offset_field)[offset_field_idx] += data_col[col_idx] * grad_coord[0] * data_attn_mask[attn_mask_idx];
+                                    ((T*)data_grad_offset_field)[offset_field_idx + 1] += data_col[col_idx] * grad_coord[1] * data_attn_mask[attn_mask_idx];
+                                    ((T*)data_grad_offset_field)[offset_field_idx + 2] += data_col[col_idx] * grad_coord[2] * data_attn_mask[attn_mask_idx];
+
+                                    linear_interp_nd_weight<T, 3, is_channels_last>(data_col[col_idx], data_attn_mask[attn_mask_idx], coord, input_size, grouped_channels * groups, &data_grad_im[im_idx]);
                                 }
                             }
                         }
@@ -520,9 +542,5 @@ col2im_nd_cpu(
                 }
             }
         }
-
-        data_im += channels;
-        data_grad_im += channels;
     }
 }
-
