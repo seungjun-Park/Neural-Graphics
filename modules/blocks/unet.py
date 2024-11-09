@@ -356,16 +356,34 @@ class DeformableUNet(nn.Module):
 
         in_ch = in_ch + skip_dims.pop()
 
+        self.out_attn = nn.Sequential(
+            conv_nd(
+                dim,
+                in_ch,
+                in_ch,
+                kernel_size=7,
+                stride=1,
+                padding=3,
+                groups=in_ch,
+            ),
+            conv_nd(
+                dim,
+                in_ch,
+                in_ch,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+            )
+        )
+
         self.out = nn.Sequential(
-            deform_conv_nd(
+            conv_nd(
                 dim,
                 in_ch,
                 out_channels,
                 kernel_size=1,
                 stride=1,
                 padding=0,
-                groups=1,
-                deformable_groups_per_groups=in_ch,
             )
         )
 
@@ -382,4 +400,4 @@ class DeformableUNet(nn.Module):
 
         h = torch.cat([h, hs.pop()], dim=1)
 
-        return self.out(h)
+        return self.out(h * self.out_attn(h))
