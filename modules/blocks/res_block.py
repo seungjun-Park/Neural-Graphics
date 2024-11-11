@@ -87,6 +87,8 @@ class DeformableResidualBlock(nn.Module):
                  num_groups: int = 1,
                  deformable_groups: int = 1,
                  deformable_group_channels: int = None,
+                 offset_scale: float = 1.0,
+                 fix_center: bool = False,
                  use_checkpoint: bool = False,
                  use_conv: bool = True,
                  **ignored_kwargs,
@@ -101,11 +103,8 @@ class DeformableResidualBlock(nn.Module):
 
         deformable_groups_per_groups = 1
         if deformable_group_channels is not None:
-            use_deformable_channels = True
             deformable_groups = math.gcd(in_channels // deformable_group_channels, out_channels // deformable_group_channels)
             deformable_groups_per_groups = (in_channels // deformable_group_channels) // deformable_groups
-        else:
-            use_deformable_channels = False
 
         self.block = nn.Sequential(
             deform_conv_nd(
@@ -117,11 +116,16 @@ class DeformableResidualBlock(nn.Module):
                 stride=1,
                 bias=True,
                 groups=deformable_groups,
-                deformable_groups_per_groups=deformable_groups_per_groups if use_deformable_channels else 1,
+                deformable_groups_per_groups=deformable_groups_per_groups,
+                offset_scale=offset_scale,
+                fix_center=fix_center
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
             nn.Dropout(dropout),
+        )
+
+        self.block2 = nn.Sequential(
             deform_conv_nd(
                 dim=dim,
                 in_channels=out_channels,
@@ -130,29 +134,36 @@ class DeformableResidualBlock(nn.Module):
                 padding=1,
                 stride=1,
                 bias=True,
-                groups=out_channels // deformable_group_channels if use_deformable_channels else deformable_groups,
+                groups=out_channels // deformable_group_channels if deformable_group_channels is not None else deformable_groups,
                 deformable_groups_per_groups=1,
+                offset_scale=offset_scale,
+                fix_center=fix_center,
             ),
             group_norm(out_channels, num_groups=num_groups),
             get_act(act),
             nn.Dropout(dropout)
         )
 
-        self.norm = group_norm(out_channels, num_groups=num_groups)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         if self.in_channels == self.out_channels:
             self.shortcut = nn.Identity()
-
-        else:
-            self.shortcut = nn.Sequential(
-                conv_nd(dim, in_channels, out_channels, 1),
+        elif use_conv:
+            self.shortcut = conv_nd(
+                dim,
+                in_channels,
+                out_channels,
+                3,
+                padding=1
             )
+        else:
+            self.shortcut = conv_nd(dim, in_channels, out_channels, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return checkpoint(self._forward, (x, ), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.block(x)
+        h = self.drop_path(self.block(x)) + self.shortcut(x)
+        h = self.drop_path(self.block2(h)) + h
 
-        return self.norm(self.drop_path(h) + self.shortcut(x))
+        return h

@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,6 +7,7 @@ from typing import Union, List, Tuple
 
 from utils import conv_nd, group_norm, conv_transpose_nd
 from utils.checkpoints import checkpoint
+from modules.blocks.deform_conv import deform_conv_nd
 
 
 class UpBlock(nn.Module):
@@ -12,7 +15,10 @@ class UpBlock(nn.Module):
                  in_channels: int,
                  out_channels: int = None,
                  num_groups: int = 1,
-                 conv_groups: int = 1,
+                 deformable_groups: int = 1,
+                 deformable_group_channels: int = None,
+                 offset_scale: float = 1.0,
+                 fix_center: bool = False,
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
                  mode: str = 'nearest',
@@ -21,39 +27,33 @@ class UpBlock(nn.Module):
         super().__init__()
         mode = mode.lower()
         self.use_checkpoint = use_checkpoint
-        assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct', 'conv']
+        assert mode in ['nearest', 'linear', 'bilinear', 'bicubic', 'trilinear', 'area', 'nearest-eaxct']
         self.mode = mode.lower()
         self.scale_factor = int(scale_factor)
 
         out_channels = out_channels if out_channels is not None else in_channels
 
-        self.up = []
-
-        if self.mode == 'conv':
-            self.up.append(
-                conv_transpose_nd(
-                    dim,
-                    in_channels,
-                    in_channels,
-                    kernel_size=self.scale_factor,
-                    stride=self.scale_factor,
-                    groups=in_channels,
-                )
+        deformable_groups_per_groups = 1
+        if deformable_group_channels is not None:
+            deformable_groups = math.gcd(
+                in_channels // deformable_group_channels,
+                out_channels // deformable_group_channels
             )
+            deformable_groups_per_groups = in_channels // deformable_group_channels // deformable_groups
 
-        self.up.append(
-            conv_nd(
-                dim,
-                in_channels,
-                out_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                groups=conv_groups,
-            )
+        self.up = deform_conv_nd(
+            dim=dim,
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            bias=True,
+            groups=deformable_groups,
+            deformable_groups_per_groups=deformable_groups_per_groups,
+            offset_scale=offset_scale,
+            fix_center=fix_center,
         )
-
-        self.up = nn.Sequential(*self.up)
 
         self.norm = group_norm(out_channels, num_groups=num_groups)
 
@@ -61,6 +61,5 @@ class UpBlock(nn.Module):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor):
-        if self.mode != 'conv':
-            x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
+        x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         return self.norm(self.up(x))

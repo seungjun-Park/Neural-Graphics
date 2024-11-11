@@ -255,6 +255,8 @@ class DeformableUNet(nn.Module):
                  num_groups: int = 1,
                  deformable_groups: int = 1,
                  deformable_group_channels: int = None,
+                 offset_scale: float = 1.0,
+                 fix_center: bool = False,
                  act: str = 'relu',
                  use_conv: bool = True,
                  pool_type: str = 'conv',
@@ -299,6 +301,8 @@ class DeformableUNet(nn.Module):
                         num_groups=num_groups,
                         deformable_groups=deformable_groups,
                         deformable_group_channels=deformable_group_channels,
+                        offset_scale=offset_scale,
+                        fix_center=fix_center,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                     )
@@ -312,6 +316,10 @@ class DeformableUNet(nn.Module):
                     DownBlock(
                         in_channels=in_ch,
                         scale_factor=2,
+                        deformable_groups=deformable_groups,
+                        deformable_group_channels=deformable_group_channels,
+                        offset_scale=offset_scale,
+                        fix_center=fix_center,
                         dim=2,
                         pool_type=pool_type,
                         use_checkpoint=use_checkpoint,
@@ -335,6 +343,8 @@ class DeformableUNet(nn.Module):
                         num_groups=num_groups,
                         deformable_groups=deformable_groups,
                         deformable_group_channels=deformable_group_channels,
+                        offset_scale=offset_scale,
+                        fix_center=fix_center,
                         use_checkpoint=use_checkpoint,
                         use_conv=use_conv,
                     )
@@ -348,42 +358,29 @@ class DeformableUNet(nn.Module):
                         in_channels=in_ch + skip_dim,
                         out_channels=in_ch,
                         scale_factor=2,
+                        deformable_groups=deformable_groups,
+                        deformable_group_channels=deformable_group_channels,
+                        offset_scale=offset_scale,
+                        fix_center=fix_center,
                         mode=mode,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
                     )
                 )
 
-        in_ch = in_ch + skip_dims.pop()
-
-        self.out_attn = nn.Sequential(
-            conv_nd(
-                dim,
-                in_ch,
-                in_ch,
-                kernel_size=7,
-                stride=1,
-                padding=3,
-                groups=in_ch,
-            ),
-            conv_nd(
-                dim,
-                in_ch,
-                in_ch,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-            )
-        )
-
         self.out = nn.Sequential(
-            conv_nd(
-                dim,
-                in_ch,
-                out_channels,
-                kernel_size=1,
+            deform_conv_nd(
+                dim=dim,
+                in_channels=in_ch,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=1,
                 stride=1,
-                padding=0,
+                bias=True,
+                groups=1,
+                deformable_groups_per_groups=in_ch,
+                offset_scale=offset_scale,
+                fix_center=True
             )
         )
 
@@ -398,6 +395,6 @@ class DeformableUNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
-        h = torch.cat([h, hs.pop()], dim=1)
+        # h = torch.cat([h, hs.pop()], dim=1)
 
-        return self.out(h * self.out_attn(h))
+        return self.out(h)
