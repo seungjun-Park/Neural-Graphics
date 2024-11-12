@@ -65,7 +65,8 @@ class ArknightsDataset(Dataset):
         self.edge_names = glob.glob(f'{root}/*/edges/*.*')
         self.img_names = glob.glob(f'{root}/*/images/*.*')
 
-        self.color_jitter = transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.25)
+        self.color_jitter = transforms.ColorJitter(brightness=0, contrast=0.5, saturation=0.5, hue=0.5)
+        self.invert = transforms.RandomInvert(p=1.0)
         self.horizontal_flip = transforms.RandomHorizontalFlip(p=1.0)
 
         assert len(self.edge_names) == len(self.img_names)
@@ -87,7 +88,10 @@ class ArknightsDataset(Dataset):
         edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
 
         if random.random() < 0.5:
-            img = self.color_jitter(img)
+            if random.random < 0.5:
+                img = self.color_jitter(img)
+            else:
+                img = self.invert(img)
 
         if random.random() < 0.5:
             img = self.horizontal_flip(img)

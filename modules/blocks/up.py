@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, List, Tuple
 
-from utils import conv_nd, group_norm, conv_transpose_nd
+from utils import conv_nd, group_norm, conv_transpose_nd, get_act
 from utils.checkpoints import checkpoint
 from modules.blocks.deform_conv import deform_conv_nd
 
@@ -17,6 +17,7 @@ class UpBlock(nn.Module):
                  num_groups: int = 1,
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
+                 act: str = 'relu',
                  mode: str = 'nearest',
                  use_checkpoint: bool = True
                  ):
@@ -29,14 +30,26 @@ class UpBlock(nn.Module):
 
         out_channels = out_channels if out_channels is not None else in_channels
         self.norm = group_norm(in_channels, num_groups=num_groups)
-        self.up = conv_nd(
-            dim=dim,
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            stride=1,
-            padding=1,
-            bias=True,
+        self.up = nn.Sequential(
+            conv_nd(
+                dim=dim,
+                in_channels=in_channels,
+                out_channels=in_channels,
+                kernel_size=7,
+                stride=1,
+                padding=1,
+                groups=in_channels
+            ),
+            group_norm(in_channels, num_groups=num_groups),
+            get_act(act),
+            conv_nd(
+                dim,
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=1,
+                stride=1,
+                padding=0
+            )
         )
 
     def forward(self, x: torch.Tensor):

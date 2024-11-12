@@ -6,7 +6,7 @@ from timm.models.layers import DropPath
 import math
 
 from typing import Union, List, Tuple
-from utils import get_act, conv_nd, group_norm, to_2tuple
+from utils import get_act, conv_nd, group_norm, to_2tuple, zero_module
 
 
 class ResidualBlock(nn.Module):
@@ -30,15 +30,20 @@ class ResidualBlock(nn.Module):
         self.dim = dim
         self.use_checkpoint = use_checkpoint
 
-        self.conv1 = conv_nd(dim=dim, in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1)
-        self.conv2 = conv_nd(dim=dim, in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1)
+        self.in_layers = nn.Sequential(
+            group_norm(in_channels, num_groups=num_groups),
+            get_act(act),
+            conv_nd(dim, in_channels, out_channels, 3, padding=1)
+        )
 
-        self.norm1 = group_norm(out_channels, num_groups=num_groups)
-        self.norm2 = group_norm(out_channels, num_groups=num_groups)
-        self.norm3 = group_norm(out_channels, num_groups=num_groups)
-        self.dropout = nn.Dropout(dropout)
-        self.act = get_act(act)
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.out_layers = nn.Sequential(
+            group_norm(out_channels),
+            get_act(act),
+            nn.Dropout(dropout),
+            zero_module(
+                conv_nd(dim, out_channels, out_channels, 3, padding=1)
+            )
+        )
 
         if self.in_channels == self.out_channels:
             self.shortcut = nn.Identity()
@@ -57,19 +62,13 @@ class ResidualBlock(nn.Module):
                 conv_nd(dim, in_channels, out_channels, 1),
             )
 
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        h = x
-        h = self.conv1(h)
-        h = self.norm1(h)
-        h = self.act(h)
-        h = self.dropout(h)
-
-        h = self.conv2(h)
-        h = self.norm2(h)
-        h = self.act(h)
-        h = self.dropout(h)
+        h = self.in_layers(x)
+        h = self.out_layers(h)
 
         return self.drop_path(h) + self.shortcut(x)

@@ -10,8 +10,8 @@ module:
       params:
         in_channels: 3
         out_channels: 1
-        embed_dim: 64
-        hidden_dims: [ 64, 128, 256, 512 ]
+        embed_dim: 32
+        hidden_dims: [ 64, 128, 256, 256 ]
         num_blocks: 1
         dropout: 0.0
         drop_path: 0.1
@@ -19,6 +19,8 @@ module:
         deformable_group_channels: 16
         offset_scale: 1.0
         fix_center: False
+        modulation_type: 'none'
+        dw_kernel_size: 5
         act: 'gelu'
         use_conv: True
         pool_type: 'conv'
@@ -71,6 +73,7 @@ data:
         train: True
         size: 512
         color_space: 'rgb'
+        scale: [0.5, 1.0]
 
     validation:
       target: modules.datasets.arknights.ArknightsDataset
@@ -80,6 +83,7 @@ data:
         train: False
         size: 512
         color_space: 'rgb'
+        scale: [0.5, 1.0]
 
 logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger

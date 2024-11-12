@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import math
 from typing import Union, Tuple, List
 
-from utils import conv_nd, pool_nd, group_norm
+from utils import conv_nd, pool_nd, group_norm, get_act
 from utils.checkpoints import checkpoint
 from modules.blocks.deform_conv import deform_conv_nd
 
@@ -16,6 +16,7 @@ class DownBlock(nn.Module):
                  num_groups: int = 1,
                  scale_factor: Union[int, float] = 2.0,
                  dim: int = 2,
+                 act: str = 'relu',
                  pool_type: str = 'conv',
                  use_checkpoint: bool = True,
                  ):
@@ -26,15 +27,27 @@ class DownBlock(nn.Module):
         pool_type = pool_type.lower()
 
         out_channels = in_channels if out_channels is None else out_channels
-
         self.norm = group_norm(in_channels, num_groups=num_groups)
         if pool_type == 'conv':
-            self.pooling = conv_nd(dim,
-                                   in_channels,
-                                   out_channels,
-                                   kernel_size=scale_factor,
-                                   stride=scale_factor,
-                                   )
+            self.pooling = nn.Sequential(
+                conv_nd(
+                    dim,
+                    in_channels,
+                    in_channels * 2,
+                    kernel_size=scale_factor,
+                    stride=scale_factor,
+                    groups=in_channels
+                ),
+                group_norm(in_channels * 2, num_groups=num_groups),
+                get_act(act),
+                conv_nd(
+                    dim,
+                    in_channels * 2,
+                    out_channels,
+                    kernel_size=1,
+                    stride=1,
+                )
+            )
 
         else:
             self.pooling = pool_nd(pool_type, dim=dim, kernel_size=scale_factor, stride=scale_factor)
