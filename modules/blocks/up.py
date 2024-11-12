@@ -37,7 +37,7 @@ class UpBlock(nn.Module):
                 out_channels=in_channels,
                 kernel_size=7,
                 stride=1,
-                padding=1,
+                padding=3,
                 groups=in_channels
             ),
             group_norm(in_channels, num_groups=num_groups),
