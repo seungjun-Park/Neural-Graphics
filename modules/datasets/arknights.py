@@ -65,6 +65,9 @@ class ArknightsDataset(Dataset):
         self.edge_names = glob.glob(f'{root}/*/edges/*.*')
         self.img_names = glob.glob(f'{root}/*/images/*.*')
 
+        self.color_jitter = transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.25)
+        self.horizontal_flip = transforms.RandomHorizontalFlip(p=1.0)
+
         assert len(self.edge_names) == len(self.img_names)
 
     def __getitem__(self, index):
@@ -77,14 +80,18 @@ class ArknightsDataset(Dataset):
 
         img = self.to_tensor(img)
         edge = self.to_tensor(edge)
-        # edge = torch.where(edge >= 0.8, 1.0, 0.0)
-        img = self.resize(img)
-        edge = self.resize(edge)
 
-        # i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
-        #
-        # img = tf.resized_crop(img, i, j, h, w, size=self.size, antialias=True)
-        # edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
+        i, j, h, w = transforms.RandomResizedCrop.get_params(img, scale=self.scale, ratio=self.ratio)
+
+        img = tf.resized_crop(img, i, j, h, w, size=self.size, antialias=True)
+        edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
+
+        if random.random() < 0.5:
+            img = self.color_jitter(img)
+
+        if random.random() < 0.5:
+            img = self.horizontal_flip(img)
+            edge = self.horizontal_flip(edge)
 
         return img, edge
 

@@ -61,24 +61,24 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 1
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        # root: '/local_datasets/anime'
-        root: './datasets/anime'
+        root: '/local_datasets/anime'
+        # root: './datasets/anime'
         train: True
-        size: 256
+        size: 512
         color_space: 'rgb'
 
     validation:
       target: modules.datasets.arknights.ArknightsDataset
       params:
-        # root: '/local_datasets/anime'
-        root: './datasets/anime'
+        root: '/local_datasets/anime'
+        # root: './datasets/anime'
         train: False
-        size: 256
+        size: 512
         color_space: 'rgb'
 
 logger:
