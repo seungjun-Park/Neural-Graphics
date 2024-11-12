@@ -102,7 +102,7 @@ class EDNSE(pl.LightningModule):
         self.log_dict(net_loss_log,  prog_bar=True)
 
     def get_last_layer(self):
-        return self.net.out[-1].weight
+        return self.net.out.weight
 
     @torch.no_grad()
     def log_img(self, x: torch.Tensor, split='img'):

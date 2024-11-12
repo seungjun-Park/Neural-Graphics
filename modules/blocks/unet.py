@@ -6,14 +6,15 @@ from typing import Union, List, Tuple
 from timm.models.layers import DropPath
 from omegaconf import ListConfig
 
-from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act
+from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act, checkpoint
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.attn_block import AttentionBlock
-from modules.blocks.res_block import ResidualBlock, DeformableResidualBlock
+from modules.blocks.res_block import ResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
 from modules.blocks.deform_conv import deform_conv_nd
+from modules.blocks.norm import GlobalResponseNorm
 
 
 class UnetBlock(nn.Module):
@@ -243,6 +244,84 @@ class UNet(nn.Module):
         return self.out(h)
 
 
+class DeformableUNetBlock(nn.Module):
+    def __init__(self,
+                 in_channels: int,
+                 embed_dim: int = None,
+                 drop_path: float = 0.0,
+                 act: str = 'relu',
+                 num_groups: int = 1,
+                 offset_scale: float = 1.0,
+                 fix_center: bool = False,
+                 dim: int = 2,
+                 use_checkpoint: bool = True,
+                 ):
+        super().__init__()
+
+        embed_dim = in_channels if embed_dim is None else embed_dim
+        self.use_checkpoint = use_checkpoint
+
+        # self.dwconv = deform_conv_nd(
+        #     dim,
+        #     in_channels,
+        #     in_channels,
+        #     kernel_size=3,
+        #     stride=1,
+        #     padding=1,
+        #     groups=in_channels,
+        #     offset_scale=offset_scale,
+        #     fix_center=fix_center
+        # )
+
+        self.dwconv = conv_nd(
+            dim,
+            in_channels,
+            in_channels,
+            kernel_size=7,
+            stride=1,
+            padding=3,
+            groups=in_channels,
+        )
+
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.pwconv1 = conv_nd(
+            dim,
+            in_channels,
+            embed_dim,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+        )
+        self.act = get_act(act)
+        self.grn = GlobalResponseNorm(embed_dim, dim=dim)
+        self.pwconv2 = conv_nd(
+            dim,
+            embed_dim,
+            in_channels,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+        )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
+
+    def _forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x.shape == b, c, *...
+        shortcut = x
+
+        x = self.dwconv(x)
+        x = self.norm(x)
+        x = self.pwconv1(x)
+        x = self.act(x)
+        x = self.grn(x)
+        x = self.pwconv2(x)
+
+        return self.drop_path(x) + shortcut
+
+
 class DeformableUNet(nn.Module):
     def __init__(self,
                  in_channels: int,
@@ -276,7 +355,7 @@ class DeformableUNet(nn.Module):
                 conv_nd(
                     dim,
                     in_channels,
-                    embed_dim,
+                    hidden_dims[0],
                     kernel_size=3,
                     stride=1,
                     padding=1,
@@ -285,41 +364,34 @@ class DeformableUNet(nn.Module):
             )
         )
 
-        in_ch = embed_dim
-        skip_dims = [embed_dim]
+        in_ch = hidden_dims[0]
+        skip_dims = []
 
-        for i, out_ch in enumerate(hidden_dims):
+        for i, in_ch in enumerate(hidden_dims):
+            encoder = []
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
-                self.encoder.append(
-                    DeformableResidualBlock(
+                encoder.append(
+                    DeformableUNetBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
-                        dropout=dropout,
+                        embed_dim=in_ch * 4,
                         drop_path=drop_path,
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        deformable_groups=deformable_groups,
-                        deformable_group_channels=deformable_group_channels,
                         offset_scale=offset_scale,
                         fix_center=fix_center,
                         use_checkpoint=use_checkpoint,
-                        use_conv=use_conv,
                     )
                 )
-
-                in_ch = out_ch
-                skip_dims.append(in_ch)
+            self.encoder.append(nn.Sequential(*encoder))
+            skip_dims.append(in_ch)
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
                     DownBlock(
                         in_channels=in_ch,
+                        out_channels=hidden_dims[i + 1],
                         scale_factor=2,
-                        deformable_groups=deformable_groups,
-                        deformable_group_channels=deformable_group_channels,
-                        offset_scale=offset_scale,
-                        fix_center=fix_center,
                         dim=2,
                         pool_type=pool_type,
                         use_checkpoint=use_checkpoint,
@@ -327,61 +399,43 @@ class DeformableUNet(nn.Module):
                     )
                 )
 
-                skip_dims.append(in_ch)
-
-        for i, out_ch in list(enumerate(hidden_dims))[::-1]:
+        for i, in_ch in list(enumerate(hidden_dims))[::-1]:
+            in_ch = in_ch + skip_dims.pop()
+            decoder = []
             for j in range(num_blocks[i] if isinstance(num_blocks, ListConfig) else num_blocks):
-                in_ch = in_ch + skip_dims.pop()
-                self.decoder.append(
-                    DeformableResidualBlock(
+                decoder.append(
+                    DeformableUNetBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
-                        dropout=dropout,
+                        embed_dim=in_ch * 4,
                         drop_path=drop_path,
                         act=act,
                         dim=dim,
                         num_groups=num_groups,
-                        deformable_groups=deformable_groups,
-                        deformable_group_channels=deformable_group_channels,
                         offset_scale=offset_scale,
                         fix_center=fix_center,
                         use_checkpoint=use_checkpoint,
-                        use_conv=use_conv,
                     )
                 )
-                in_ch = out_ch
-
+            self.decoder.append(nn.Sequential(*decoder))
             if i != 0:
-                skip_dim = skip_dims.pop()
                 self.decoder.append(
                     UpBlock(
-                        in_channels=in_ch + skip_dim,
-                        out_channels=in_ch,
+                        in_channels=in_ch,
+                        out_channels=hidden_dims[i - 1],
                         scale_factor=2,
-                        deformable_groups=deformable_groups,
-                        deformable_group_channels=deformable_group_channels,
-                        offset_scale=offset_scale,
-                        fix_center=fix_center,
                         mode=mode,
                         use_checkpoint=use_checkpoint,
                         num_groups=num_groups,
                     )
                 )
 
-        self.out = nn.Sequential(
-            deform_conv_nd(
-                dim=dim,
-                in_channels=in_ch,
-                out_channels=out_channels,
-                kernel_size=3,
-                padding=1,
-                stride=1,
-                bias=True,
-                groups=1,
-                deformable_groups_per_groups=in_ch,
-                offset_scale=offset_scale,
-                fix_center=True
-            )
+        self.out = conv_nd(
+            dim,
+            in_ch,
+            out_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -389,12 +443,12 @@ class DeformableUNet(nn.Module):
         h = x
         for i, block in enumerate(self.encoder):
             h = block(h)
-            hs.append(h)
+            if not isinstance(block, DownBlock):
+                hs.append(h)
 
         for i, block in enumerate(self.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
+            if not isinstance(block, UpBlock):
+                h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
-
-        # h = torch.cat([h, hs.pop()], dim=1)
 
         return self.out(h)

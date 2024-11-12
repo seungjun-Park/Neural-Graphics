@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from typing import Union, List, Tuple
 
 import custom_op
-from utils import to_1tuple, to_2tuple, to_3tuple, multiply_integers
+from utils import to_1tuple, to_2tuple, to_3tuple, multiply_integers, group_norm, get_act
 
 
 class DeformConv1d(nn.Module):
@@ -152,24 +152,40 @@ class DeformConv2d(nn.Module):
         if fix_center and kernel_sizes == 1:
             self.offset_field = None
         else:
-            self.offset_field = nn.Conv2d(
+            self.offset_field = nn.Sequential(
+                nn.Conv2d(
                     in_channels,
-                    groups * deformable_groups_per_groups * (kernel_sizes - fix_center) * 2,
+                    in_channels,
                     kernel_size=kernel_size_off,
                     stride=stride_off,
                     padding=padding_off,
                     dilation=dilation_off,
-                    groups=groups * deformable_groups_per_groups,
+                    groups=in_channels
+                ),
+                group_norm(in_channels, 1),
+                nn.Conv2d(
+                    in_channels,
+                    groups * deformable_groups_per_groups * (kernel_sizes - fix_center) * 2,
+                    kernel_size=1,
                 )
+            )
 
-        self.attn_mask = nn.Conv2d(
-                in_channels,
-                groups * deformable_groups_per_groups * kernel_sizes,
-                kernel_size=kernel_size_off,
-                stride=stride_off,
-                padding=padding_off,
-                dilation=dilation_off,
-                groups=groups * deformable_groups_per_groups,
+        self.attn_mask = nn.Sequential(
+                nn.Conv2d(
+                    in_channels,
+                    in_channels,
+                    kernel_size=kernel_size_off,
+                    stride=stride_off,
+                    padding=padding_off,
+                    dilation=dilation_off,
+                    groups=in_channels
+                ),
+                group_norm(in_channels, 1),
+                nn.Conv2d(
+                    in_channels,
+                    groups * deformable_groups_per_groups * kernel_sizes,
+                    kernel_size=1,
+                )
             )
 
         self.weight = nn.Parameter(torch.empty(out_channels, in_channels // groups, *self.kernel_size), requires_grad=True)
@@ -184,15 +200,6 @@ class DeformConv2d(nn.Module):
         self.weight.data.normal_(mean=mean, std=std)
         if self.bias is not None:
             self.bias.data.normal_(mean=mean, std=std)
-
-        if self.offset_field is not None:
-            nn.init.zeros_(self.offset_field.weight)
-            if self.offset_field.bias is not None:
-                nn.init.zeros_(self.offset_field.bias)
-
-        nn.init.zeros_(self.attn_mask.weight)
-        if self.attn_mask.bias is not None:
-            nn.init.ones_(self.attn_mask.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.offset_field is None:

@@ -114,7 +114,7 @@ def instance_norm_nd(dim=2, *args, **kwargs):
         NotImplementedError("The dims should have a value between 1 and 3.")
 
 
-def group_norm(num_channels, num_groups=32, eps=1e-5, affine=True):
+def group_norm(num_channels, num_groups=32, eps=1e-6, affine=True):
     return nn.GroupNorm(num_groups=num_groups, num_channels=num_channels, eps=eps, affine=affine)
 
 

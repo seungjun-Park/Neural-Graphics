@@ -60,3 +60,20 @@ class SpectralNorm(nn.Module):
         self._update_u_v()
         return self.module.forward(*args)
 
+
+class GlobalResponseNorm(nn.Module):
+    def __init__(self,
+                 channels: int,
+                 dim: int = 2,
+                 ):
+        super().__init__()
+
+        spatial = [1 for i in range(dim)]
+
+        self.gamma = nn.Parameter(torch.zeros(1, channels, *spatial), requires_grad=True)
+        self.beta = nn.Parameter(torch.zeros(1, channels, *spatial), requires_grad=True)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        gx = torch.norm(x, p=2, dim=tuple(range(2, x.ndim)), keepdim=True)
+        nx = gx / (gx.mean(dim=-1, keepdim=True) + 1e-6)
+        return self.gamma * (x * nx) + self.beta + x

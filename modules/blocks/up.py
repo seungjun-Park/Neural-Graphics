@@ -15,10 +15,6 @@ class UpBlock(nn.Module):
                  in_channels: int,
                  out_channels: int = None,
                  num_groups: int = 1,
-                 deformable_groups: int = 1,
-                 deformable_group_channels: int = None,
-                 offset_scale: float = 1.0,
-                 fix_center: bool = False,
                  dim: int = 2,
                  scale_factor: Union[int, float] = 2.0,
                  mode: str = 'nearest',
@@ -32,16 +28,8 @@ class UpBlock(nn.Module):
         self.scale_factor = int(scale_factor)
 
         out_channels = out_channels if out_channels is not None else in_channels
-
-        deformable_groups_per_groups = 1
-        if deformable_group_channels is not None:
-            deformable_groups = math.gcd(
-                in_channels // deformable_group_channels,
-                out_channels // deformable_group_channels
-            )
-            deformable_groups_per_groups = in_channels // deformable_group_channels // deformable_groups
-
-        self.up = deform_conv_nd(
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+        self.up = conv_nd(
             dim=dim,
             in_channels=in_channels,
             out_channels=out_channels,
@@ -49,17 +37,12 @@ class UpBlock(nn.Module):
             stride=1,
             padding=1,
             bias=True,
-            groups=deformable_groups,
-            deformable_groups_per_groups=deformable_groups_per_groups,
-            offset_scale=offset_scale,
-            fix_center=fix_center,
         )
-
-        self.norm = group_norm(out_channels, num_groups=num_groups)
 
     def forward(self, x: torch.Tensor):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor):
+        x = self.norm(x)
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
-        return self.norm(self.up(x))
+        return self.up(x)
