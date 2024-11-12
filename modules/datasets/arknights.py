@@ -88,7 +88,7 @@ class ArknightsDataset(Dataset):
         edge = tf.resized_crop(edge, i, j, h, w, size=self.size, antialias=True)
 
         if random.random() < 0.5:
-            if random.random < 0.5:
+            if random.random() < 0.5:
                 img = self.color_jitter(img)
             else:
                 img = self.invert(img)
