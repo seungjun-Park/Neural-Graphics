@@ -53,56 +53,31 @@ class EDNSE(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         imgs, labels = batch
-        preds = self(imgs.to(memory_format=torch.channels_last))
+        preds = self(imgs)
 
-        # opt_net, opt_disc = self.optimizers()
-        #
-        # d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.get_last_layer(),
-        #                                split='train')
-        # d_loss = d_loss / self.disc_update_freq
-        # self.manual_backward(d_loss)
-
-        # if (batch_idx + 1) % self.disc_update_freq == 0:
-        #     opt_disc.step()
-        #     opt_disc.zero_grad()
-        # pdb.set_trace()
-        net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.get_last_layer(),
-                                           split='train')
-        # net_loss = net_loss / self.accumulate_grad_batches
-        # self.manual_backward(net_loss)
-
-        # if (batch_idx + 1) % self.accumulate_grad_batches == 0:
-        #     opt_net.step()
-        #     opt_net.zero_grad()
+        net_loss, net_loss_log = self.loss(preds, labels, imgs, split='train')
 
         if self.global_step % self.log_interval == 0:
             self.log_img(preds, 'edge')
             self.log_img(labels, 'label')
             self.log_img(imgs, 'img')
 
-        # self.log_dict(d_loss_log)
         self.log_dict(net_loss_log, prog_bar=True)
 
         return net_loss
 
     def validation_step(self, batch, batch_idx):
         imgs, labels = batch
-        preds = self(imgs.to(memory_format=torch.channels_last))
+        preds = self(imgs)
 
-        net_loss, net_loss_log = self.loss(preds, labels, imgs, 0, self.global_step, last_layer=self.get_last_layer(),
-                                           split='val')
-        # d_loss, d_loss_log = self.loss(preds, labels, imgs, 1, self.global_step, last_layer=self.get_last_layer(), split='val')
+        net_loss, net_loss_log = self.loss(preds, labels, imgs, split='val')
 
         if self.global_step % self.log_interval == 0:
             self.log_img(preds, 'edge')
             self.log_img(labels, 'label')
             self.log_img(imgs, 'img')
 
-        # self.log_dict(d_loss_log)
         self.log_dict(net_loss_log,  prog_bar=True)
-
-    def get_last_layer(self):
-        return self.net.out[-1].weight
 
     @torch.no_grad()
     def log_img(self, x: torch.Tensor, split='img'):
