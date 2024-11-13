@@ -38,7 +38,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         preds = preds.repeat(1, 3, 1, 1).contiguous()
         labels = labels.repeat(1, 3, 1, 1).contiguous()
 
-        content_loss = self.perceptual_loss(preds, imgs)
+        content_loss = self.perceptual_loss(preds, imgs).mean()
         feats_labels, feats_preds = self.vgg16(labels), self.vgg16(preds)
         style_loss = torch.tensor(0.0).to(preds.device)
 
@@ -47,7 +47,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
             gram_preds = get_gram_matrix(feats_preds[i])
             style_loss += self.learnable_weights[i] * F.mse_loss(gram_preds, gram_labels) / np.prod(feats_labels[i].shape)
 
-        recon_loss = self.perceptual_loss(preds, labels)
+        recon_loss = self.perceptual_loss(preds, labels).mean()
 
         loss = self.content_weight * content_loss + self.style_weight * style_loss + self.recon_weight * recon_loss
 
