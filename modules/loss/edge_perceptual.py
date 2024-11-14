@@ -29,7 +29,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         preds = preds.repeat(1, 3, 1, 1).contiguous()
         labels = labels.repeat(1, 3, 1, 1).contiguous()
 
-        lpips_loss = self.perceptual_loss(preds, imgs).mean()
+        lpips_loss = self.perceptual_loss(preds, labels).mean()
         bdcn_loss = bdcn_loss2(1 - preds, 1 - labels).mean()
 
         freq = torch.fft.fftshift(torch.fft.rfftn(imgs, dim=tuple(range(2, imgs.ndim)), norm='ortho'))
