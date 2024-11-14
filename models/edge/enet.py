@@ -72,10 +72,7 @@ class EDNSE(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = F.sigmoid(self.net(x))
-        logit = self.logit(x)
-        prob = F.softmax(logit, dim=1)
-        return F.sigmoid((x * prob).sum(dim=1, keepdims=True))
+        return F.sigmoid(self.net(x))
 
     def training_step(self, batch, batch_idx):
         imgs, labels = batch
@@ -112,8 +109,7 @@ class EDNSE(pl.LightningModule):
         tb.add_image(f'{prefix}/{split}', x[0].float(), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
-        opt_net = torch.optim.AdamW(list(self.net.parameters()) +
-                                    list(self.logit.parameters()),
+        opt_net = torch.optim.AdamW(list(self.net.parameters())),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
                                     betas=(0.5, 0.9)
