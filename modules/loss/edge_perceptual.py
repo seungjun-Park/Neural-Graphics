@@ -29,6 +29,9 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         # feats_labels, feats_preds = self.vgg16(labels), self.vgg16(preds)
         # style_loss = torch.tensor(0.0).to(preds.device)
 
+        preds = 1 - preds
+        labels = 1 - labels
+
         loss, tracing_loss, bdr_loss, texture_loss = cats_loss(preds, labels, self.cats_weight)
 
         log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
