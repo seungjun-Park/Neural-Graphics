@@ -471,7 +471,8 @@ class DeformableUNet(nn.Module):
                     in_ch,
                     out_channels,
                     kernel_size=3,
-                    stride=1
+                    stride=1,
+                    padding=1,
                 )
             )
         else:
