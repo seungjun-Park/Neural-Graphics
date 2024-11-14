@@ -13,7 +13,9 @@ from models.gan.discriminator import Discriminator
 
 class EdgeLPIPSWithDiscriminator(nn.Module):
     def __init__(self,
-                 cats_weight: List[float] = (1.0, 0.0, 0.0)
+                 cats_weight: List[float] = (1.0, 0.0, 0.0),
+                 lpips_weight: float = 1.0,
+                 freq_wegith: float = 1.0,
                  ):
 
         super().__init__()
@@ -25,9 +27,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         # preds = preds.repeat(1, 3, 1, 1).contiguous()
         # labels = labels.repeat(1, 3, 1, 1).contiguous()
         #
-        # content_loss = self.perceptual_loss(preds, imgs).mean()
-        # feats_labels, feats_preds = self.vgg16(labels), self.vgg16(preds)
-        # style_loss = torch.tensor(0.0).to(preds.device)
+        # lpips_loss = self.perceptual_loss(preds, imgs).mean()
 
         preds = 1 - preds
         labels = 1 - labels
