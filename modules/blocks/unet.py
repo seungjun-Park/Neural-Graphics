@@ -6,11 +6,11 @@ from typing import Union, List, Tuple
 from timm.models.layers import DropPath
 from omegaconf import ListConfig
 
-from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act, checkpoint
+from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_act, checkpoint, to_ntuple, freq_mask
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.attn_block import AttentionBlock
-from modules.blocks.res_block import ResidualBlock
+from modules.blocks.res_block import ResidualBlock, ResidualFFTBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
 from modules.blocks.deform_conv import deform_conv_nd
@@ -264,11 +264,12 @@ class DeformableUNetBlock(nn.Module):
                  ):
         super().__init__()
 
+        self.dim = dim
         self.use_checkpoint = use_checkpoint
 
         out_channels = out_channels if out_channels is not None else in_channels
 
-        self.res_block = ResidualBlock(
+        self.res_block = ResidualFFTBlock(
             in_channels,
             out_channels,
             dropout=dropout,
@@ -303,13 +304,34 @@ class DeformableUNetBlock(nn.Module):
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
+        self.shortcut = nn.Sequential(
+            conv_nd(
+                dim,
+                out_channels,
+                out_channels,
+                kernel_size=7,
+                padding=3,
+                groups=out_channels,
+            ),
+            group_norm(out_channels, 1)
+        )
+
+        nn.init.ones_(self.shortcut[0].weight)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
         # x.shape == b, c, *...
         x = self.res_block(x)
-        h = self.drop_path(self.dcn(x)) + x
+        h = self.dcn(x)
+
+        x_fft = torch.fft.fftshift(torch.fft.rfftn(x, dim=tuple(range(2, x.ndim)), norm='ortho'))
+        mask = freq_mask(x_fft, dim=self.dim, bandwidth=to_ntuple(self.dim)(0.15))
+        x_fft = x_fft * (1 - mask)
+        x = torch.fft.irfftn(torch.fft.ifftshift(x_fft), dim=tuple(range(2, x.ndim)), norm='ortho')
+
+        h = self.drop_path(h) + self.shortcut(x)
 
         return h
 

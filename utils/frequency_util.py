@@ -28,26 +28,27 @@ def to_x(freq, dim=2, norm='backward', shift=False):
     return x
 
 
-def freq_filter(freq, dim=2, bandwidth=[0, 1]):
-    assert len(bandwidth) == 2
-    if len(freq.shape) == 4:
-        _, c, h, w = freq.shape
-    elif len(freq.shape) == 3:
-        c, h, w = freq.shape
-
+def freq_mask(freq, dim=2, bandwidth=(1.0, 1.0)):
+    assert len(bandwidth) == dim
+    if len(freq.shape) == 2 + dim:
+        b, c, *spatial = freq.shape
     else:
-        NotImplementedError(f'freq shape: {freq.shape} is not supported.')
+        c, *spatial = freq.shape
 
-    half_h, half_w = h // 2, w // 2
-    eps_h = [int(half_h * bandwidth[0]), int(half_h * bandwidth[1])]
-    eps_w = [int(half_w * bandwidth[0]), int(half_w * bandwidth[1])]
+    half = []
+    eps = []
+    for i, value in enumerate(spatial):
+        half.append(value // 2)
+        eps.append(int((value // 2) * bandwidth[i]))
 
-    filter = torch.zeros(freq.shape)
-    if len(freq.shape) == 4:
-        filter[:, :, half_h - eps_h[1]: half_h + eps_h[1], half_w - eps_w[1]: half_w + eps_w[1]] = 1
-        filter[:, :, half_h - eps_h[0]: half_h + eps_h[0], half_w - eps_w[0]: half_w + eps_w[0]] = 0
-    elif len(freq.shape) == 3:
-        filter[:, half_h - eps_h[1]: half_h + eps_h[1], half_w - eps_w[1]: half_w + eps_w[1]] = 1
-        filter[:, half_h - eps_h[0]: half_h + eps_h[0], half_w - eps_w[0]: half_w + eps_w[0]] = 0
+    mask = torch.zeros(*spatial).to(freq.device)
+    slice_list = []
+    for i in range(len(half)):
+        slice_list += [slice(half[i] - eps[i], half[i] + eps[i])]
 
-    return freq * filter
+    mask[slice_list] = 1
+    while len(mask.shape) < len(freq.shape):
+        mask = mask.unsqueeze(0)
+
+    return mask
+
