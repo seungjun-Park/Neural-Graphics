@@ -109,7 +109,7 @@ class EDNSE(pl.LightningModule):
         tb.add_image(f'{prefix}/{split}', x[0].float(), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
-        opt_net = torch.optim.AdamW(list(self.net.parameters())),
+        opt_net = torch.optim.AdamW(list(self.net.parameters()),
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
                                     betas=(0.5, 0.9)
