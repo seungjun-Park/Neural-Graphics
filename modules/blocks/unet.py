@@ -304,19 +304,6 @@ class DeformableUNetBlock(nn.Module):
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-        self.shortcut = nn.Sequential(
-            conv_nd(
-                dim,
-                out_channels,
-                out_channels,
-                kernel_size=7,
-                padding=3,
-                groups=out_channels,
-            ),
-            group_norm(out_channels, 1)
-        )
-
-        nn.init.ones_(self.shortcut[0].weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
@@ -326,12 +313,7 @@ class DeformableUNetBlock(nn.Module):
         x = self.res_block(x)
         h = self.dcn(x)
 
-        x_fft = torch.fft.fftshift(torch.fft.rfftn(x, dim=tuple(range(2, x.ndim)), norm='ortho'))
-        mask = freq_mask(x_fft, dim=self.dim, bandwidth=to_ntuple(self.dim)(0.15))
-        x_fft = x_fft * (1 - mask)
-        x = torch.fft.irfftn(torch.fft.ifftshift(x_fft), dim=tuple(range(2, x.ndim)), norm='ortho')
-
-        h = self.drop_path(h) + self.shortcut(x)
+        h = self.drop_path(h) + x
 
         return h
 
