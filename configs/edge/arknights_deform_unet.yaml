@@ -1,5 +1,5 @@
 module:
-  target: models.enet.enet.EDNSE
+  target: models.edge.enet.EDNSE
   params:
     lr: 2e-5
     weight_decay: 0.0
@@ -10,8 +10,8 @@ module:
       params:
         in_channels: 3
         out_channels: 1
-        embed_dim: 32
-        hidden_dims: [ 64, 128, 256, 512 ]
+        embed_dim: 16
+        hidden_dims: [ 32, 64, 128, 256 ]
         num_blocks: 1
         dropout: 0.0
         drop_path: 0.1
@@ -27,14 +27,12 @@ module:
         mode: 'nearest'
         dim: 2
         use_checkpoint: True
+        use_last_layer: False
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
       params:
-        content_weight: 0.5
-        style_weight: 1.0
-        recon_weight: 1.0
-
+        cats_weight: [1.0, 1.0, 1.0]
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:

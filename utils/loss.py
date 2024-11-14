@@ -315,7 +315,7 @@ def bdrloss(prediction, label, radius):
     bdr_pred = prediction * label
     pred_bdr_sum = label * F.conv2d(bdr_pred, filt, bias=None, stride=1, padding=radius)
     texture_mask = F.conv2d(label, filt, bias=None, stride=1, padding=radius)
-    mask = (texture_mask != 0).to(prediction.dtype)
+    mask = (texture_mask != 0).float()
     mask[label == 1] = 0
     pred_texture_sum = F.conv2d(prediction * (1-label) * mask, filt, bias=None, stride=1, padding=radius)
 
@@ -323,7 +323,7 @@ def bdrloss(prediction, label, radius):
     cost = -label * torch.log(softmax_map)
     cost[label == 0] = 0
 
-    return cost
+    return torch.sum(cost.float().mean(dim=[1, 2, 3]))
 
 
 def textureloss(prediction, label, mask_radius):
@@ -338,12 +338,12 @@ def textureloss(prediction, label, mask_radius):
     pred_sums = F.conv2d(prediction, filt1, bias=None, stride=1, padding=1)
     label_sums = F.conv2d(label, filt2, bias=None, stride=1, padding=mask_radius)
 
-    mask = 1.0 - torch.gt(label_sums, 0).to(prediction.dtype)
+    mask = 1 - torch.gt(label_sums, 0).to(prediction.dtype)
 
     loss = torch.clamp(1-pred_sums/9, 1e-10, 1-1e-10)
     loss[mask == 0] = 0
 
-    return loss
+    return torch.sum(loss.float().mean(dim=[1, 2, 3]))
 
 
 def cats_loss(prediction, label, weights=(1., 0., 0.)):
@@ -351,8 +351,8 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
     cost_weight, tex_factor, bdr_factor = weights
     balanced_w = 1.1
 
-    label = label.long()
-    label = label.float()
+    label = label.long().float()
+    prediction = prediction.float()
 
     with torch.no_grad():
         mask = label.clone()
@@ -371,7 +371,7 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
     textcost = textureloss(prediction, label_w, mask_radius=4)
     bdrcost = bdrloss(prediction, label_w, radius=4)
 
-    return cost_weight * cost + bdr_factor * bdrcost + tex_factor * textcost
+    return cost_weight * cost + bdr_factor * bdrcost + tex_factor * textcost, cost, bdrcost, textcost
 
 
 SHIFT = torch.Tensor([-.030, -.088, -.188])[None, :, None, None]

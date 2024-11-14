@@ -336,10 +336,16 @@ class DeformableUNet(nn.Module):
                  mode: str = 'nearest',
                  dim: int = 2,
                  use_checkpoint: bool = True,
+                 use_last_layer: bool = True
                  ):
         super().__init__()
 
         out_channels = out_channels if out_channels else in_channels
+
+        self.dim = dim
+        self.hidden_dims = hidden_dims
+        self.num_groups = num_groups
+        self.act = act
 
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
@@ -434,17 +440,20 @@ class DeformableUNet(nn.Module):
                     )
                 )
 
-        self.out = nn.Sequential(
-            group_norm(in_ch, num_groups=num_groups),
-            get_act(act),
-            conv_nd(
-                dim,
-                in_ch,
-                out_channels,
-                kernel_size=1,
-                stride=1
+        if use_last_layer:
+            self.out = nn.Sequential(
+                group_norm(in_ch, num_groups=num_groups),
+                get_act(act),
+                conv_nd(
+                    dim,
+                    in_ch,
+                    out_channels,
+                    kernel_size=3,
+                    stride=1
+                )
             )
-        )
+        else:
+            self.out = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         hs = []
@@ -457,4 +466,7 @@ class DeformableUNet(nn.Module):
             h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
-        return self.out(h)
+        if self.out is not None:
+            h = self.out(h)
+
+        return h

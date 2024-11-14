@@ -29,6 +29,29 @@ class EDNSE(pl.LightningModule):
 
         self.net = instantiate_from_config(net_config)
 
+        in_ch = self.net.hidden_dims[0]
+
+        self.logit = nn.Sequential(
+            group_norm(self.net.hidden_dims[0], self.net.num_groups),
+            get_act(self.net.act),
+            conv_nd(
+                self.net.dim,
+                in_ch,
+                in_ch,
+                kernel_size=7,
+                padding=3,
+                groups=in_ch
+            ),
+            group_norm(self.net.hidden_dims[0], 1),
+            conv_nd(
+                self.net.dim,
+                in_ch,
+                in_ch,
+                kernel_size=1,
+                stride=1,
+            )
+        )
+
         if loss_config is not None:
             self.loss = instantiate_from_config(loss_config)
         else:
@@ -49,7 +72,10 @@ class EDNSE(pl.LightningModule):
         print(f"Restored from {path}")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.sigmoid(self.net(x))
+        x = F.sigmoid(self.net(x))
+        logit = self.logit(x)
+        prob = F.softmax(logit, dim=1)
+        return F.sigmoid((x * prob).sum(dim=1, keepdims=True))
 
     def training_step(self, batch, batch_idx):
         imgs, labels = batch
