@@ -32,7 +32,9 @@ module:
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
       params:
-        cats_weight: [1.0, 0.0001, 1.0]
+        bdcn_weight: 1.0
+        lpips_weight: 1.0
+        freq_weight: 1.0
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
