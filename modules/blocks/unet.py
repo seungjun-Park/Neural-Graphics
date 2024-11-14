@@ -269,7 +269,7 @@ class DeformableUNetBlock(nn.Module):
 
         out_channels = out_channels if out_channels is not None else in_channels
 
-        self.res_block = ResidualFFTBlock(
+        self.res_block = ResidualBlock(
             in_channels,
             out_channels,
             dropout=dropout,
