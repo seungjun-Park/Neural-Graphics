@@ -34,7 +34,6 @@ module:
       params:
         bdcn_weight: 1.0
         lpips_weight: 1.0
-        freq_weight: 1.0
         cats_weight: [1.0, 0.0, 1.2]
 data:
   target: modules.datasets.util.DataModuleFromConfig
