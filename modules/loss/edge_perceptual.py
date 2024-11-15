@@ -13,9 +13,9 @@ from models.gan.discriminator import Discriminator
 
 class EdgeLPIPSWithDiscriminator(nn.Module):
     def __init__(self,
+                 cats_weight: List[float] = (1.0, 0.0, 1.2),
                  lpips_weight: float = 1.0,
                  bdcn_weight: float = 1.0,
-                 freq_weight: float = 1.0,
                  ):
 
         super().__init__()
@@ -23,28 +23,23 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         self.vgg16 = self.perceptual_loss.net
         self.lpips_weight = lpips_weight
         self.bdcn_weight = bdcn_weight
-        self.freq_weight = freq_weight
+        self.cats_weight = cats_weight
 
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, split="train"):
+        cats, tracing_loss, bdr_loss, texture_loss = cats_loss(1 - preds, 1 - labels, self.cats_weight)
+
         preds = preds.repeat(1, 3, 1, 1).contiguous()
         labels = labels.repeat(1, 3, 1, 1).contiguous()
 
         lpips_loss = self.perceptual_loss(preds, labels).mean()
-        bdcn_loss = bdcn_loss2(1 - preds, 1 - labels).mean()
 
-        freq = torch.fft.fftshift(torch.fft.rfftn(imgs, dim=tuple(range(2, imgs.ndim)), norm='ortho'))
-        mask = freq_mask(freq, dim=2, bandwidth=[0.2, 0.2])
-        freq *= (1 - mask)
-        freq = torch.fft.irfftn(torch.fft.ifftshift(freq), dim=(tuple(range(2, imgs.ndim))), norm='ortho')
-
-        freq_loss = self.perceptual_loss(1 - preds, freq).mean()
-
-        loss = self.lpips_weight * lpips_loss + self.bdcn_weight * bdcn_loss + self.freq_weight * freq_loss
+        loss = self.lpips_weight * lpips_loss + cats
 
         log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                "{}/lpips_loss".format(split): lpips_loss.detach().mean(),
-               "{}/bdcn_loss".format(split): bdcn_loss.detach().mean(),
-               "{}/freq_loss".format(split): freq_loss.detach().mean(),
+               "{}/tracing_loss".format(split): tracing_loss.detach().mean(),
+               "{}/bdr_loss".format(split): bdr_loss.detach().mean(),
+               "{}/texture_loss".format(split): texture_loss.detach().mean(),
                }
 
         return loss, log

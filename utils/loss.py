@@ -283,7 +283,7 @@ def vanilla_d_loss(logits_real: torch.Tensor, logits_fake: torch.Tensor) -> torc
     return d_loss
 
 
-def bdcn_loss2(inputs, targets, reduction='mean'):
+def bdcn_loss2(inputs, targets):
     targets = targets.long()
     mask = targets.float()
     num_positive = torch.sum((mask > 0.0).float()).float()  # >0.1
@@ -293,11 +293,8 @@ def bdcn_loss2(inputs, targets, reduction='mean'):
     mask[mask <= 0.] = 1.1 * num_positive / (num_positive + num_negative)  # before mask[mask <= 0.1]
     inputs = torch.sigmoid(inputs)
     cost = torch.nn.BCELoss(mask, reduction='none')(inputs, targets.float())
+    cost = torch.sum(cost)
 
-    if reduction == 'mean':
-        cost = torch.mean(cost.float().mean((1, 2, 3)))  # before sum
-    elif reduction == 'sum':
-        cost = torch.sum(cost) / cost.shape[0]
     return cost
 
 
@@ -323,7 +320,7 @@ def bdrloss(prediction, label, radius):
     cost = -label * torch.log(softmax_map)
     cost[label == 0] = 0
 
-    return torch.sum(cost.float().mean(dim=[1, 2, 3]))
+    return cost.sum()
 
 
 def textureloss(prediction, label, mask_radius):
@@ -343,7 +340,7 @@ def textureloss(prediction, label, mask_radius):
     loss = torch.clamp(1-pred_sums/9, 1e-10, 1-1e-10)
     loss[mask == 0] = 0
 
-    return torch.sum(loss.float().mean(dim=[1, 2, 3]))
+    return torch.sum(loss)
 
 
 def cats_loss(prediction, label, weights=(1., 0., 0.)):
@@ -365,7 +362,7 @@ def cats_loss(prediction, label, weights=(1., 0., 0.)):
         mask[mask == 2] = 0
 
     cost = torch.nn.functional.binary_cross_entropy(prediction, label, weight=mask, reduction='none')
-    cost = torch.sum(cost.float().mean((1, 2, 3)))
+    cost = torch.sum(cost)
     label_w = (label != 0).float()
 
     textcost = textureloss(prediction, label_w, mask_radius=4)
