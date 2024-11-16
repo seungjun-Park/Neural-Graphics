@@ -27,16 +27,22 @@ class DownBlock(nn.Module):
         pool_type = pool_type.lower()
 
         out_channels = in_channels if out_channels is None else out_channels
-        self.norm = group_norm(in_channels, num_groups=num_groups)
         if pool_type == 'conv':
             self.pooling = nn.Sequential(
+                conv_nd(
+                    dim,
+                    in_channels,
+                    in_channels,
+                    kernel_size=scale_factor,
+                    stride=scale_factor,
+                    groups=in_channels
+                ),
                 group_norm(in_channels, num_groups=num_groups),
                 conv_nd(
                     dim,
                     in_channels,
                     out_channels,
-                    kernel_size=scale_factor,
-                    stride=scale_factor,
+                    kernel_size=1,
                 )
             )
 
@@ -47,5 +53,5 @@ class DownBlock(nn.Module):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.pooling(self.norm(x))
+        return self.pooling(x)
 
