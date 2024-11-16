@@ -37,7 +37,7 @@ class SDBlock(nn.Module):
 
         out_channels = out_channels if out_channels is not None else in_channels
 
-        self.dw_conv7 = conv_nd(
+        self.dw_conv = conv_nd(
             dim=dim,
             in_channels=in_channels,
             out_channels=in_channels,
@@ -45,16 +45,6 @@ class SDBlock(nn.Module):
             stride=1,
             padding=3,
             groups=in_channels,
-        )
-
-        self.dw_conv3 = conv_nd(
-            dim,
-            in_channels,
-            in_channels,
-            kernel_size=3,
-            stride=1,
-            padding=1,
-            groups=in_channels
         )
 
         self.norm = group_norm(in_channels * 2, num_groups=num_groups)
@@ -84,15 +74,11 @@ class SDBlock(nn.Module):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        local_feat = self.dw_conv3(x)
-        global_feat = self.dw_conv7(x)
+        h = self.norm(self.dw_conv(x))
+        h = self.grn(self.act(self.pw_conv1(h)))
+        h = self.pw_conv2(h)
 
-        feats = torch.cat([local_feat, global_feat], dim=1)
-        feats = self.norm(feats)
-        feats = self.grn(self.act(self.pw_conv1(feats)))
-        feats = self.pw_conv2(feats)
-
-        h = self.drop_path(feats) + x
+        h = self.drop_path(h) + x
 
         return h
 
@@ -131,7 +117,7 @@ class SketchDetectionNetwork(pl.LightningModule):
         self.log_interval = log_interval
 
         self.num_edge_maps = num_edge_maps
-        self.threshold = nn.Parameter(torch.tensor(0.5), requires_grad=True)
+        self.threshold = threshold
 
         if loss_config is not None:
             self.loss = instantiate_from_config(loss_config)
@@ -325,7 +311,8 @@ class SketchDetectionNetwork(pl.LightningModule):
         tb.add_image(f'{prefix}/{split}', x[0].float(), self.global_step, dataformats='CHW')
 
     def configure_optimizers(self) -> Any:
-        opt_net = torch.optim.AdamW(list(self.parameters()),
+        params = list(self.parameters())
+        opt_net = torch.optim.AdamW(params,
                                     lr=self.lr,
                                     weight_decay=self.weight_decay,
                                     betas=(0.5, 0.9)

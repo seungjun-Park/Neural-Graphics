@@ -29,19 +29,8 @@ class UpBlock(nn.Module):
         self.scale_factor = int(scale_factor)
 
         out_channels = out_channels if out_channels is not None else in_channels
-        self.norm = group_norm(in_channels, num_groups=num_groups)
 
-        self.dw_conv3 = conv_nd(
-            dim,
-            in_channels,
-            in_channels,
-            kernel_size=3,
-            stride=1,
-            padding=1,
-            groups=in_channels,
-        )
-
-        self.dw_conv7 = conv_nd(
+        self.dw_conv = conv_nd(
             dim,
             in_channels,
             in_channels,
@@ -51,9 +40,11 @@ class UpBlock(nn.Module):
             groups=in_channels,
         )
 
+        self.norm = group_norm(in_channels, num_groups=num_groups)
+
         self.pw_conv = conv_nd(
             dim,
-            in_channels * 2,
+            in_channels,
             out_channels,
             kernel_size=1,
         )
@@ -62,11 +53,7 @@ class UpBlock(nn.Module):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor):
-        x = self.norm(x)
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
-        local_feat = self.dw_conv3(x)
-        global_feat = self.dw_conv7(x)
-        feats = torch.cat([local_feat, global_feat], dim=1)
-        x = self.pw_conv(feats)
+        x = self.pw_conv(self.norm(self.dw_conv(x)))
 
         return x
