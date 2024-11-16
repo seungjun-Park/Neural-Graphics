@@ -41,7 +41,6 @@ class UpBlock(nn.Module):
                 groups=in_channels
             ),
             group_norm(in_channels, num_groups=num_groups),
-            get_act(act),
             conv_nd(
                 dim,
                 in_channels=in_channels,

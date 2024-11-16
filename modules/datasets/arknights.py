@@ -97,7 +97,7 @@ class ArknightsDataset(Dataset):
             img = self.horizontal_flip(img)
             edge = self.horizontal_flip(edge)
 
-        return img, edge
+        return img, 1. - edge
 
     def __len__(self):
         return len(self.img_names)

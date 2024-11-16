@@ -1,40 +1,38 @@
 module:
-  target: models.edge.enet.EDNSE
+  target: models.edge.sd.SketchDetectionNetwork
   params:
+    in_channels: 3
+    num_edge_maps: 4
+    embed_dim: 16
+    hidden_dims: [ 32, 64, 128, 256 ]
+    num_blocks: 1
+    dropout: 0.0
+    drop_path: 0.1
+    num_groups: 1
+    deformable_group_channels: 8
+    offset_scale: 1.0
+    fix_center: False
+    modulation_type: 'softmax'
+    dw_kernel_size: 7
+    act: 'gelu'
+    use_conv: True
+    pool_type: 'conv'
+    mode: 'bilinear'
+    dim: 2
+    use_checkpoint: True
     lr: 2e-5
     weight_decay: 0.0
     lr_decay_epoch: 100
     log_interval: 5
-    net_config:
-      target: modules.blocks.DeformableUNet
-      params:
-        in_channels: 3
-        out_channels: 1
-        embed_dim: 16
-        hidden_dims: [ 32, 64, 128, 256 ]
-        num_blocks: 1
-        dropout: 0.0
-        drop_path: 0.1
-        num_groups: 1
-        deformable_group_channels: 8
-        offset_scale: 1.0
-        fix_center: False
-        modulation_type: 'none'
-        dw_kernel_size: 7
-        act: 'gelu'
-        use_conv: True
-        pool_type: 'conv'
-        mode: 'nearest'
-        dim: 2
-        use_checkpoint: True
-        use_last_layer: True
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
       params:
         bdcn_weight: 1.0
         lpips_weight: 1.0
+        balanced_mse_weight: 1.0
         cats_weight: [1.0, 0.0, 1.2]
+
 data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
@@ -75,8 +73,8 @@ checkpoints:
     params:
       dirpath: './checkpoints/ednse/arknights_deform_unet'
       filename: 'ednse'
-      monitor: 'step'
-      mode: 'max'
+      monitor: 'train/total_loss'
+      mode: 'min'
       save_top_k: 1
 
   best_checkpoint:

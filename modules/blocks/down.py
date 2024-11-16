@@ -33,19 +33,19 @@ class DownBlock(nn.Module):
                 conv_nd(
                     dim,
                     in_channels,
-                    in_channels * 2,
-                    kernel_size=scale_factor,
-                    stride=scale_factor,
+                    in_channels,
+                    kernel_size=7,
+                    stride=1,
+                    padding=3,
                     groups=in_channels
                 ),
-                group_norm(in_channels * 2, num_groups=num_groups),
-                get_act(act),
+                group_norm(in_channels, num_groups=num_groups),
                 conv_nd(
                     dim,
-                    in_channels * 2,
+                    in_channels,
                     out_channels,
-                    kernel_size=1,
-                    stride=1,
+                    kernel_size=scale_factor,
+                    stride=scale_factor,
                 )
             )
 

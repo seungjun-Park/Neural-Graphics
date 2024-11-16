@@ -10,7 +10,7 @@ from utils import to_2tuple, conv_nd, group_norm, instantiate_from_config, get_a
 from modules.blocks.patches import PatchMerging, PatchExpanding
 from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.attn_block import AttentionBlock
-from modules.blocks.res_block import ResidualBlock, ResidualFFTBlock
+from modules.blocks.res_block import ResidualBlock
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
 from modules.blocks.deform_conv import deform_conv_nd
@@ -303,7 +303,6 @@ class DeformableUNetBlock(nn.Module):
         )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
