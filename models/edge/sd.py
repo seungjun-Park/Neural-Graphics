@@ -47,13 +47,13 @@ class SDBlock(nn.Module):
             groups=in_channels,
         )
 
-        self.norm = group_norm(in_channels * 2, num_groups=num_groups)
+        self.norm = group_norm(in_channels, num_groups=num_groups)
 
-        embed_channels = int(in_channels * 2 * mlp_ratio)
+        embed_channels = int(in_channels * mlp_ratio)
 
         self.pw_conv1 = conv_nd(
             dim,
-            in_channels * 2,
+            in_channels,
             embed_channels,
             kernel_size=1,
         )
