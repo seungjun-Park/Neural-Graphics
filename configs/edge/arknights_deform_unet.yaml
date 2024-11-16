@@ -12,7 +12,7 @@ module:
     deformable_group_channels: 8
     offset_scale: 1.0
     fix_center: False
-    modulation_type: 'softmax'
+    modulation_type: 'none'
     dw_kernel_size: 7
     act: 'gelu'
     use_conv: True
