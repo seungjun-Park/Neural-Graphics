@@ -43,8 +43,6 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         #     mask[mask == 0] = balanced_w * (1 - beta)
         #     mask[mask == 2] = 0
 
-        labels = torch.ceil(labels)
-
         balanced_l1_loss = (torch.abs(preds - labels)).mean()
 
         preds = preds.repeat(1, 3, 1, 1).contiguous()
