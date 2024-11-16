@@ -2,18 +2,13 @@ module:
   target: models.edge.sd.SketchDetectionNetwork
   params:
     in_channels: 3
-    num_edge_maps: 6
-    embed_dim: 32
-    hidden_dims: [ 64, 128, 256, 512 ]
-    num_blocks: 2
+    num_edge_maps: 4
+    embed_dim: 16
+    hidden_dims: [ 32, 64, 128, 256 ]
+    num_blocks: 1
     dropout: 0.0
     drop_path: 0.1
     num_groups: 1
-    deformable_group_channels: 8
-    offset_scale: 1.0
-    fix_center: False
-    modulation_type: 'none'
-    dw_kernel_size: 7
     act: 'gelu'
     use_conv: True
     pool_type: 'conv'
@@ -23,7 +18,7 @@ module:
     lr: 2e-5
     weight_decay: 0.0
     lr_decay_epoch: 100
-    log_interval: 5
+    log_interval: 10
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
@@ -37,7 +32,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 4
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset

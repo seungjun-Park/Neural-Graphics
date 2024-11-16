@@ -15,23 +15,18 @@ from modules.blocks.deform_conv import deform_conv_nd
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
 from modules.blocks.mlp import ConvMLP
+from modules.blocks.norm import GlobalResponseNorm
 
 
 class SDBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
                  out_channels: int = None,
-                 dropout: float = 0.0,
+                 mlp_ratio: float = 4.0,
                  drop_path: float = 0.0,
                  act: str = 'relu',
                  use_conv: bool = True,
                  num_groups: int = 1,
-                 deformable_groups: int = 1,
-                 deformable_group_channels: int = None,
-                 offset_scale: float = 1.0,
-                 fix_center: bool = False,
-                 modulation_type: str = 'none',
-                 dw_kernel_size: Union[int, List[int], Tuple[int]] = 7,
                  dim: int = 2,
                  use_checkpoint: bool = True,
                  ):
@@ -42,37 +37,45 @@ class SDBlock(nn.Module):
 
         out_channels = out_channels if out_channels is not None else in_channels
 
-        self.res_block = ResidualBlock(
-            in_channels,
-            out_channels,
-            dropout=dropout,
-            drop_path=drop_path,
-            act=act,
+        self.dw_conv7 = conv_nd(
             dim=dim,
-            num_groups=num_groups,
-            use_checkpoint=False,
-            use_conv=use_conv,
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=7,
+            stride=1,
+            padding=3,
+            groups=in_channels,
         )
 
-        if deformable_group_channels is not None:
-            deformable_groups = out_channels // deformable_group_channels
+        self.dw_conv3 = conv_nd(
+            dim,
+            in_channels,
+            in_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            groups=in_channels
+        )
 
-        self.dcn = nn.Sequential(
-            group_norm(out_channels, num_groups=num_groups),
-            get_act(act),
-            deform_conv_nd(
-                dim,
-                out_channels,
-                out_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                groups=deformable_groups,
-                offset_scale=offset_scale,
-                fix_center=fix_center,
-                modulation_type=modulation_type,
-                dw_kernel_size=dw_kernel_size,
-            ),
+        self.norm = group_norm(in_channels * 2, num_groups=num_groups)
+
+        embed_channels = int(in_channels * 2 * mlp_ratio)
+
+        self.pw_conv1 = conv_nd(
+            dim,
+            in_channels * 2,
+            embed_channels,
+            kernel_size=1,
+        )
+
+        self.act = get_act(act)
+        self.grn = GlobalResponseNorm(embed_channels)
+
+        self.pw_conv2 = conv_nd(
+            dim,
+            embed_channels,
+            out_channels,
+            kernel_size=1,
         )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -81,11 +84,15 @@ class SDBlock(nn.Module):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x.shape == b, c, *...
-        x = self.res_block(x)
-        h = self.dcn(x)
+        local_feat = self.dw_conv3(x)
+        global_feat = self.dw_conv7(x)
 
-        h = self.drop_path(h) + x
+        feats = torch.cat([local_feat, global_feat], dim=1)
+        feats = self.norm(feats)
+        feats = self.grn(self.act(self.pw_conv1(feats)))
+        feats = self.pw_conv2(feats)
+
+        h = self.drop_path(feats) + x
 
         return h
 
@@ -95,17 +102,12 @@ class SketchDetectionNetwork(pl.LightningModule):
                  in_channels: int,
                  num_edge_maps: int,
                  embed_dim: int = 16,
+                 mlp_ratio: float = 4.0,
                  hidden_dims: Union[List[int], Tuple[int]] = (32, 64, 128, 256),
                  num_blocks: Union[int, List[int], Tuple[int]] = 2,
                  dropout: float = 0.0,
                  drop_path: float = 0.0,
                  num_groups: int = 1,
-                 deformable_groups: int = 1,
-                 deformable_group_channels: int = None,
-                 offset_scale: float = 1.0,
-                 fix_center: bool = False,
-                 modulation_type: str = 'softmax',
-                 dw_kernel_size: Union[int, List[int], Tuple[int]] = 7,
                  act: str = 'relu',
                  use_conv: bool = True,
                  pool_type: str = 'conv',
@@ -129,7 +131,7 @@ class SketchDetectionNetwork(pl.LightningModule):
         self.log_interval = log_interval
 
         self.num_edge_maps = num_edge_maps
-        self.threshold = threshold
+        self.threshold = nn.Parameter(torch.tensor(0.5), requires_grad=True)
 
         if loss_config is not None:
             self.loss = instantiate_from_config(loss_config)
@@ -152,46 +154,39 @@ class SketchDetectionNetwork(pl.LightningModule):
                 conv_nd(
                     dim,
                     in_channels,
-                    embed_dim,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                )
+                    hidden_dims[0],
+                    kernel_size=2,
+                    stride=2,
+                ),
+                group_norm(hidden_dims[0], num_groups=num_groups),
             )
         )
 
-        in_ch = embed_dim
-        skip_dims = [embed_dim]
+        # in_ch = embed_dim
+        skip_dims = [hidden_dims[0]]
 
-        for i, out_ch in enumerate(hidden_dims):
+        for i, in_ch in enumerate(hidden_dims):
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
                 self.encoder.append(
                     SDBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
-                        dropout=dropout,
+                        mlp_ratio=mlp_ratio,
+                        out_channels=in_ch,
                         drop_path=drop_path,
                         act=act,
                         use_conv=use_conv,
                         num_groups=num_groups,
-                        deformable_groups=deformable_groups,
-                        deformable_group_channels=deformable_group_channels,
-                        offset_scale=offset_scale,
-                        fix_center=fix_center,
-                        modulation_type=modulation_type,
-                        dw_kernel_size=dw_kernel_size,
                         dim=dim,
                         use_checkpoint=use_checkpoint
                     )
                 )
-                in_ch = out_ch
                 skip_dims.append(in_ch)
 
             if i != len(hidden_dims) - 1:
                 self.encoder.append(
                     DownBlock(
                         in_channels=in_ch,
-                        out_channels=in_ch,
+                        out_channels=hidden_dims[i + 1],
                         scale_factor=2,
                         dim=2,
                         pool_type=pool_type,
@@ -199,37 +194,31 @@ class SketchDetectionNetwork(pl.LightningModule):
                         num_groups=num_groups,
                     )
                 )
-                skip_dims.append(in_ch)
 
-        for i, out_ch in list(enumerate(hidden_dims))[::-1]:
+                in_ch = hidden_dims[i + 1]
+
+        for i, in_ch in list(enumerate(hidden_dims))[::-1]:
             for j in range(num_blocks[i] if isinstance(num_blocks, abc.Iterable) else num_blocks):
                 in_ch = in_ch + skip_dims.pop()
                 self.decoder.append(
                     SDBlock(
                         in_channels=in_ch,
-                        out_channels=out_ch,
-                        dropout=dropout,
+                        mlp_ratio=mlp_ratio,
+                        out_channels=in_ch,
                         drop_path=drop_path,
                         act=act,
                         use_conv=use_conv,
                         num_groups=num_groups,
-                        deformable_groups=deformable_groups,
-                        deformable_group_channels=deformable_group_channels,
-                        offset_scale=offset_scale,
-                        fix_center=fix_center,
-                        modulation_type=modulation_type,
-                        dw_kernel_size=dw_kernel_size,
                         dim=dim,
                         use_checkpoint=use_checkpoint
                     )
                 )
-                in_ch = out_ch
 
             if i != 0:
                 self.decoder.append(
                     UpBlock(
-                        in_channels=in_ch + skip_dims.pop(),
-                        out_channels=in_ch,
+                        in_channels=in_ch,
+                        out_channels=hidden_dims[i - 1],
                         scale_factor=2,
                         mode=mode,
                         use_checkpoint=use_checkpoint,
@@ -237,59 +226,33 @@ class SketchDetectionNetwork(pl.LightningModule):
                     )
                 )
 
-        self.edge_maps = nn.Sequential(
-            group_norm(in_ch, num_groups=num_groups),
-            get_act(act),
-            conv_nd(
-                dim,
-                in_ch,
-                in_ch,
-                kernel_size=7,
-                stride=1,
-                padding=3,
-                groups=in_ch
-            ),
-            group_norm(in_ch, num_groups=num_groups),
-            conv_nd(
-                dim,
-                in_ch,
-                num_edge_maps,
-                kernel_size=1,
+                in_ch = hidden_dims[i - 1]
+
+        self.edge_maps_and_directions = nn.Sequential(
+            UpBlock(
+                in_channels=in_ch,
+                out_channels=num_edge_maps * 2,
+                num_groups=num_groups,
+                dim=dim,
+                scale_factor=2,
+                act=act,
+                mode=mode,
+                use_checkpoint=use_checkpoint,
+            )
+        )
+
+        self.line_transform = nn.Sequential(
+            ConvMLP(
+                in_channels=num_edge_maps * 2,
+                embed_dim=int(num_edge_maps * 2 * mlp_ratio),
+                out_channels=1,
+                dropout=dropout,
+                act=act,
+                num_groups=num_groups,
+                dim=dim,
+                use_checkpoint=use_checkpoint
             ),
             nn.Sigmoid(),
-        )
-
-        self.edge_directions = nn.Sequential(
-            group_norm(in_ch, num_groups=num_groups),
-            get_act(act),
-            conv_nd(
-                dim,
-                in_ch,
-                in_ch,
-                kernel_size=7,
-                stride=1,
-                padding=3,
-                groups=in_ch
-            ),
-            group_norm(in_ch, num_groups=num_groups),
-            conv_nd(
-                dim,
-                in_ch,
-                num_edge_maps,
-                kernel_size=1,
-            ),
-            nn.Hardtanh(-math.pi, math.pi),
-        )
-
-        self.line_transform = ConvMLP(
-            in_channels=num_edge_maps * 2,
-            embed_dim=num_edge_maps * 2 * 4,
-            out_channels=1,
-            dropout=dropout,
-            act=act,
-            num_groups=1,
-            dim=2,
-            use_checkpoint=use_checkpoint
         )
 
     def init_from_ckpt(self, path, ignore_keys=list()):
@@ -308,19 +271,23 @@ class SketchDetectionNetwork(pl.LightningModule):
         h = x
         for i, block in enumerate(self.encoder):
             h = block(h)
-            hs.append(h)
+            if not isinstance(block, DownBlock):
+                hs.append(h)
 
         for i, block in enumerate(self.decoder):
-            h = torch.cat([h, hs.pop()], dim=1)
+            if not isinstance(block, UpBlock):
+                h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
-        edge_maps = self.edge_maps(h)
+        edge_maps, edge_directions = self.edge_maps_and_directions(h).chunk(2, dim=1)
+        edge_maps = F.sigmoid(edge_maps)
+        edge_directions = F.hardtanh(edge_directions, -math.pi, math.pi)
 
-        mask = torch.where(edge_maps >= 0.2, 1.0, 0.0)
-        edge_direction = self.edge_directions(h) * mask
+        mask = torch.where(edge_maps >= self.threshold, 1.0, 0.0)
+        edge_directions = edge_directions * mask
 
-        edge = F.sigmoid(self.line_transform(torch.cat([edge_maps, edge_direction], dim=1)))
-
+        edge_maps_and_directions = torch.cat([edge_maps, edge_directions], dim=1)
+        edge = self.line_transform(edge_maps_and_directions)
         return edge
 
     def training_step(self, batch, batch_idx):

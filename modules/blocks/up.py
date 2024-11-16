@@ -30,25 +30,32 @@ class UpBlock(nn.Module):
 
         out_channels = out_channels if out_channels is not None else in_channels
         self.norm = group_norm(in_channels, num_groups=num_groups)
-        self.up = nn.Sequential(
-            conv_nd(
-                dim=dim,
-                in_channels=in_channels,
-                out_channels=in_channels,
-                kernel_size=7,
-                stride=1,
-                padding=3,
-                groups=in_channels
-            ),
-            group_norm(in_channels, num_groups=num_groups),
-            conv_nd(
-                dim,
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=1,
-                stride=1,
-                padding=0
-            )
+
+        self.dw_conv3 = conv_nd(
+            dim,
+            in_channels,
+            in_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            groups=in_channels,
+        )
+
+        self.dw_conv7 = conv_nd(
+            dim,
+            in_channels,
+            in_channels,
+            kernel_size=7,
+            stride=1,
+            padding=3,
+            groups=in_channels,
+        )
+
+        self.pw_conv = conv_nd(
+            dim,
+            in_channels * 2,
+            out_channels,
+            kernel_size=1,
         )
 
     def forward(self, x: torch.Tensor):
@@ -57,4 +64,9 @@ class UpBlock(nn.Module):
     def _forward(self, x: torch.Tensor):
         x = self.norm(x)
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
-        return self.up(x)
+        local_feat = self.dw_conv3(x)
+        global_feat = self.dw_conv7(x)
+        feats = torch.cat([local_feat, global_feat], dim=1)
+        x = self.pw_conv(feats)
+
+        return x

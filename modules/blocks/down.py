@@ -30,15 +30,6 @@ class DownBlock(nn.Module):
         self.norm = group_norm(in_channels, num_groups=num_groups)
         if pool_type == 'conv':
             self.pooling = nn.Sequential(
-                conv_nd(
-                    dim,
-                    in_channels,
-                    in_channels,
-                    kernel_size=7,
-                    stride=1,
-                    padding=3,
-                    groups=in_channels
-                ),
                 group_norm(in_channels, num_groups=num_groups),
                 conv_nd(
                     dim,
