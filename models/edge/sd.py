@@ -202,10 +202,9 @@ class SketchDetectionNetwork(pl.LightningModule):
                 )
 
             if i != 0:
-                in_ch = in_ch + skip_dims.pop()
                 self.decoder.append(
                     UpBlock(
-                        in_channels=in_ch,
+                        in_channels=in_ch + skip_dims.pop(),
                         out_channels=hidden_dims[i - 1],
                         scale_factor=2,
                         mode=mode,
@@ -259,12 +258,10 @@ class SketchDetectionNetwork(pl.LightningModule):
         h = x
         for i, block in enumerate(self.encoder):
             h = block(h)
-            if not isinstance(block, DownBlock):
-                hs.append(h)
+            hs.append(h)
 
         for i, block in enumerate(self.decoder):
-            if not isinstance(block, UpBlock):
-                h = torch.cat([h, hs.pop()], dim=1)
+            h = torch.cat([h, hs.pop()], dim=1)
             h = block(h)
 
         edge_maps, edge_directions = self.edge_maps_and_directions(h).chunk(2, dim=1)
