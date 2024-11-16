@@ -2,10 +2,10 @@ module:
   target: models.edge.sd.SketchDetectionNetwork
   params:
     in_channels: 3
-    num_edge_maps: 4
+    num_edge_maps: 16
     embed_dim: 16
     hidden_dims: [ 32, 64, 128, 256 ]
-    num_blocks: 1
+    num_blocks: 2
     dropout: 0.0
     drop_path: 0.1
     num_groups: 1
@@ -32,7 +32,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 5
+    batch_size: 4
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
@@ -40,7 +40,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 512
+        size: 1024
         color_space: 'rgb'
         scale: [0.5, 1.0]
 
@@ -50,7 +50,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: False
-        size: 512
+        size: 1024
         color_space: 'rgb'
         scale: [0.5, 1.0]
 
@@ -84,4 +84,4 @@ checkpoints:
 trainer:
   accelerator: 'gpu'
   max_epochs: 300
-  accumulate_grad_batches: 2
+  accumulate_grad_batches: 5
