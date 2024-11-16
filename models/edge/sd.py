@@ -284,6 +284,7 @@ class SketchDetectionNetwork(pl.LightningModule):
         self.line_transform = ConvMLP(
             in_channels=num_edge_maps * 2,
             embed_dim=num_edge_maps * 2 * 4,
+            out_channels=1,
             dropout=dropout,
             act=act,
             num_groups=1,
