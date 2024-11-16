@@ -2,10 +2,10 @@ module:
   target: models.edge.sd.SketchDetectionNetwork
   params:
     in_channels: 3
-    num_edge_maps: 4
-    embed_dim: 16
-    hidden_dims: [ 32, 64, 128, 256 ]
-    num_blocks: 1
+    num_edge_maps: 6
+    embed_dim: 32
+    hidden_dims: [ 64, 128, 256, 512 ]
+    num_blocks: 2
     dropout: 0.0
     drop_path: 0.1
     num_groups: 1
@@ -30,7 +30,7 @@ module:
       params:
         bdcn_weight: 1.0
         lpips_weight: 1.0
-        balanced_mse_weight: 1.0
+        balanced_l1_weight: 1.0
         cats_weight: [1.0, 0.0, 1.2]
 
 data:

@@ -73,8 +73,8 @@ class ConvMLP(nn.Module):
 
         self.dropout = dropout
 
-        self.norm1 = group_norm(embed_dim, num_groups=num_groups)
-        self.norm2 = group_norm(out_channels, num_groups=num_groups)
+        self.norm1 = group_norm(in_channels, num_groups=num_groups)
+        self.norm2 = group_norm(embed_dim, num_groups=num_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
@@ -83,15 +83,14 @@ class ConvMLP(nn.Module):
         # x.shape == b, c, *...
 
         h = x
-        h = self.conv1(h)
         h = self.norm1(h)
         h = self.act(h)
-        h = F.dropout(h, p=self.dropout)
+        h = self.conv1(h)
 
-        h = self.conv2(h)
         h = self.norm2(h)
         h = self.act(h)
         h = F.dropout(h, p=self.dropout)
+        h = self.conv2(h)
 
         return h
 

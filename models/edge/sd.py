@@ -14,6 +14,7 @@ from modules.blocks.res_block import ResidualBlock
 from modules.blocks.deform_conv import deform_conv_nd
 from modules.blocks.down import DownBlock
 from modules.blocks.up import UpBlock
+from modules.blocks.mlp import ConvMLP
 
 
 class SDBlock(nn.Module):
@@ -111,6 +112,7 @@ class SketchDetectionNetwork(pl.LightningModule):
                  mode: str = 'nearest',
                  dim: int = 2,
                  use_checkpoint: bool = True,
+                 threshold: float = 0.2,
                  loss_config: DictConfig = None,
                  lr: float = 2e-5,
                  weight_decay: float = 1e-4,
@@ -127,6 +129,7 @@ class SketchDetectionNetwork(pl.LightningModule):
         self.log_interval = log_interval
 
         self.num_edge_maps = num_edge_maps
+        self.threshold = threshold
 
         if loss_config is not None:
             self.loss = instantiate_from_config(loss_config)
@@ -256,26 +259,6 @@ class SketchDetectionNetwork(pl.LightningModule):
             nn.Sigmoid(),
         )
 
-        self.edge_prob = nn.Sequential(
-            conv_nd(
-                dim,
-                num_edge_maps,
-                num_edge_maps,
-                kernel_size=7,
-                stride=1,
-                padding=3,
-                groups=num_edge_maps
-            ),
-            group_norm(num_edge_maps, num_groups=num_groups),
-            conv_nd(
-                dim,
-                num_edge_maps,
-                num_edge_maps,
-                kernel_size=1,
-            ),
-            nn.Softmax(dim=1),
-        )
-
         self.edge_directions = nn.Sequential(
             group_norm(in_ch, num_groups=num_groups),
             get_act(act),
@@ -292,19 +275,20 @@ class SketchDetectionNetwork(pl.LightningModule):
             conv_nd(
                 dim,
                 in_ch,
-                1,
+                num_edge_maps,
                 kernel_size=1,
             ),
             nn.Hardtanh(-math.pi, math.pi),
         )
 
-        self.line_transform = nn.Sequential(
-            conv_nd(
-                dim,
-                2,
-                1,
-                kernel_size=1,
-            ),
+        self.line_transform = ConvMLP(
+            in_channels=num_edge_maps * 2,
+            embed_dim=num_edge_maps * 2 * 4,
+            dropout=dropout,
+            act=act,
+            num_groups=1,
+            dim=2,
+            use_checkpoint=use_checkpoint
         )
 
     def init_from_ckpt(self, path, ignore_keys=list()):
@@ -330,11 +314,8 @@ class SketchDetectionNetwork(pl.LightningModule):
             h = block(h)
 
         edge_maps = self.edge_maps(h)
-        edge_prob = self.edge_prob(edge_maps)
 
-        edge_maps = F.sigmoid((edge_maps * edge_prob).sum(dim=1, keepdims=True))
-
-        mask = torch.round(edge_maps)
+        mask = torch.where(edge_maps >= 0.2, 1.0, 0.0)
         edge_direction = self.edge_directions(h) * mask
 
         edge = F.sigmoid(self.line_transform(torch.cat([edge_maps, edge_direction], dim=1)))
@@ -363,8 +344,8 @@ class SketchDetectionNetwork(pl.LightningModule):
         net_loss, net_loss_log = self.loss(preds, labels, imgs, split='val')
 
         if self.global_step % self.log_interval == 0:
-            self.log_img(preds, 'edge')
-            self.log_img(labels, 'label')
+            self.log_img(1. - preds, 'edge')
+            self.log_img(1. - labels, 'label')
             self.log_img(imgs, 'img')
 
         self.log_dict(net_loss_log,  prog_bar=True)
