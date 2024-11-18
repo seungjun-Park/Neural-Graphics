@@ -88,6 +88,10 @@ def main():
     # callbacks.append(GradientNormCallback(threshold=2e5))
 
     trainer_configs = config.trainer
+    ckpt_path = None
+    if 'ckpt_path' in trainer_configs.keys():
+        ckpt_path = trainer_configs.pop('ckpt_path')
+
     trainer = Trainer(
         logger=logger,
         callbacks=callbacks,
@@ -95,7 +99,8 @@ def main():
         detect_anomaly=True,
         **trainer_configs
     )
-    trainer.fit(model=model, datamodule=datamodule)
+
+    trainer.fit(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
     # trainer.test(model=model)
 
 
@@ -124,7 +129,7 @@ def test():
             img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
-            img = torchvision.transforms.transforms.Resize([512, 512])(img)
+            img = torchvision.transforms.transforms.RandomResizedCrop([1024, 1024])(img)
             img = img.unsqueeze(0)
             img = model(img)
             img = img.detach().cpu()
