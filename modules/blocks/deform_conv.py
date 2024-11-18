@@ -114,8 +114,8 @@ class DeformConv1d(nn.Module):
 
         nn.init.zeros_(self.attn_mask[0].weight)
         nn.init.zeros_(self.attn_mask[-1].weight)
-        nn.init.ones_(self.attn_mask[0].bias)
-        nn.init.zeros_(self.attn_mask[-1].bias)
+        nn.init.zeros_(self.attn_mask[0].bias)
+        nn.init.ones_(self.attn_mask[-1].bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x) * self.offset_scale
@@ -219,8 +219,8 @@ class DeformConv2d(nn.Module):
 
         nn.init.zeros_(self.attn_mask[0].weight)
         nn.init.zeros_(self.attn_mask[-1].weight)
-        nn.init.constant_(self.attn_mask[0].bias, 0.5)
-        nn.init.zeros_(self.attn_mask[-1].bias)
+        nn.init.zeros_(self.attn_mask[0].bias)
+        nn.init.ones_(self.attn_mask[-1].bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x) * self.offset_scale
@@ -325,8 +325,8 @@ class DeformConv3d(nn.Module):
 
         nn.init.zeros_(self.attn_mask[0].weight)
         nn.init.zeros_(self.attn_mask[-1].weight)
-        nn.init.ones_(self.attn_mask[0].bias)
-        nn.init.zeros_(self.attn_mask[-1].bias)
+        nn.init.zeros_(self.attn_mask[0].bias)
+        nn.init.ones_(self.attn_mask[-1].bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         offset_field = self.offset_field(x) * self.offset_scale

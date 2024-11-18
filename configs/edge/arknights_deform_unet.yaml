@@ -16,7 +16,7 @@ module:
     act: 'gelu'
     use_conv: True
     pool_type: 'conv'
-    mode: 'bilinear'
+    mode: 'nearest'
     dim: 2
     use_checkpoint: True
     lr: 2e-5

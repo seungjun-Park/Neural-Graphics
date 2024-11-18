@@ -278,35 +278,35 @@ class SketchDetectionNetwork(pl.LightningModule):
                     )
                 )
 
-        # self.out = nn.Sequential(
-        #     group_norm(in_ch, num_groups=num_groups),
-        #     get_act(act),
-        #     deform_conv_nd(
-        #         dim,
-        #         in_ch,
-        #         out_channels,
-        #         kernel_size=3,
-        #         padding=1,
-        #         deformable_groups_per_groups=in_ch,
-        #         offset_scale=offset_scale,
-        #         modulation_type=modulation_type,
-        #         dw_kernel_size=dw_kernel_size,
-        #     ),
-        #     nn.Sigmoid(),
-        # )
-
         self.out = nn.Sequential(
             group_norm(in_ch, num_groups=num_groups),
             get_act(act),
-            conv_nd(
+            deform_conv_nd(
                 dim,
                 in_ch,
                 out_channels,
                 kernel_size=3,
                 padding=1,
+                deformable_groups_per_groups=in_ch,
+                offset_scale=offset_scale,
+                modulation_type=modulation_type,
+                dw_kernel_size=dw_kernel_size,
             ),
             nn.Sigmoid(),
         )
+
+        # self.out = nn.Sequential(
+        #     group_norm(in_ch, num_groups=num_groups),
+        #     get_act(act),
+        #     conv_nd(
+        #         dim,
+        #         in_ch,
+        #         out_channels,
+        #         kernel_size=3,
+        #         padding=1,
+        #     ),
+        #     nn.Sigmoid(),
+        # )
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
