@@ -143,9 +143,6 @@ class SketchDetectionNetwork(pl.LightningModule):
         else:
             self.loss = None
 
-        if ckpt_path is not None:
-            self.init_from_ckpt(path=ckpt_path, ignore_keys=ignore_keys)
-
         self.dim = dim
         self.hidden_dims = hidden_dims
         self.num_groups = num_groups
@@ -294,6 +291,9 @@ class SketchDetectionNetwork(pl.LightningModule):
             ),
             nn.Sigmoid(),
         )
+
+        if ckpt_path is not None:
+            self.init_from_ckpt(path=ckpt_path, ignore_keys=ignore_keys)
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]

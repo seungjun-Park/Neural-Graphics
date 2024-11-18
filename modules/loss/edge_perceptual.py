@@ -17,6 +17,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
                  lpips_weight: float = 1.0,
                  balanced_l1_weight: float = 1.0,
                  bdcn_weight: float = 1.0,
+                 content_weight: float = 0.5,
                  ):
 
         super().__init__()
@@ -26,36 +27,24 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
         self.balanced_l1_weight = balanced_l1_weight
         self.bdcn_weight = bdcn_weight
         self.cats_weight = cats_weight
+        self.content_weight = content_weight
 
     def forward(self, preds: torch.Tensor, labels: torch.Tensor, imgs: torch.Tensor, split="train"):
-        # cats, tracing_loss, bdr_loss, texture_loss = cats_loss(1 - preds, 1 - labels, self.cats_weight)
-
-        # mask = labels.clone().detach()
-        # mask = torch.round(mask).long().float()
-        #
-        # with torch.no_grad():
-        #     balanced_w = 1.1
-        #
-        #     num_positive = torch.sum((mask == 1).float()).float()
-        #     num_negative = torch.sum((mask == 0).float()).float()
-        #     beta = num_negative / (num_positive + num_negative)
-        #     mask[mask == 1] = beta
-        #     mask[mask == 0] = balanced_w * (1 - beta)
-        #     mask[mask == 2] = 0
-
         balanced_l1_loss = (torch.abs(preds - labels)).mean()
 
         preds = preds.repeat(1, 3, 1, 1).contiguous()
         labels = labels.repeat(1, 3, 1, 1).contiguous()
 
         lpips_loss = self.perceptual_loss(preds, labels).mean()
+        content_loss = self.perceptual_loss(preds, imgs).mean()
 
         # loss = self.lpips_weight * lpips_loss + cats
-        loss = self.lpips_weight * lpips_loss + self.balanced_l1_weight * balanced_l1_loss
+        loss = self.lpips_weight * lpips_loss + self.balanced_l1_weight * balanced_l1_loss + self.content_weight * content_loss
 
         log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                "{}/lpips_loss".format(split): lpips_loss.detach().mean(),
                "{}/l1_loss".format(split): balanced_l1_loss.detach().mean(),
+               "{}/content_loss".format(split): content_loss.detach().mean(),
                }
 
         return loss, log

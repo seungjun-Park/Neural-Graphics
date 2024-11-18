@@ -31,6 +31,7 @@ module:
         lpips_weight: 1.0
         balanced_l1_weight: 1.0
         cats_weight: [1.0, 0.0, 1.2]
+        content_weight: 0.5
 
 data:
   target: modules.datasets.util.DataModuleFromConfig
@@ -96,6 +97,5 @@ checkpoints:
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 500
+  max_epochs: 300
   accumulate_grad_batches: 5
-  ckpt_path: './checkpoints/sd/arknights/sd.ckpt'
