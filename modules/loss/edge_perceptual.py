@@ -55,7 +55,7 @@ class EdgeLPIPSWithDiscriminator(nn.Module):
 
         log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                "{}/lpips_loss".format(split): lpips_loss.detach().mean(),
-               "{}/bmse_loss".format(split): balanced_l1_loss.detach().mean(),
+               "{}/l1_loss".format(split): balanced_l1_loss.detach().mean(),
                }
 
         return loss, log

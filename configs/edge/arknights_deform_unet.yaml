@@ -2,13 +2,17 @@ module:
   target: models.edge.sd.SketchDetectionNetwork
   params:
     in_channels: 3
-    num_edge_maps: 16
+    out_channels: 1
     embed_dim: 16
     hidden_dims: [ 32, 64, 128, 256 ]
-    num_blocks: 2
+    num_blocks: 1
     dropout: 0.0
     drop_path: 0.1
-    num_groups: 1
+    deformable_group_channels: 16
+    offset_scale: 1.0
+    modulation_type: 'none'
+    dw_kernel_size: 7
+    num_groups: 16
     act: 'gelu'
     use_conv: True
     pool_type: 'conv'
@@ -32,7 +36,7 @@ data:
   target: modules.datasets.util.DataModuleFromConfig
   params:
     num_workers: 4
-    batch_size: 4
+    batch_size: 2
     wrap: True
     train:
       target: modules.datasets.arknights.ArknightsDataset
@@ -40,7 +44,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: True
-        size: 1024
+        size: 512
         color_space: 'rgb'
         scale: [0.5, 1.0]
 
@@ -50,7 +54,7 @@ data:
         root: '/local_datasets/anime'
         # root: './datasets/anime'
         train: False
-        size: 1024
+        size: 512
         color_space: 'rgb'
         scale: [0.5, 1.0]
 
@@ -58,30 +62,30 @@ logger:
   target: pytorch_lightning.loggers.tensorboard.TensorBoardLogger
   params:
     save_dir: './logs'
-    name: 'ednse'
-    version: 'arknights_deform_unet'
+    name: 'sd'
+    version: 'arknights'
 
 
 checkpoints:
   latest_checkpoints:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/arknights_deform_unet'
-      filename: 'ednse'
-      monitor: 'train/total_loss'
-      mode: 'min'
+      dirpath: './checkpoints/sd/arknights'
+      filename: 'sd'
+      monitor: 'step'
+      mode: 'max'
       save_top_k: 1
 
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
-      dirpath: './checkpoints/ednse/arknights_deform_unet'
-      filename: 'ednse_best'
+      dirpath: './checkpoints/sd/arknights'
+      filename: 'sd_best'
       monitor: 'val/total_loss'
       mode: 'min'
       save_top_k: 1
 
 trainer:
   accelerator: 'gpu'
-  max_epochs: 300
+  max_epochs: 500
   accumulate_grad_batches: 5

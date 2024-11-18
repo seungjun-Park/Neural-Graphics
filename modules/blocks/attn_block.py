@@ -14,6 +14,7 @@ from modules.blocks.mlp import MLP, ConvMLP
 from modules.blocks.positional_encoding import PositionalEncoding
 from utils import to_2tuple, trunc_normal_, conv_nd, norm, group_norm, functional_conv_nd, get_act
 from timm.models.layers import DropPath
+from modules.blocks.deform_conv import deform_conv_nd
 
 
 def window_partition(x, window_size):
@@ -553,137 +554,6 @@ class DoubleWindowAttention(nn.Module):
         return v
 
 
-class DeformableAttention(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 in_res: int,
-                 scale_factor: int,
-                 num_heads: int = 8,
-                 qkv_bias=True,
-                 proj_bias=True,
-                 qk_scale: float = None,
-                 attn_dropout: float = 0.0,
-                 proj_dropout: float = 0.0,
-                 act: str = 'gelu',
-                 dim: int = 2,
-                 use_checkpoint: bool = True,
-                 ):
-        super().__init__()
-
-        self.use_checkpoint = use_checkpoint
-
-        assert in_channels % num_heads == 0
-
-        self.num_heads = num_heads
-        self.d_k = in_channels // num_heads
-        self.scale = qk_scale if qk_scale else 1 / (self.d_k ** 2)
-        self.res = in_res // scale_factor
-
-        self.conv_offset = nn.Sequential(
-            conv_nd(dim, in_channels, in_channels, kernel_size=scale_factor, stride=scale_factor),
-            group_norm(in_channels),
-            get_act(act),
-            conv_nd(dim, in_channels, 2, kernel_size=1, stride=1, bias=False)
-        )
-
-        self.attn_dropout = nn.Dropout(attn_dropout)
-        self.proj_dropout = nn.Dropout(proj_dropout)
-
-        self.rpe_table = nn.Parameter(
-            torch.zeros(self.num_heads, self.res * 2 - 1, self.res * 2 - 1)
-        )
-        trunc_normal_(self.rpe_table, std=0.01)
-
-        self.q = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=qkv_bias)
-        self.kv = conv_nd(dim, in_channels, in_channels * 2, kernel_size=1, stride=1, bias=qkv_bias)
-        self.proj = conv_nd(dim, in_channels, in_channels, kernel_size=1, stride=1, bias=proj_bias)
-
-    @torch.no_grad()
-    def _get_ref_points(self, offset: torch.Tensor):
-        b, h, w, c = offset.shape
-        dtype = offset.dtype
-        device = offset.device
-
-        ref_y, ref_x = torch.meshgrid(
-            torch.linspace(0.5, h - 0.5, h, dtype=dtype, device=device),
-            torch.linspace(0.5, w - 0.5, w, dtype=dtype, device=device),
-            indexing='ij'
-        )
-        ref = torch.stack((ref_y, ref_x), -1)
-        ref[..., 1].div_(w - 1.0).mul_(2.0).sub_(1.0)
-        ref[..., 0].div_(h - 1.0).mul_(2.0).sub_(1.0)
-        ref = ref[None, ...].expand(b, -1, -1, -1)  # B * g H W 2
-
-        return ref
-
-    @torch.no_grad()
-    def _get_q_grid(self, q: torch.Tensor):
-        b, c, h, w = q.shape
-
-        ref_y, ref_x = torch.meshgrid(
-            torch.arange(0, h, dtype=q.dtype, device=q.device),
-            torch.arange(0, w, dtype=q.dtype, device=q.device),
-            indexing='ij'
-        )
-        ref = torch.stack((ref_y, ref_x), -1)
-        ref[..., 1].div_(w - 1.0).mul_(2.0).sub_(1.0)
-        ref[..., 0].div_(h - 1.0).mul_(2.0).sub_(1.0)
-        ref = ref[None, ...].expand(b, -1, -1, -1)  # B * g H W 2
-
-        return ref
-
-    def forward(self, x: torch.Tensor, context: torch.Tensor = None) -> torch.Tensor:
-        b, c, *spatial = x.shape
-        l = np.prod(spatial)
-        if context is None:
-            context = x
-
-        q = self.q(x)
-        offset = self.conv_offset(q).contiguous()  # B * g 2 Hg Wg
-        n_sample = np.prod(offset.shape[2:])
-
-        offset = offset.permute(0, 2, 3, 1)
-        reference = self._get_ref_points(offset)
-
-        pos = (offset + reference).clamp(-1., 1.)
-
-        sampled = F.grid_sample(
-            input=context,
-            grid=pos[..., (1, 0)],  # y, x -> x, y
-            mode='bilinear', align_corners=True)  # B * g, Cg, Hg, Wg
-
-        sampled = sampled.reshape(b, c, 1, n_sample)
-
-        q = q.reshape(b * self.num_heads, self.d_k, l)
-        k, v = self.kv(sampled).chunk(2, dim=1)
-        k = k.reshape(b * self.num_heads, self.d_k, n_sample)
-        v = v.reshape(b * self.num_heads, self.d_k, n_sample)
-
-        attn = torch.einsum('b c m, b c n -> b m n', q, k)  # B * h, HW, Ns
-        attn = attn * self.scale
-
-        rpe_table = self.rpe_table
-        rpe_bias = rpe_table[None, ...].expand(b, -1, -1, -1)
-        q_grid = self._get_q_grid(x)
-        displacement = (q_grid.reshape(b, l, 2).unsqueeze(2) - pos.reshape(b, n_sample, 2).unsqueeze(1)).mul(0.5)
-        attn_bias = F.grid_sample(
-            input=rpe_bias,
-            grid=displacement[..., (1, 0)],
-            mode='bilinear', align_corners=True)  # B * g, h_g, HW, Ns
-
-        attn_bias = attn_bias.reshape(b * self.num_heads, l, n_sample)
-        attn = attn + attn_bias
-
-        attn = F.softmax(attn, dim=-1)
-        attn = self.attn_dropout(attn)
-
-        v = torch.einsum('b m n, b c n -> b c m', attn, v)
-        v = v.reshape(b, c, *spatial)
-        v = self.proj_dropout(self.proj(v))
-
-        return v
-
-
 class AttentionBlock(nn.Module):
     def __init__(self,
                  in_channels: int,
@@ -808,5 +678,3 @@ class AttentionBlock(nn.Module):
 
     def _forward(self, x: torch.Tensor, context: torch.Tensor = None) -> torch.Tensor:
         return self.attn(x, context)
-
-

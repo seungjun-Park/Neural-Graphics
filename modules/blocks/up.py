@@ -30,30 +30,22 @@ class UpBlock(nn.Module):
 
         out_channels = out_channels if out_channels is not None else in_channels
 
-        self.dw_conv = conv_nd(
-            dim,
-            in_channels,
-            in_channels,
-            kernel_size=7,
-            stride=1,
-            padding=3,
-            groups=in_channels,
-        )
-
         self.norm = group_norm(in_channels, num_groups=num_groups)
-
-        self.pw_conv = conv_nd(
+        self.up = conv_nd(
             dim,
             in_channels,
             out_channels,
-            kernel_size=1,
+            kernel_size=3,
+            stride=1,
+            padding=1,
         )
 
     def forward(self, x: torch.Tensor):
         return checkpoint(self._forward, (x,), self.parameters(), flag=self.use_checkpoint)
 
     def _forward(self, x: torch.Tensor):
+        x = self.norm(x)
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
-        x = self.pw_conv(self.norm(self.dw_conv(x)))
+        x = self.up(x)
 
         return x
