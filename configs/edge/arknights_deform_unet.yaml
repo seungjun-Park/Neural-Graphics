@@ -76,6 +76,15 @@ checkpoints:
       mode: 'max'
       save_top_k: 1
 
+  train_checkpoints:
+    target: pytorch_lightning.callbacks.ModelCheckpoint
+    params:
+      dirpath: './checkpoints/sd/arknights'
+      filename: 'sd_train'
+      monitor: 'train/total_loss'
+      mode: 'min'
+      save_top_k: 1
+
   best_checkpoint:
     target: pytorch_lightning.callbacks.ModelCheckpoint
     params:
@@ -89,3 +98,4 @@ trainer:
   accelerator: 'gpu'
   max_epochs: 500
   accumulate_grad_batches: 5
+  ckpt_path: './checkpoints/sd/arknights/sd.ckpt'

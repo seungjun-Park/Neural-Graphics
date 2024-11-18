@@ -295,19 +295,6 @@ class SketchDetectionNetwork(pl.LightningModule):
             nn.Sigmoid(),
         )
 
-        # self.out = nn.Sequential(
-        #     group_norm(in_ch, num_groups=num_groups),
-        #     get_act(act),
-        #     conv_nd(
-        #         dim,
-        #         in_ch,
-        #         out_channels,
-        #         kernel_size=3,
-        #         padding=1,
-        #     ),
-        #     nn.Sigmoid(),
-        # )
-
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
         keys = list(sd.keys())
