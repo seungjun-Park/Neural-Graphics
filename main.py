@@ -123,7 +123,7 @@ def test():
     model = instantiate_from_config(config.module).eval().to(device)
 
     # data_path = './datasets/arknights_v2/train/surtr/images'
-    data_path = './datasets/wakamo/val/images'
+    data_path = '/local_datasets/wakamo/val/images'
     file_names = glob.glob(f'{data_path}/*.*')
     with torch.no_grad():
         for name in tqdm.tqdm(file_names):
