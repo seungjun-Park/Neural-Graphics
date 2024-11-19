@@ -126,6 +126,7 @@ def test():
     file_names = glob.glob(f'{data_path}/*.*')
     with torch.no_grad():
         for i, name in enumerate(file_names):
+            print(i)
             img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
