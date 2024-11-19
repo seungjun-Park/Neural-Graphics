@@ -10,6 +10,7 @@ import torch.cuda
 import torch.nn.functional as F
 
 import torchvision
+import tqdm
 from omegaconf import OmegaConf
 import torch
 import pytorch_lightning as pl
@@ -122,14 +123,14 @@ def test():
     model = instantiate_from_config(config.module).eval().to(device)
 
     # data_path = './datasets/arknights_v2/train/surtr/images'
-    data_path = './wakamo/val/images'
+    data_path = './datasets/wakamo/val/images'
     file_names = glob.glob(f'{data_path}/*.*')
     with torch.no_grad():
-        for i, name in enumerate(file_names):
+        for name in tqdm.tqdm(file_names):
             img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
-            img = torchvision.transforms.transforms.Resize(512)(img)
+            img = torchvision.transforms.transforms.Resize(1024)(img)
             c, h, w = img.shape
             if w % 8 != 0:
                 w = math.ceil(w / 8) * 8
