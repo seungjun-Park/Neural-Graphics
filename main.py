@@ -121,15 +121,21 @@ def test():
     device = torch.device('cuda')
     model = instantiate_from_config(config.module).eval().to(device)
 
-    data_path = './datasets/arknights_v2/train/amiya/images'
-    # data_path = './datasets/BIPEDv3/edges/imgs/train/rgbr/real'
+    # data_path = './datasets/arknights_v2/train/surtr/images'
+    data_path = '/local_datasets/wakamo/val/images'
     file_names = glob.glob(f'{data_path}/*.*')
     with torch.no_grad():
         for i, name in enumerate(file_names):
             img = cv2.imread(f'{name}', cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = torchvision.transforms.transforms.ToTensor()(img).to(device)
-            img = torchvision.transforms.transforms.RandomResizedCrop([1024, 1024])(img)
+            img = torchvision.transforms.transforms.Resize(1024)(img)
+            c, h, w = img.shape
+            if w % 8 != 0:
+                w = math.ceil(w / 8) * 8
+            if h % 8 != 0:
+                h = math.ceil(h / 8) * 8
+            img = torchvision.transforms.transforms.Resize([h, w])(img)
             img = img.unsqueeze(0)
             img = model(img)
             img = img.detach().cpu()
@@ -145,7 +151,7 @@ def test():
 
 
 if __name__ == '__main__':
-    main()
-    # test()
+    # main()
+    test()
     # classification_test()
     # eips_test()

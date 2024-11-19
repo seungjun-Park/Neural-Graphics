@@ -7,7 +7,7 @@ module:
     hidden_dims: [ 32, 64, 128, 256 ]
     num_blocks: 1
     dropout: 0.0
-    drop_path: 0.1
+    drop_path: 0.0
     deformable_group_channels: 16
     offset_scale: 1.0
     modulation_type: 'none'
@@ -23,6 +23,7 @@ module:
     weight_decay: 0.0
     lr_decay_epoch: 100
     log_interval: 10
+    ckpt_path: './checkpoints/sd/arknights/sd_train.ckpt'
 
     loss_config:
       target: modules.loss.edge_perceptual.EdgeLPIPSWithDiscriminator
