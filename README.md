@@ -11,3 +11,15 @@ This is a project that study to implement state-of-the-art neural graphics and v
 - [UNet](https://arxiv.org/abs/1505.04597)
 - [NCSN](https://arxiv.org/abs/2011.13456)
 - 
+
+## Cooming soon  
+- [NeRF]
+- [InstanceNGP]
+- [DreamFusion]
+- [Magic3D]
+- [Fantasia3D]
+- [ProlificDreamer]
+- [DreamBooth]
+- [MVDream]
+- [SweetDreamer]
+- [RealFusion]
