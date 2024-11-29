@@ -23,4 +23,4 @@ This is a project that study to implement state-of-the-art neural graphics and v
 - [MVDream]
 - [SweetDreamer]
 - [RealFusion]
-- [SoftRasterizer]
+- [3DGS]
